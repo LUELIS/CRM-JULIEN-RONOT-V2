@@ -17,6 +17,20 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Build arguments for Next.js build
+ARG DATABASE_URL
+ARG NEXTAUTH_SECRET
+ARG NEXTAUTH_URL
+ARG DOCUSEAL_API_KEY
+ARG DOCUSEAL_API_URL
+
+# Set environment variables for build
+ENV DATABASE_URL=${DATABASE_URL}
+ENV NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+ENV NEXTAUTH_URL=${NEXTAUTH_URL}
+ENV DOCUSEAL_API_KEY=${DOCUSEAL_API_KEY}
+ENV DOCUSEAL_API_URL=${DOCUSEAL_API_URL}
+
 # Generate Prisma client
 RUN npx prisma generate
 
