@@ -1,0 +1,323 @@
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+
+export async function GET() {
+  try {
+    const tenant = await prisma.tenants.findFirst({
+      where: { id: BigInt(1) },
+    })
+
+    if (!tenant) {
+      return NextResponse.json(
+        { error: "Tenant non trouvé" },
+        { status: 404 }
+      )
+    }
+
+    // Parse settings JSON and map snake_case to camelCase
+    let rawSettings: Record<string, unknown> = {}
+    try {
+      if (tenant.settings) {
+        rawSettings = JSON.parse(tenant.settings)
+      }
+    } catch {
+      rawSettings = {}
+    }
+
+    // Map old snake_case keys to new camelCase keys for compatibility
+    const settings: Record<string, unknown> = {
+      // Company
+      ownerName: rawSettings.ownerName || rawSettings.owner_name || "",
+      siret: rawSettings.siret || rawSettings.siret || "",
+      city: rawSettings.city || "",
+      postalCode: rawSettings.postalCode || rawSettings.postal_code || "",
+      website: rawSettings.website || "",
+
+      // Bank / Payment
+      bankName: rawSettings.bankName || rawSettings.bank_name || "",
+      bankAccountHolder: rawSettings.bankAccountHolder || rawSettings.bank_account_holder || "",
+      iban: rawSettings.iban || rawSettings.bank_iban || "",
+      bic: rawSettings.bic || rawSettings.bank_bic || "",
+      paymentTerms: rawSettings.paymentTerms || rawSettings.payment_terms || 30,
+      lateFee: rawSettings.lateFee || rawSettings.late_fee || 10,
+
+      // Invoice
+      invoicePrefix: rawSettings.invoicePrefix || rawSettings.invoice_prefix || "FAC",
+      quotePrefix: rawSettings.quotePrefix || rawSettings.quote_prefix || "DEV",
+      nextInvoiceNumber: rawSettings.nextInvoiceNumber || rawSettings.next_invoice_number || 1,
+      nextQuoteNumber: rawSettings.nextQuoteNumber || rawSettings.next_quote_number || 1,
+      invoiceNumberFormat: rawSettings.invoiceNumberFormat || rawSettings.invoice_number_format || "{PREFIX}-{YEAR}-{NUMBER}",
+      quoteNumberFormat: rawSettings.quoteNumberFormat || rawSettings.quote_number_format || "{PREFIX}-{YEAR}-{NUMBER}",
+      invoiceFooter: rawSettings.invoiceFooter || rawSettings.invoice_footer_text || "",
+      quoteFooter: rawSettings.quoteFooter || rawSettings.quote_footer_text || "",
+      legalMentions: rawSettings.legalMentions || rawSettings.legal_mentions || "",
+      defaultVatRate: rawSettings.defaultVatRate || rawSettings.default_vat_rate || 20,
+
+      // SMTP / Email
+      smtpHost: rawSettings.smtpHost || rawSettings.smtp_host || "",
+      smtpPort: rawSettings.smtpPort || rawSettings.smtp_port || 587,
+      smtpUsername: rawSettings.smtpUsername || rawSettings.smtp_username || "",
+      smtpPassword: rawSettings.smtpPassword || rawSettings.smtp_password || "",
+      smtpEncryption: rawSettings.smtpEncryption || rawSettings.smtp_encryption || "tls",
+      smtpFromAddress: rawSettings.smtpFromAddress || rawSettings.smtp_from_address || "",
+      smtpFromName: rawSettings.smtpFromName || rawSettings.smtp_from_name || "",
+
+      // Goals
+      monthlyGoal: rawSettings.monthlyGoal || rawSettings.monthly_goal || null,
+      monthlyGoalMode: rawSettings.monthlyGoalMode || rawSettings.monthly_goal_mode || "auto",
+
+      // OVH
+      ovhAppKey: rawSettings.ovhAppKey || rawSettings.ovh_app_key || "",
+      ovhAppSecret: rawSettings.ovhAppSecret || rawSettings.ovh_app_secret || "",
+      ovhConsumerKey: rawSettings.ovhConsumerKey || rawSettings.ovh_consumer_key || "",
+      ovhEndpoint: rawSettings.ovhEndpoint || rawSettings.ovh_endpoint || "ovh-eu",
+
+      // Cloudflare
+      cloudflareApiToken: rawSettings.cloudflareApiToken || rawSettings.cloudflare_api_token || "",
+
+      // Slack
+      slackEnabled: rawSettings.slackEnabled || rawSettings.slack_enabled || false,
+      slackWebhookUrl: rawSettings.slackWebhookUrl || rawSettings.slack_webhook_url || "",
+      slackBotToken: rawSettings.slackBotToken || rawSettings.slack_bot_token || "",
+      slackChannelId: rawSettings.slackChannelId || rawSettings.slack_channel_id || "",
+      slackNotifyOnNew: rawSettings.slackNotifyOnNew || rawSettings.slack_notify_on_new || false,
+      slackNotifyOnReply: rawSettings.slackNotifyOnReply || rawSettings.slack_notify_on_reply || false,
+      slackNotifyOnAssign: rawSettings.slackNotifyOnAssign || rawSettings.slack_notify_on_assign || false,
+    }
+
+    return NextResponse.json({
+      id: tenant.id.toString(),
+      name: tenant.name,
+      slug: tenant.slug,
+      domain: tenant.domain,
+      email: tenant.email,
+      phone: tenant.phone,
+      address: tenant.address,
+      logo: tenant.logo,
+      timezone: tenant.timezone,
+      currency: tenant.currency,
+      status: tenant.status,
+      settings,
+    })
+  } catch (error) {
+    console.error("Error fetching settings:", error)
+    return NextResponse.json(
+      { error: "Erreur lors de la récupération des paramètres" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+
+    // Get current settings
+    const tenant = await prisma.tenants.findFirst({
+      where: { id: BigInt(1) },
+    })
+
+    let currentSettings: Record<string, unknown> = {}
+    try {
+      if (tenant?.settings) {
+        currentSettings = JSON.parse(tenant.settings)
+      }
+    } catch {
+      currentSettings = {}
+    }
+
+    // Handle different sections
+    if (body.section === "company") {
+      const updatedSettings = {
+        ...currentSettings,
+        ownerName: body.ownerName || "",
+        siret: body.siret || "",
+        city: body.city || "",
+        postalCode: body.postalCode || "",
+        website: body.website || "",
+      }
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          name: body.name,
+          email: body.email,
+          phone: body.phone || null,
+          address: body.address || null,
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.section === "goals") {
+      const updatedSettings = {
+        ...currentSettings,
+        monthlyGoal: body.monthlyGoal || null,
+        monthlyGoalMode: body.monthlyGoalMode || "auto",
+      }
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.section === "email") {
+      const updatedSettings = {
+        ...currentSettings,
+        smtpHost: body.smtpHost || "",
+        smtpPort: body.smtpPort || 587,
+        smtpUsername: body.smtpUsername || "",
+        smtpPassword: body.smtpPassword || currentSettings.smtpPassword || "",
+        smtpEncryption: body.smtpEncryption || "tls",
+        smtpFromAddress: body.smtpFromAddress || "",
+        smtpFromName: body.smtpFromName || "",
+      }
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.section === "payment") {
+      const updatedSettings = {
+        ...currentSettings,
+        bankName: body.bankName || "",
+        bankAccountHolder: body.bankAccountHolder || "",
+        iban: body.iban || "",
+        bic: body.bic || "",
+        paymentTerms: body.paymentTerms || 30,
+        lateFee: body.lateFee || 10,
+      }
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.section === "invoice") {
+      const updatedSettings = {
+        ...currentSettings,
+        invoicePrefix: body.invoicePrefix || "FAC",
+        quotePrefix: body.quotePrefix || "DEV",
+        nextInvoiceNumber: body.nextInvoiceNumber ?? currentSettings.nextInvoiceNumber ?? 1,
+        nextQuoteNumber: body.nextQuoteNumber ?? currentSettings.nextQuoteNumber ?? 1,
+        invoiceNumberFormat: body.invoiceNumberFormat || "{PREFIX}-{YEAR}-{NUMBER}",
+        quoteNumberFormat: body.quoteNumberFormat || "{PREFIX}-{YEAR}-{NUMBER}",
+        invoiceFooter: body.invoiceFooter || "",
+        quoteFooter: body.quoteFooter || "",
+        legalMentions: body.legalMentions || "",
+        defaultVatRate: body.defaultVatRate || 20,
+      }
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.section === "ovh") {
+      // Pour OVH, on remplace toujours toutes les valeurs fournies
+      const updatedSettings = {
+        ...currentSettings,
+        ovhAppKey: body.ovhAppKey ?? currentSettings.ovhAppKey ?? "",
+        ovhAppSecret: body.ovhAppSecret ?? currentSettings.ovhAppSecret ?? "",
+        ovhConsumerKey: body.ovhConsumerKey ?? currentSettings.ovhConsumerKey ?? "",
+        ovhEndpoint: body.ovhEndpoint || "ovh-eu",
+      }
+
+      console.log("Saving OVH settings:", {
+        appKey: updatedSettings.ovhAppKey,
+        consumerKey: updatedSettings.ovhConsumerKey,
+      })
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.section === "cloudflare") {
+      const updatedSettings = {
+        ...currentSettings,
+        cloudflareApiToken: body.cloudflareApiToken ?? currentSettings.cloudflareApiToken ?? "",
+      }
+
+      console.log("Saving Cloudflare settings")
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.section === "slack") {
+      const updatedSettings = {
+        ...currentSettings,
+        slackEnabled: body.slackEnabled || false,
+        slackWebhookUrl: body.slackWebhookUrl || "",
+        slackBotToken: body.slackBotToken || "",
+        slackChannelId: body.slackChannelId || "",
+        slackNotifyOnNew: body.slackNotifyOnNew || false,
+        slackNotifyOnReply: body.slackNotifyOnReply || false,
+        slackNotifyOnAssign: body.slackNotifyOnAssign || false,
+      }
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    return NextResponse.json(
+      { error: "Section non reconnue" },
+      { status: 400 }
+    )
+  } catch (error) {
+    console.error("Error updating settings:", error)
+    return NextResponse.json(
+      { error: "Erreur lors de la mise à jour des paramètres" },
+      { status: 500 }
+    )
+  }
+}

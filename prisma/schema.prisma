@@ -1,0 +1,1546 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id                             BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id                      BigInt?          @db.UnsignedBigInt
+  role                           users_role       @default(tenant_user)
+  permissions                    String?          @db.LongText
+  name                           String           @db.VarChar(255)
+  email                          String           @db.VarChar(255)
+  slackUserId                    String?          @map("slack_user_id") @db.VarChar(255)
+  emailVerifiedAt                DateTime?        @map("email_verified_at") @db.Timestamp(0)
+  password                       String           @db.VarChar(255)
+  clientId                       BigInt?          @map("client_id") @db.UnsignedBigInt
+  isActive                       Boolean          @default(true) @map("is_active")
+  lastLoginAt                    DateTime?        @map("last_login_at") @db.Timestamp(0)
+  rememberToken                  String?          @map("remember_token") @db.VarChar(100)
+  passwordResetToken             String?          @map("password_reset_token") @db.VarChar(255)
+  passwordResetExpires           DateTime?        @map("password_reset_expires") @db.Timestamp(0)
+  isPrimaryUser                  Boolean          @default(false) @map("is_primary_user")
+  invitationToken                String?          @map("invitation_token") @db.VarChar(255)
+  invitationExpires              DateTime?        @map("invitation_expires") @db.Timestamp(0)
+  invitedBy                      BigInt?          @map("invited_by") @db.UnsignedBigInt
+  createdAt                      DateTime?        @map("created_at") @db.Timestamp(0)
+  updatedAt                      DateTime?        @updatedAt @map("updated_at") @db.Timestamp(0)
+  clients_clients_user_idTousers Client[]         @relation("clients_user_idTousers")
+  ticketMessages                 TicketMessage[]
+  ticket_reminders               TicketReminder[]
+  assignedTickets                Ticket[]         @relation("AssignedTickets")
+  user_tenants                   user_tenants[]
+  client                         Client?          @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "users_client_id_foreign")
+  tenants                        tenants?         @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "users_tenant_id_foreign")
+
+  @@unique([tenant_id, email, role], map: "users_tenant_email_role_unique")
+  @@index([clientId], map: "users_client_id_foreign")
+  @@map("users")
+}
+
+model Client {
+  id                           BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id                    BigInt                 @db.UnsignedBigInt
+  externalId                   String?                @map("external_id") @db.VarChar(255)
+  client_type                  clients_client_type    @default(company)
+  companyName                  String                 @map("company_name") @db.VarChar(255)
+  first_name                   String?                @db.VarChar(255)
+  last_name                    String?                @db.VarChar(255)
+  siret                        String?                @unique(map: "clients_siret_unique") @db.VarChar(255)
+  siren                        String?                @db.VarChar(255)
+  vatNumber                    String?                @map("vat_number") @db.VarChar(255)
+  apeCode                      String?                @map("ape_code") @db.VarChar(255)
+  legalForm                    String?                @map("legal_form") @db.VarChar(255)
+  capital                      Decimal?               @db.Decimal(15, 2)
+  address                      String?                @db.Text
+  postalCode                   String?                @map("postal_code") @db.VarChar(255)
+  zip                          String?                @db.VarChar(255)
+  city                         String?                @db.VarChar(255)
+  state                        String?                @db.VarChar(255)
+  country                      String                 @default("France") @db.VarChar(255)
+  phone                        String?                @db.VarChar(255)
+  email                        String?                @db.VarChar(255)
+  website                      String?                @db.VarChar(255)
+  contactFirstname             String?                @map("contact_firstname") @db.VarChar(255)
+  contactLastname              String?                @map("contact_lastname") @db.VarChar(255)
+  contactEmail                 String?                @map("contact_email") @db.VarChar(255)
+  contactPhone                 String?                @map("contact_phone") @db.VarChar(255)
+  notes                        String?                @db.Text
+  status                       ClientStatus           @default(prospect)
+  user_id                      BigInt?                @db.UnsignedBigInt
+  createdAt                    DateTime?              @map("created_at") @db.Timestamp(0)
+  updatedAt                    DateTime?              @updatedAt @map("updated_at") @db.Timestamp(0)
+  services                     ClientService[]
+  tenants                      tenants                @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "clients_tenant_id_foreign")
+  users_clients_user_idTousers User?                  @relation("clients_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction, map: "clients_user_id_foreign")
+  emails                       Email[]
+  invoices                     Invoice[]
+  quotes                       Quote[]
+  recurring_transactions       RecurringTransaction[]
+  subscriptions                Subscription[]
+  ticket_messages              TicketMessage[]
+  tickets                      Ticket[]
+  users                        User[]
+  domains                      Domain[]
+  contracts                    Contract[]
+
+  @@index([tenant_id, externalId], map: "clients_tenant_id_external_id_index")
+  @@index([tenant_id], map: "clients_tenant_id_index")
+  @@index([user_id], map: "clients_user_id_foreign")
+  @@map("clients")
+}
+
+model ServiceCategory {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id   BigInt    @db.UnsignedBigInt
+  name        String    @db.VarChar(255)
+  slug        String    @db.VarChar(255)
+  color       String    @default("#6B7280") @db.VarChar(255)
+  icon        String?   @db.VarChar(255)
+  description String?   @db.Text
+  sortOrder   Int       @default(0) @map("sort_order")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime? @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+  tenants     tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "service_categories_tenant_id_foreign")
+  services    Service[]
+
+  @@unique([tenant_id, slug], map: "service_categories_tenant_slug_unique")
+  @@index([tenant_id], map: "service_categories_tenant_id_index")
+  @@index([tenant_id, slug], map: "service_categories_tenant_id_slug_index")
+  @@map("service_categories")
+}
+
+model Service {
+  id                BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id         BigInt             @db.UnsignedBigInt
+  code              String             @unique(map: "services_code_unique") @db.VarChar(255)
+  name              String             @db.VarChar(255)
+  categoryId        BigInt?            @map("category_id") @db.UnsignedBigInt
+  description       String?            @db.Text
+  unitPriceHt       Decimal            @map("unit_price_ht") @db.Decimal(10, 2)
+  vatRate           Decimal            @default(20.00) @map("vat_rate") @db.Decimal(5, 2)
+  unit              String             @default("unité") @db.VarChar(255)
+  isActive          Boolean            @default(true) @map("is_active")
+  createdAt         DateTime?          @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime?          @updatedAt @map("updated_at") @db.Timestamp(0)
+  isRecurring       Boolean            @default(false) @map("is_recurring")
+  clients           ClientService[]
+  invoiceItems      InvoiceItem[]
+  quoteItems        QuoteItem[]
+  category          ServiceCategory?   @relation(fields: [categoryId], references: [id], onUpdate: NoAction, map: "services_category_id_foreign")
+  tenants           tenants            @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "services_tenant_id_foreign")
+  subscriptionItems SubscriptionItem[]
+
+  @@index([categoryId], map: "services_category_id_foreign")
+  @@index([tenant_id], map: "services_tenant_id_index")
+  @@map("services")
+}
+
+model ClientService {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  clientId        BigInt    @map("client_id") @db.UnsignedBigInt
+  serviceId       BigInt    @map("service_id") @db.UnsignedBigInt
+  custom_price_ht Decimal?  @db.Decimal(10, 2)
+  quantity        Decimal   @default(1.00) @db.Decimal(10, 2)
+  is_active       Boolean   @default(true)
+  startDate       DateTime? @map("start_date") @db.Date
+  endDate         DateTime? @map("end_date") @db.Date
+  notes           String?   @db.Text
+  createdAt       DateTime? @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_service_client_id_foreign")
+  service         Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_service_service_id_foreign")
+
+  @@index([clientId, is_active], map: "client_service_client_id_is_active_index")
+  @@index([serviceId, is_active], map: "client_service_service_id_is_active_index")
+  @@map("client_service")
+}
+
+model Invoice {
+  id                                 BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id                          BigInt                  @db.UnsignedBigInt
+  externalId                         String?                 @map("external_id") @db.VarChar(255)
+  publicToken                        String?                 @unique(map: "invoices_public_token_unique") @map("public_token") @db.VarChar(64)
+  invoiceNumber                      String                  @map("invoice_number") @db.VarChar(255)
+  invoice_type                       invoices_invoice_type   @default(standard)
+  deposit_percentage                 Decimal?                @db.Decimal(5, 2)
+  deposit_invoice_id                 BigInt?                 @db.UnsignedBigInt
+  clientId                           BigInt                  @map("client_id") @db.UnsignedBigInt
+  type                               InvoiceType             @default(standard)
+  status                             String?                 @default("draft") @db.VarChar(20)
+  issueDate                          DateTime                @map("issue_date") @db.Date
+  dueDate                            DateTime                @map("due_date") @db.Date
+  paymentDate                        DateTime?               @map("payment_date") @db.Date
+  paymentMethod                      String?                 @map("payment_method") @db.VarChar(255)
+  debit_date                         DateTime?               @db.Date
+  payment_link                       String?                 @db.Text
+  payment_notes                      String?                 @db.Text
+  first_viewed_at                    DateTime?               @db.Timestamp(0)
+  lastViewedAt                       DateTime?               @map("last_viewed_at") @db.Timestamp(0)
+  viewCount                          Int                     @default(0) @map("view_count")
+  sentAt                             DateTime?               @map("sent_at") @db.Timestamp(0)
+  subtotalHt                         Decimal                 @default(0.00) @map("subtotal_ht") @db.Decimal(10, 2)
+  taxAmount                          Decimal                 @default(0.00) @map("tax_amount") @db.Decimal(10, 2)
+  totalTtc                           Decimal                 @default(0.00) @map("total_ttc") @db.Decimal(10, 2)
+  discount_type                      invoices_discount_type?
+  discount_value                     Decimal?                @db.Decimal(10, 2)
+  discountAmount                     Decimal                 @default(0.00) @map("discount_amount") @db.Decimal(10, 2)
+  subtotal_after_discount            Decimal                 @default(0.00) @db.Decimal(10, 2)
+  total_ttc_after_discount           Decimal                 @default(0.00) @db.Decimal(10, 2)
+  notes                              String?                 @db.Text
+  paymentTerms                       String?                 @map("payment_terms") @db.Text
+  recurringFrequency                 RecurringFrequency?     @map("recurring_frequency")
+  nextRecurringDate                  DateTime?               @map("next_recurring_date") @db.Date
+  pdfPath                            String?                 @map("pdf_path") @db.VarChar(255)
+  quoteId                            BigInt?                 @map("quote_id") @db.UnsignedBigInt
+  createdAt                          DateTime?               @map("created_at") @db.Timestamp(0)
+  updatedAt                          DateTime?               @updatedAt @map("updated_at") @db.Timestamp(0)
+  bank_transactions                  BankTransaction[]
+  items                              InvoiceItem[]
+  views                              InvoiceView[]
+  client                             Client                  @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "invoices_client_id_foreign")
+  invoices                           Invoice?                @relation("invoicesToinvoices", fields: [deposit_invoice_id], references: [id], onUpdate: NoAction, map: "invoices_deposit_invoice_id_foreign")
+  other_invoices                     Invoice[]               @relation("invoicesToinvoices")
+  quote                              Quote?                  @relation(fields: [quoteId], references: [id], onUpdate: NoAction, map: "invoices_quote_id_foreign")
+  tenants                            tenants                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "invoices_tenant_id_foreign")
+  quotes_quotes_invoice_idToinvoices Quote[]                 @relation("quotes_invoice_idToinvoices")
+  subscription                       Subscription[]          @relation("LastInvoice")
+
+  @@unique([tenant_id, invoiceNumber], map: "invoices_tenant_invoice_number_unique")
+  @@index([clientId], map: "invoices_client_id_foreign")
+  @@index([deposit_invoice_id], map: "invoices_deposit_invoice_id_foreign")
+  @@index([publicToken], map: "invoices_public_token_index")
+  @@index([quoteId], map: "invoices_quote_id_foreign")
+  @@index([tenant_id, externalId], map: "invoices_tenant_id_external_id_index")
+  @@index([tenant_id], map: "invoices_tenant_id_index")
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id   BigInt    @db.UnsignedBigInt
+  invoiceId   BigInt    @map("invoice_id") @db.UnsignedBigInt
+  serviceId   BigInt?   @map("service_id") @db.UnsignedBigInt
+  description String    @db.Text
+  quantity    Decimal   @db.Decimal(10, 2)
+  unit        String    @default("unité") @db.VarChar(255)
+  unit_price  Decimal?  @db.Decimal(10, 2)
+  unitPriceHt Decimal   @map("unit_price_ht") @db.Decimal(10, 2)
+  vatRate     Decimal   @default(20.00) @map("vat_rate") @db.Decimal(5, 2)
+  tax_rate    Decimal?  @db.Decimal(5, 2)
+  taxAmount   Decimal   @default(0.00) @map("tax_amount") @db.Decimal(10, 2)
+  totalHt     Decimal   @map("total_ht") @db.Decimal(10, 2)
+  totalTtc    Decimal   @map("total_ttc") @db.Decimal(10, 2)
+  createdAt   DateTime? @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "invoice_items_invoice_id_foreign")
+  service     Service?  @relation(fields: [serviceId], references: [id], onUpdate: NoAction, map: "invoice_items_service_id_foreign")
+  tenants     tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "invoice_items_tenant_id_foreign")
+
+  @@index([invoiceId], map: "invoice_items_invoice_id_foreign")
+  @@index([serviceId], map: "invoice_items_service_id_foreign")
+  @@index([tenant_id], map: "invoice_items_tenant_id_index")
+  @@map("invoice_items")
+}
+
+model InvoiceView {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  invoiceId        BigInt    @map("invoice_id") @db.UnsignedBigInt
+  ipAddress        String?   @map("ip_address") @db.VarChar(45)
+  userAgent        String?   @map("user_agent") @db.Text
+  country          String?   @db.VarChar(2)
+  city             String?   @db.VarChar(100)
+  browser          String?   @db.VarChar(50)
+  platform         String?   @db.VarChar(50)
+  device_type      String?   @db.VarChar(20)
+  duration_seconds Int?
+  pdf_downloaded   Boolean   @default(false)
+  viewedAt         DateTime  @map("viewed_at") @db.Timestamp(0)
+  created_at       DateTime? @db.Timestamp(0)
+  updated_at       DateTime? @db.Timestamp(0)
+  invoice          Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "invoice_views_invoice_id_foreign")
+
+  @@index([invoiceId], map: "invoice_views_invoice_id_index")
+  @@index([invoiceId, viewedAt], map: "invoice_views_invoice_id_viewed_at_index")
+  @@index([viewedAt], map: "invoice_views_viewed_at_index")
+  @@map("invoice_views")
+}
+
+model Quote {
+  id                                   BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id                            BigInt        @db.UnsignedBigInt
+  externalId                           String?       @map("external_id") @db.VarChar(255)
+  publicToken                          String?       @unique(map: "quotes_public_token_unique") @map("public_token") @db.VarChar(64)
+  quoteNumber                          String        @map("quote_number") @db.VarChar(255)
+  clientId                             BigInt        @map("client_id") @db.UnsignedBigInt
+  status                               quotes_status @default(draft)
+  issueDate                            DateTime      @map("issue_date") @db.Date
+  validityDate                         DateTime      @map("validity_date") @db.Date
+  subtotalHt                           Decimal       @default(0.00) @map("subtotal_ht") @db.Decimal(10, 2)
+  taxAmount                            Decimal       @default(0.00) @map("tax_amount") @db.Decimal(10, 2)
+  totalTtc                             Decimal       @default(0.00) @map("total_ttc") @db.Decimal(10, 2)
+  invoiceId                            BigInt?       @map("invoice_id") @db.UnsignedBigInt
+  notes                                String?       @db.Text
+  termsConditions                      String?       @map("terms_conditions") @db.Text
+  pdfPath                              String?       @map("pdf_path") @db.VarChar(255)
+  createdAt                            DateTime?     @map("created_at") @db.Timestamp(0)
+  updatedAt                            DateTime?     @updatedAt @map("updated_at") @db.Timestamp(0)
+  first_viewed_at                      DateTime?     @db.Timestamp(0)
+  lastViewedAt                         DateTime?     @map("last_viewed_at") @db.Timestamp(0)
+  viewCount                            Int           @default(0) @map("view_count")
+  sent_at                              DateTime?     @db.Timestamp(0)
+  signature_data                       String?       @db.Text
+  signed_at                            DateTime?     @db.Timestamp(0)
+  signed_by_name                       String?       @db.VarChar(255)
+  signed_by_ip                         String?       @db.VarChar(45)
+  rejectedAt                           DateTime?     @map("rejected_at") @db.Timestamp(0)
+  rejection_reason                     String?       @db.Text
+  invoices                             Invoice[]
+  items                                QuoteItem[]
+  views                                QuoteView[]
+  contracts                            Contract[]
+  client                               Client        @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quotes_client_id_foreign")
+  invoices_quotes_invoice_idToinvoices Invoice?      @relation("quotes_invoice_idToinvoices", fields: [invoiceId], references: [id], onUpdate: NoAction, map: "quotes_invoice_id_foreign")
+  tenants                              tenants       @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quotes_tenant_id_foreign")
+
+  @@unique([tenant_id, quoteNumber], map: "quotes_tenant_quote_number_unique")
+  @@index([clientId], map: "quotes_client_id_foreign")
+  @@index([invoiceId], map: "quotes_invoice_id_foreign")
+  @@index([publicToken], map: "quotes_public_token_index")
+  @@index([status, sent_at], map: "quotes_status_sent_at_index")
+  @@index([tenant_id, externalId], map: "quotes_tenant_id_external_id_index")
+  @@index([tenant_id], map: "quotes_tenant_id_index")
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  quoteId     BigInt    @map("quote_id") @db.UnsignedBigInt
+  serviceId   BigInt?   @map("service_id") @db.UnsignedBigInt
+  title       String?   @db.VarChar(255)
+  description String    @db.Text
+  quantity    Decimal   @db.Decimal(10, 2)
+  unit        String    @default("unité") @db.VarChar(255)
+  unitPriceHt Decimal   @map("unit_price_ht") @db.Decimal(10, 2)
+  vatRate     Decimal   @default(20.00) @map("vat_rate") @db.Decimal(5, 2)
+  totalHt     Decimal   @map("total_ht") @db.Decimal(10, 2)
+  totalTtc    Decimal   @map("total_ttc") @db.Decimal(10, 2)
+  createdAt   DateTime? @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+  quote       Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quote_items_quote_id_foreign")
+  service     Service?  @relation(fields: [serviceId], references: [id], onUpdate: NoAction, map: "quote_items_service_id_foreign")
+
+  @@index([quoteId], map: "quote_items_quote_id_foreign")
+  @@index([serviceId], map: "quote_items_service_id_foreign")
+  @@map("quote_items")
+}
+
+model QuoteView {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  quoteId          BigInt    @map("quote_id") @db.UnsignedBigInt
+  ipAddress        String?   @map("ip_address") @db.VarChar(45)
+  userAgent        String?   @map("user_agent") @db.Text
+  country          String?   @db.VarChar(2)
+  city             String?   @db.VarChar(100)
+  browser          String?   @db.VarChar(50)
+  platform         String?   @db.VarChar(50)
+  device_type      String?   @db.VarChar(20)
+  duration_seconds Int?
+  pdf_downloaded   Boolean   @default(false)
+  viewedAt         DateTime  @map("viewed_at") @db.Timestamp(0)
+  created_at       DateTime? @db.Timestamp(0)
+  updated_at       DateTime? @db.Timestamp(0)
+  quote            Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quote_views_quote_id_foreign")
+
+  @@index([quoteId], map: "quote_views_quote_id_index")
+  @@index([quoteId, viewedAt], map: "quote_views_quote_id_viewed_at_index")
+  @@index([viewedAt], map: "quote_views_viewed_at_index")
+  @@map("quote_views")
+}
+
+model Subscription {
+  id                     BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id              BigInt                 @db.UnsignedBigInt
+  clientId               BigInt                 @map("client_id") @db.UnsignedBigInt
+  subscriptionNumber     String                 @unique(map: "subscriptions_subscription_number_unique") @map("subscription_number") @db.VarChar(255)
+  name                   String                 @db.VarChar(255)
+  description            String?                @db.Text
+  billingCycle           BillingCycle           @map("billing_cycle")
+  customDays             Int?                   @map("custom_days")
+  startDate              DateTime               @map("start_date") @db.Date
+  nextBillingDate        DateTime               @map("next_billing_date") @db.Date
+  endDate                DateTime?              @map("end_date") @db.Date
+  amountHt               Decimal                @default(0.00) @map("amount_ht") @db.Decimal(10, 2)
+  taxRate                Decimal                @default(20.00) @map("tax_rate") @db.Decimal(5, 2)
+  amountTtc              Decimal                @default(0.00) @map("amount_ttc") @db.Decimal(10, 2)
+  status                 SubscriptionStatus     @default(active)
+  autoInvoice            Boolean                @default(true) @map("auto_invoice")
+  autoSend               Boolean                @default(false) @map("auto_send")
+  invoiceDaysBefore      Int                    @default(0) @map("invoice_days_before")
+  lastInvoiceDate        DateTime?              @map("last_invoice_date") @db.Date
+  lastInvoiceId          BigInt?                @map("last_invoice_id") @db.UnsignedBigInt
+  totalInvoicesGenerated Int                    @default(0) @map("total_invoices_generated")
+  notes                  String?                @db.Text
+  createdAt              DateTime?              @map("created_at") @db.Timestamp(0)
+  updatedAt              DateTime?              @updatedAt @map("updated_at") @db.Timestamp(0)
+  recurring_transactions RecurringTransaction[]
+  items                  SubscriptionItem[]
+  client                 Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "subscriptions_client_id_foreign")
+  lastInvoice            Invoice?               @relation("LastInvoice", fields: [lastInvoiceId], references: [id], onUpdate: NoAction, map: "subscriptions_last_invoice_id_foreign")
+  tenants                tenants                @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "subscriptions_tenant_id_foreign")
+
+  @@index([clientId], map: "subscriptions_client_id_index")
+  @@index([lastInvoiceId], map: "subscriptions_last_invoice_id_foreign")
+  @@index([nextBillingDate], map: "subscriptions_next_billing_date_index")
+  @@index([status], map: "subscriptions_status_index")
+  @@index([tenant_id], map: "subscriptions_tenant_id_index")
+  @@index([tenant_id, status, nextBillingDate], map: "subscriptions_tenant_id_status_next_billing_date_index")
+  @@map("subscriptions")
+}
+
+model SubscriptionItem {
+  id             BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  subscriptionId BigInt       @map("subscription_id") @db.UnsignedBigInt
+  serviceId      BigInt?      @map("service_id") @db.UnsignedBigInt
+  description    String       @db.VarChar(255)
+  quantity       Decimal      @default(1.00) @db.Decimal(10, 2)
+  unit           String?      @db.VarChar(255)
+  unitPriceHt    Decimal      @map("unit_price_ht") @db.Decimal(10, 2)
+  tax_rate       Decimal      @default(20.00) @db.Decimal(5, 2)
+  total_ht       Decimal      @db.Decimal(10, 2)
+  total_ttc      Decimal      @db.Decimal(10, 2)
+  is_recurring   Boolean      @default(true)
+  createdAt      DateTime?    @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime?    @updatedAt @map("updated_at") @db.Timestamp(0)
+  service        Service?     @relation(fields: [serviceId], references: [id], onUpdate: NoAction, map: "subscription_items_service_id_foreign")
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "subscription_items_subscription_id_foreign")
+
+  @@index([serviceId], map: "subscription_items_service_id_index")
+  @@index([subscriptionId], map: "subscription_items_subscription_id_index")
+  @@map("subscription_items")
+}
+
+model Ticket {
+  id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id       BigInt           @db.UnsignedBigInt
+  ticketNumber    String           @unique(map: "tickets_ticket_number_unique") @map("ticket_number") @db.VarChar(255)
+  subject         String           @db.VarChar(255)
+  clientId        BigInt?          @map("client_id") @db.UnsignedBigInt
+  senderEmail     String           @map("sender_email") @db.VarChar(255)
+  senderName      String?          @map("sender_name") @db.VarChar(255)
+  status          TicketStatus     @default(new)
+  priority        TicketPriority   @default(normal)
+  assignedTo      BigInt?          @map("assigned_to") @db.UnsignedBigInt
+  tags            String?          @db.Text
+  firstResponseAt DateTime?        @map("first_response_at") @db.Timestamp(0)
+  resolvedAt      DateTime?        @map("resolved_at") @db.Timestamp(0)
+  closedAt        DateTime?        @map("closed_at") @db.Timestamp(0)
+  lastActivityAt  DateTime?        @map("last_activity_at") @db.Timestamp(0)
+  responseCount   Int              @default(0) @map("response_count")
+  emailMessageId  String?          @map("email_message_id") @db.VarChar(255)
+  slackTs         String?          @map("slack_ts") @db.VarChar(255)
+  createdAt       DateTime?        @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime?        @updatedAt @map("updated_at") @db.Timestamp(0)
+  messages        TicketMessage[]
+  reminders       TicketReminder[]
+  assignee        User?            @relation("AssignedTickets", fields: [assignedTo], references: [id], onUpdate: NoAction, map: "tickets_assigned_to_foreign")
+  client          Client?          @relation(fields: [clientId], references: [id], onUpdate: NoAction, map: "tickets_client_id_foreign")
+  tenants         tenants          @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tickets_tenant_id_foreign")
+
+  @@index([assignedTo], map: "tickets_assigned_to_foreign")
+  @@index([clientId], map: "tickets_client_id_foreign")
+  @@index([emailMessageId], map: "tickets_email_message_id_index")
+  @@index([tenant_id, assignedTo], map: "tickets_tenant_id_assigned_to_index")
+  @@index([tenant_id, clientId], map: "tickets_tenant_id_client_id_index")
+  @@index([tenant_id, status], map: "tickets_tenant_id_status_index")
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id                 BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  ticketId           BigInt               @map("ticket_id") @db.UnsignedBigInt
+  userId             BigInt?              @map("user_id") @db.UnsignedBigInt
+  client_id          BigInt?              @db.UnsignedBigInt
+  type               ticket_messages_type @default(note)
+  content            String               @db.Text
+  from_email         String?              @db.VarChar(255)
+  from_name          String?              @db.VarChar(255)
+  to_email           String?              @db.VarChar(255)
+  cc_emails          String?              @db.VarChar(255)
+  bcc_emails         String?              @db.VarChar(255)
+  isInternal         Boolean              @default(false) @map("is_internal")
+  emailMessageId     String?              @map("email_message_id") @db.VarChar(255)
+  in_reply_to        String?              @db.VarChar(255)
+  email_headers      String?              @db.Text
+  slackTs            String?              @map("slack_ts") @db.VarChar(255)
+  sent_at            DateTime?            @db.Timestamp(0)
+  is_read            Boolean              @default(false)
+  createdAt          DateTime?            @map("created_at") @db.Timestamp(0)
+  updatedAt          DateTime?            @updatedAt @map("updated_at") @db.Timestamp(0)
+  ticket_attachments TicketAttachment[]
+  clients            Client?              @relation(fields: [client_id], references: [id], onUpdate: NoAction, map: "ticket_messages_client_id_foreign")
+  ticket             Ticket               @relation(fields: [ticketId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "ticket_messages_ticket_id_foreign")
+  user               User?                @relation(fields: [userId], references: [id], onUpdate: NoAction, map: "ticket_messages_user_id_foreign")
+
+  @@index([client_id], map: "ticket_messages_client_id_foreign")
+  @@index([emailMessageId], map: "ticket_messages_email_message_id_index")
+  @@index([ticketId, type], map: "ticket_messages_ticket_id_type_index")
+  @@index([userId], map: "ticket_messages_user_id_foreign")
+  @@map("ticket_messages")
+}
+
+model TicketAttachment {
+  id                BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  ticket_message_id BigInt        @db.UnsignedBigInt
+  filename          String        @db.VarChar(255)
+  originalName      String        @map("original_name") @db.VarChar(255)
+  mimeType          String?       @map("mime_type") @db.VarChar(255)
+  size              Int
+  path              String        @db.VarChar(255)
+  createdAt         DateTime?     @map("created_at") @db.Timestamp(0)
+  updated_at        DateTime?     @db.Timestamp(0)
+  ticket_messages   TicketMessage @relation(fields: [ticket_message_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "ticket_attachments_ticket_message_id_foreign")
+
+  @@index([ticket_message_id], map: "ticket_attachments_ticket_message_id_foreign")
+  @@map("ticket_attachments")
+}
+
+model TicketReminder {
+  id         BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id  BigInt         @db.UnsignedBigInt
+  ticketId   BigInt         @map("ticket_id") @db.UnsignedBigInt
+  created_by BigInt         @db.UnsignedBigInt
+  reminderAt DateTime       @map("reminder_at") @db.DateTime(0)
+  note       String?        @db.Text
+  status     ReminderStatus @default(pending)
+  sentAt     DateTime?      @map("sent_at") @db.DateTime(0)
+  createdAt  DateTime?      @map("created_at") @db.Timestamp(0)
+  updatedAt  DateTime?      @updatedAt @map("updated_at") @db.Timestamp(0)
+  users      User           @relation(fields: [created_by], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "ticket_reminders_created_by_foreign")
+  tenants    tenants        @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "ticket_reminders_tenant_id_foreign")
+  ticket     Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "ticket_reminders_ticket_id_foreign")
+
+  @@index([created_by], map: "ticket_reminders_created_by_foreign")
+  @@index([tenant_id, status, reminderAt], map: "ticket_reminders_tenant_id_status_reminder_at_index")
+  @@index([ticketId, status], map: "ticket_reminders_ticket_id_status_index")
+  @@map("ticket_reminders")
+}
+
+model BankAccount {
+  id                     BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id              BigInt                 @db.UnsignedBigInt
+  bankName               String                 @map("bank_name") @db.VarChar(255)
+  accountName            String                 @map("account_name") @db.VarChar(255)
+  accountNumber          String?                @map("account_number") @db.VarChar(255)
+  iban                   String?                @db.VarChar(255)
+  bic                    String?                @db.VarChar(255)
+  accountType            String?                @default("checking") @map("account_type") @db.VarChar(20)
+  currentBalance         Decimal                @default(0.00) @map("current_balance") @db.Decimal(15, 2)
+  availableBalance       Decimal                @default(0.00) @map("available_balance") @db.Decimal(15, 2)
+  currency               String                 @default("EUR") @db.VarChar(3)
+  status                 BankAccountStatus      @default(active)
+  connectionProvider     String?                @map("connection_provider") @db.VarChar(255)
+  connectionId           String?                @map("connection_id") @db.VarChar(255)
+  connectionToken        String?                @map("connection_token") @db.Text
+  lastSyncAt             DateTime?              @map("last_sync_at") @db.Timestamp(0)
+  syncError              String?                @map("sync_error") @db.LongText
+  isPrimary              Boolean                @default(false) @map("is_primary")
+  displayOrder           Int                    @default(0) @map("display_order")
+  settings               String?                @db.LongText
+  createdAt              DateTime?              @map("created_at") @db.Timestamp(0)
+  updatedAt              DateTime?              @updatedAt @map("updated_at") @db.Timestamp(0)
+  tenants                tenants                @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "bank_accounts_tenant_id_foreign")
+  transactions           BankTransaction[]
+  cashFlowForecasts      CashFlowForecast[]
+  gocardless_connections GocardlessConnection[]
+  recurringTransactions  RecurringTransaction[]
+
+  @@index([lastSyncAt], map: "bank_accounts_last_sync_at_index")
+  @@index([tenant_id, status], map: "bank_accounts_tenant_id_status_index")
+  @@map("bank_accounts")
+}
+
+model BankTransaction {
+  id                       BigInt                   @id @default(autoincrement()) @db.UnsignedBigInt
+  bankAccountId            BigInt                   @map("bank_account_id") @db.UnsignedBigInt
+  tenant_id                BigInt                   @db.UnsignedBigInt
+  transaction_id           String?                  @unique(map: "bank_transactions_transaction_id_unique") @db.VarChar(255)
+  externalId               String?                  @map("external_id") @db.VarChar(255)
+  transactionDate          DateTime                 @map("transaction_date") @db.Date
+  valueDate                DateTime?                @map("value_date") @db.Date
+  amount                   Decimal                  @db.Decimal(15, 2)
+  currency                 String                   @default("EUR") @db.VarChar(3)
+  type                     bank_transactions_type
+  label                    String?                  @db.VarChar(255)
+  description              String?                  @db.Text
+  counterparty_name        String?                  @db.VarChar(255)
+  counterparty_account     String?                  @db.VarChar(255)
+  reference                String?                  @db.VarChar(255)
+  category                 String?                  @db.VarChar(255)
+  sub_category             String?                  @db.VarChar(255)
+  tags                     String?                  @db.LongText
+  isReconciled             Boolean?                 @default(false) @map("is_reconciled")
+  invoice_id               BigInt?                  @db.UnsignedBigInt
+  expense_id               BigInt?                  @db.UnsignedBigInt
+  recurring_transaction_id BigInt?                  @db.UnsignedBigInt
+  balance_after            Decimal?                 @db.Decimal(15, 2)
+  bank_metadata            String?                  @db.LongText
+  raw_data                 String?                  @db.LongText
+  status                   bank_transactions_status @default(completed)
+  is_internal_transfer     Boolean?                 @default(false)
+  related_transaction_id   BigInt?                  @db.UnsignedBigInt
+  createdAt                DateTime?                @map("created_at") @db.Timestamp(0)
+  updatedAt                DateTime?                @updatedAt @map("updated_at") @db.Timestamp(0)
+  bankAccount              BankAccount              @relation(fields: [bankAccountId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "bank_transactions_bank_account_id_foreign")
+  invoices                 Invoice?                 @relation(fields: [invoice_id], references: [id], onUpdate: NoAction, map: "bank_transactions_invoice_id_foreign")
+  tenants                  tenants                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "bank_transactions_tenant_id_foreign")
+
+  @@index([bankAccountId, transactionDate], map: "bank_transactions_bank_account_id_transaction_date_index")
+  @@index([externalId], map: "bank_transactions_external_id_index")
+  @@index([invoice_id], map: "bank_transactions_invoice_id_foreign")
+  @@index([isReconciled], map: "bank_transactions_is_reconciled_index")
+  @@index([tenant_id, category], map: "bank_transactions_tenant_id_category_index")
+  @@index([transactionDate], map: "bank_transactions_transaction_date_index")
+  @@map("bank_transactions")
+}
+
+model RecurringTransaction {
+  id                      BigInt                           @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id               BigInt                           @db.UnsignedBigInt
+  bankAccountId           BigInt?                          @map("bank_account_id") @db.UnsignedBigInt
+  name                    String                           @db.VarChar(255)
+  description             String?                          @db.Text
+  amount                  Decimal                          @db.Decimal(15, 2)
+  type                    recurring_transactions_type
+  category                String?                          @db.VarChar(255)
+  sub_category            String?                          @db.VarChar(255)
+  frequency               recurring_transactions_frequency
+  interval                Int                              @default(1)
+  frequency_details       String?                          @db.LongText
+  start_date              DateTime                         @db.Date
+  end_date                DateTime?                        @db.Date
+  next_occurrence         DateTime?                        @db.Date
+  last_occurrence         DateTime?                        @db.Date
+  client_id               BigInt?                          @db.UnsignedBigInt
+  supplier_id             BigInt?                          @db.UnsignedBigInt
+  subscription_id         BigInt?                          @db.UnsignedBigInt
+  status                  recurring_transactions_status    @default(active)
+  auto_create_transaction Boolean                          @default(false)
+  auto_reconcile          Boolean                          @default(false)
+  occurrences_count       Int                              @default(0)
+  total_amount            Decimal                          @default(0.00) @db.Decimal(15, 2)
+  settings                String?                          @db.LongText
+  createdAt               DateTime?                        @map("created_at") @db.Timestamp(0)
+  updatedAt               DateTime?                        @updatedAt @map("updated_at") @db.Timestamp(0)
+  bankAccount             BankAccount?                     @relation(fields: [bankAccountId], references: [id], onUpdate: NoAction, map: "recurring_transactions_bank_account_id_foreign")
+  clients                 Client?                          @relation(fields: [client_id], references: [id], onUpdate: NoAction, map: "recurring_transactions_client_id_foreign")
+  subscriptions           Subscription?                    @relation(fields: [subscription_id], references: [id], onUpdate: NoAction, map: "recurring_transactions_subscription_id_foreign")
+  tenants                 tenants                          @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "recurring_transactions_tenant_id_foreign")
+
+  @@index([bankAccountId], map: "recurring_transactions_bank_account_id_foreign")
+  @@index([client_id], map: "recurring_transactions_client_id_foreign")
+  @@index([next_occurrence, status], map: "recurring_transactions_next_occurrence_status_index")
+  @@index([subscription_id], map: "recurring_transactions_subscription_id_foreign")
+  @@index([tenant_id, status], map: "recurring_transactions_tenant_id_status_index")
+  @@index([type], map: "recurring_transactions_type_index")
+  @@map("recurring_transactions")
+}
+
+model CashFlowForecast {
+  id                   BigInt                   @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id            BigInt                   @db.UnsignedBigInt
+  bankAccountId        BigInt?                  @map("bank_account_id") @db.UnsignedBigInt
+  forecastDate         DateTime                 @map("forecast_date") @db.Date
+  type                 cash_flow_forecasts_type
+  scenario_name        String?                  @db.VarChar(255)
+  openingBalance       Decimal                  @map("opening_balance") @db.Decimal(15, 2)
+  total_income         Decimal                  @default(0.00) @db.Decimal(15, 2)
+  total_expenses       Decimal                  @default(0.00) @db.Decimal(15, 2)
+  net_cash_flow        Decimal                  @default(0.00) @db.Decimal(15, 2)
+  closingBalance       Decimal                  @map("closing_balance") @db.Decimal(15, 2)
+  income_breakdown     String?                  @db.LongText
+  expense_breakdown    String?                  @db.LongText
+  confidence_score     Int?
+  variance_from_actual Decimal?                 @db.Decimal(15, 2)
+  assumptions          String?                  @db.LongText
+  adjustments          String?                  @db.LongText
+  calculated_at        DateTime                 @db.Timestamp(0)
+  createdAt            DateTime?                @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime?                @updatedAt @map("updated_at") @db.Timestamp(0)
+  bankAccount          BankAccount?             @relation(fields: [bankAccountId], references: [id], onUpdate: NoAction, map: "cash_flow_forecasts_bank_account_id_foreign")
+  tenants              tenants                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "cash_flow_forecasts_tenant_id_foreign")
+
+  @@unique([tenant_id, bankAccountId, forecastDate, type, scenario_name], map: "cf_unique_forecast")
+  @@index([bankAccountId], map: "cash_flow_forecasts_bank_account_id_foreign")
+  @@index([forecastDate, type], map: "cash_flow_forecasts_forecast_date_type_index")
+  @@index([tenant_id, forecastDate], map: "cash_flow_forecasts_tenant_id_forecast_date_index")
+  @@map("cash_flow_forecasts")
+}
+
+model Setting {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  key         String    @unique(map: "settings_key_unique") @db.VarChar(255)
+  value       String?   @db.Text
+  type        String    @default("text") @db.VarChar(255)
+  group       String    @default("general") @db.VarChar(255)
+  description String?   @db.Text
+  createdAt   DateTime? @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@map("settings")
+}
+
+model SupportEmailConfig {
+  id                          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id                   BigInt    @unique(map: "support_email_configs_tenant_id_unique") @db.UnsignedBigInt
+  auth_type                   String    @default("basic") @db.VarChar(255)
+  oauthProvider               String?   @map("oauth_provider") @db.VarChar(255)
+  oauth_client_id             String?   @db.VarChar(255)
+  oauth_client_secret         String?   @db.Text
+  oauth_tenant_id             String?   @db.VarChar(255)
+  oauthAccessToken            String?   @map("oauth_access_token") @db.Text
+  oauthRefreshToken           String?   @map("oauth_refresh_token") @db.Text
+  oauth_token_expires_at      DateTime? @db.Timestamp(0)
+  imapHost                    String    @map("imap_host") @db.VarChar(255)
+  imapPort                    Int       @default(993) @map("imap_port")
+  imap_username               String    @db.VarChar(255)
+  imap_password               String?   @db.VarChar(255)
+  imapEncryption              String    @default("ssl") @map("imap_encryption") @db.VarChar(255)
+  imap_folder                 String    @default("INBOX") @db.VarChar(255)
+  support_email               String    @db.VarChar(255)
+  smtp_from_name              String?   @db.VarChar(255)
+  emailSignature              String?   @map("email_signature") @db.Text
+  slackWebhookUrl             String?   @map("slack_webhook_url") @db.VarChar(255)
+  slack_notifications_enabled Boolean   @default(false)
+  slackBotToken               String?   @map("slack_bot_token") @db.VarChar(255)
+  slack_channel_id            String?   @db.VarChar(255)
+  openaiApiKey                String?   @map("openai_api_key") @db.Text
+  openaiModel                 String    @default("gpt-4o-mini") @map("openai_model") @db.VarChar(255)
+  isActive                    Boolean   @default(true) @map("is_active")
+  lastSyncAt                  DateTime? @map("last_sync_at") @db.Timestamp(0)
+  last_sync_status            String?   @db.VarChar(255)
+  last_sync_error             String?   @db.Text
+  createdAt                   DateTime? @map("created_at") @db.Timestamp(0)
+  updatedAt                   DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+  tenants                     tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "support_email_configs_tenant_id_foreign")
+
+  @@map("support_email_configs")
+}
+
+model Email {
+  id          BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id   BigInt        @db.UnsignedBigInt
+  subject     String        @db.VarChar(255)
+  body        String        @db.Text
+  from_email  String        @db.VarChar(255)
+  to_email    String        @db.VarChar(255)
+  cc          String?       @db.Text
+  bcc         String?       @db.Text
+  attachments String?       @db.LongText
+  status      emails_status @default(pending)
+  sentAt      DateTime?     @map("sent_at") @db.Timestamp(0)
+  opened_at   DateTime?     @db.Timestamp(0)
+  createdAt   DateTime?     @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime?     @updatedAt @map("updated_at") @db.Timestamp(0)
+  clients     Client        @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "emails_client_id_foreign")
+
+  @@index([client_id], map: "emails_client_id_foreign")
+  @@map("emails")
+}
+
+model GocardlessSettings {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id       BigInt    @unique(map: "gocardless_settings_tenant_id_unique") @db.UnsignedBigInt
+  environment     String    @default("sandbox") @db.VarChar(255)
+  secretId        String?   @map("secret_id") @db.Text
+  secretKey       String?   @map("secret_key") @db.Text
+  access_days     Int       @default(90)
+  historical_days Int       @default(90)
+  is_active       Boolean   @default(false)
+  last_tested_at  DateTime? @db.Timestamp(0)
+  test_status     String?   @db.VarChar(255)
+  test_message    String?   @db.Text
+  createdAt       DateTime? @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+  tenants         tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "gocardless_settings_tenant_id_foreign")
+
+  @@map("gocardless_settings")
+}
+
+model GocardlessConnection {
+  id                    BigInt                        @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id             BigInt                        @db.UnsignedBigInt
+  bank_account_id       BigInt?                       @db.UnsignedBigInt
+  requisitionId         String                        @unique(map: "gocardless_connections_requisition_id_unique") @map("requisition_id") @db.VarChar(255)
+  institutionId         String                        @map("institution_id") @db.VarChar(255)
+  institutionName       String                        @map("institution_name") @db.VarChar(255)
+  institution_logo      String?                       @db.VarChar(255)
+  account_id            String?                       @db.VarChar(255)
+  access_token          String?                       @db.Text
+  refresh_token         String?                       @db.Text
+  token_expires_at      DateTime?                     @db.Timestamp(0)
+  link                  String?                       @db.VarChar(255)
+  status                gocardless_connections_status @default(pending)
+  error_message         String?                       @db.Text
+  max_historical_days   Int                           @default(90)
+  access_valid_for_days Int                           @default(90)
+  agreement_accepted_at DateTime?                     @db.Timestamp(0)
+  expiresAt             DateTime?                     @map("expires_at") @db.Timestamp(0)
+  createdAt             DateTime?                     @map("created_at") @db.Timestamp(0)
+  updatedAt             DateTime?                     @updatedAt @map("updated_at") @db.Timestamp(0)
+  bank_accounts         BankAccount?                  @relation(fields: [bank_account_id], references: [id], onUpdate: NoAction, map: "gocardless_connections_bank_account_id_foreign")
+  tenants               tenants                       @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "gocardless_connections_tenant_id_foreign")
+
+  @@index([bank_account_id], map: "gocardless_connections_bank_account_id_foreign")
+  @@index([requisitionId], map: "gocardless_connections_requisition_id_index")
+  @@index([tenant_id, status], map: "gocardless_connections_tenant_id_status_index")
+  @@map("gocardless_connections")
+}
+
+model cache {
+  key        String @id @db.VarChar(255)
+  value      String @db.MediumText
+  expiration Int
+}
+
+model cache_locks {
+  key        String @id @db.VarChar(255)
+  owner      String @db.VarChar(255)
+  expiration Int
+}
+
+model failed_jobs {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  uuid       String   @unique(map: "failed_jobs_uuid_unique") @db.VarChar(255)
+  connection String   @db.Text
+  queue      String   @db.Text
+  payload    String   @db.LongText
+  exception  String   @db.LongText
+  failed_at  DateTime @default(now()) @db.Timestamp(0)
+}
+
+model job_batches {
+  id             String  @id @db.VarChar(255)
+  name           String  @db.VarChar(255)
+  total_jobs     Int
+  pending_jobs   Int
+  failed_jobs    Int
+  failed_job_ids String  @db.LongText
+  options        String? @db.MediumText
+  cancelled_at   Int?
+  created_at     Int
+  finished_at    Int?
+}
+
+model jobs {
+  id           BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  queue        String @db.VarChar(255)
+  payload      String @db.LongText
+  attempts     Int    @db.UnsignedTinyInt
+  reserved_at  Int?   @db.UnsignedInt
+  available_at Int    @db.UnsignedInt
+  created_at   Int    @db.UnsignedInt
+
+  @@index([queue], map: "jobs_queue_index")
+}
+
+model migrations {
+  id        Int    @id @default(autoincrement()) @db.UnsignedInt
+  migration String @db.VarChar(255)
+  batch     Int
+}
+
+model model_has_permissions {
+  permission_id BigInt      @db.UnsignedBigInt
+  model_type    String      @db.VarChar(255)
+  model_id      BigInt      @db.UnsignedBigInt
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "model_has_permissions_permission_id_foreign")
+
+  @@id([permission_id, model_id, model_type])
+  @@index([model_id, model_type], map: "model_has_permissions_model_id_model_type_index")
+}
+
+model model_has_roles {
+  role_id    BigInt @db.UnsignedBigInt
+  model_type String @db.VarChar(255)
+  model_id   BigInt @db.UnsignedBigInt
+  roles      roles  @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "model_has_roles_role_id_foreign")
+
+  @@id([role_id, model_id, model_type])
+  @@index([model_id, model_type], map: "model_has_roles_model_id_model_type_index")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model module_tenant {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  module_id    BigInt    @db.UnsignedBigInt
+  tenant_id    BigInt    @db.UnsignedBigInt
+  settings     String?   @db.LongText
+  is_active    Boolean   @default(true)
+  last_sync_at DateTime? @db.Timestamp(0)
+  created_at   DateTime? @db.Timestamp(0)
+  updated_at   DateTime? @db.Timestamp(0)
+  modules      modules   @relation(fields: [module_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "module_tenant_module_id_foreign")
+  tenants      tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "module_tenant_tenant_id_foreign")
+
+  @@unique([module_id, tenant_id], map: "module_tenant_module_id_tenant_id_unique")
+  @@index([tenant_id], map: "module_tenant_tenant_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model modules {
+  id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  name            String           @db.VarChar(255)
+  slug            String           @unique(map: "modules_slug_unique") @db.VarChar(255)
+  description     String?          @db.VarChar(255)
+  version         String           @default("1.0.0") @db.VarChar(255)
+  features        String?          @db.LongText
+  settings_schema String?          @db.LongText
+  is_active       Boolean          @default(true)
+  is_premium      Boolean          @default(false)
+  price           Decimal?         @db.Decimal(10, 2)
+  created_at      DateTime?        @db.Timestamp(0)
+  updated_at      DateTime?        @db.Timestamp(0)
+  module_tenant   module_tenant[]
+  tenant_modules  tenant_modules[]
+}
+
+model password_reset_tokens {
+  email      String    @id @db.VarChar(255)
+  token      String    @db.VarChar(255)
+  created_at DateTime? @db.Timestamp(0)
+}
+
+model permissions {
+  id                    BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  name                  String                  @db.VarChar(255)
+  guard_name            String                  @db.VarChar(255)
+  created_at            DateTime?               @db.Timestamp(0)
+  updated_at            DateTime?               @db.Timestamp(0)
+  model_has_permissions model_has_permissions[]
+  role_has_permissions  role_has_permissions[]
+
+  @@unique([name, guard_name], map: "permissions_name_guard_name_unique")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model plans {
+  id                   BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  name                 String                 @unique(map: "plans_name_unique") @db.VarChar(255)
+  description          String?                @db.Text
+  price                Decimal                @db.Decimal(10, 2)
+  features             String                 @db.LongText
+  is_active            Boolean                @default(true)
+  created_at           DateTime?              @db.Timestamp(0)
+  updated_at           DateTime?              @db.Timestamp(0)
+  tenant_subscriptions tenant_subscriptions[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rise_crm_configs {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id       BigInt    @unique(map: "rise_crm_configs_tenant_id_unique") @db.UnsignedBigInt
+  api_url         String    @db.VarChar(255)
+  api_key         String?   @db.VarChar(255)
+  api_secret      String?   @db.VarChar(255)
+  auto_sync       Boolean   @default(false)
+  sync_frequency  String    @default("daily") @db.VarChar(255)
+  field_mapping   String?   @db.LongText
+  import_settings String?   @db.LongText
+  last_sync_at    DateTime? @db.Timestamp(0)
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
+  tenants         tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "rise_crm_configs_tenant_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rise_crm_imports {
+  id                BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id         BigInt                  @db.UnsignedBigInt
+  import_type       String                  @db.VarChar(255)
+  status            rise_crm_imports_status @default(pending)
+  total_records     Int                     @default(0)
+  processed_records Int                     @default(0)
+  success_records   Int                     @default(0)
+  failed_records    Int                     @default(0)
+  errors            String?                 @db.LongText
+  mapping           String?                 @db.LongText
+  started_at        DateTime?               @db.Timestamp(0)
+  completed_at      DateTime?               @db.Timestamp(0)
+  created_at        DateTime?               @db.Timestamp(0)
+  updated_at        DateTime?               @db.Timestamp(0)
+  tenants           tenants                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "rise_crm_imports_tenant_id_foreign")
+
+  @@index([tenant_id], map: "rise_crm_imports_tenant_id_foreign")
+}
+
+model role_has_permissions {
+  permission_id BigInt      @db.UnsignedBigInt
+  role_id       BigInt      @db.UnsignedBigInt
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_has_permissions_permission_id_foreign")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_has_permissions_role_id_foreign")
+
+  @@id([permission_id, role_id])
+  @@index([role_id], map: "role_has_permissions_role_id_foreign")
+}
+
+model roles {
+  id                   BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  name                 String                 @db.VarChar(255)
+  guard_name           String                 @db.VarChar(255)
+  created_at           DateTime?              @db.Timestamp(0)
+  updated_at           DateTime?              @db.Timestamp(0)
+  model_has_roles      model_has_roles[]
+  role_has_permissions role_has_permissions[]
+
+  @@unique([name, guard_name], map: "roles_name_guard_name_unique")
+}
+
+model sessions {
+  id            String  @id @db.VarChar(255)
+  user_id       BigInt? @db.UnsignedBigInt
+  ip_address    String? @db.VarChar(45)
+  user_agent    String? @db.Text
+  payload       String  @db.LongText
+  last_activity Int
+
+  @@index([last_activity], map: "sessions_last_activity_index")
+  @@index([user_id], map: "sessions_user_id_index")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model subscription_plans {
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  name           String    @db.VarChar(255)
+  slug           String    @unique(map: "subscription_plans_slug_unique") @db.VarChar(255)
+  description    String?   @db.Text
+  price          Decimal   @db.Decimal(8, 2)
+  yearly_price   Decimal?  @db.Decimal(8, 2)
+  currency       String    @default("EUR") @db.VarChar(255)
+  features       String    @db.LongText
+  max_users      Int       @default(5)
+  max_clients    Int       @default(100)
+  max_storage_gb Int       @default(1)
+  custom_domain  Boolean   @default(false)
+  api_access     Boolean   @default(false)
+  white_label    Boolean   @default(false)
+  is_active      Boolean   @default(true)
+  sort_order     Int       @default(0)
+  created_at     DateTime? @db.Timestamp(0)
+  updated_at     DateTime? @db.Timestamp(0)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tenant_modules {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id    BigInt    @db.UnsignedBigInt
+  module_id    BigInt    @db.UnsignedBigInt
+  is_enabled   Boolean   @default(false)
+  settings     String?   @db.LongText
+  activated_at DateTime? @db.Timestamp(0)
+  expires_at   DateTime? @db.Timestamp(0)
+  created_at   DateTime? @db.Timestamp(0)
+  updated_at   DateTime? @db.Timestamp(0)
+  modules      modules   @relation(fields: [module_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tenant_modules_module_id_foreign")
+  tenants      tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tenant_modules_tenant_id_foreign")
+
+  @@unique([tenant_id, module_id], map: "tenant_modules_tenant_id_module_id_unique")
+  @@index([module_id], map: "tenant_modules_module_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tenant_subscriptions {
+  id         BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id  BigInt                      @db.UnsignedBigInt
+  plan_id    BigInt?                     @db.UnsignedBigInt
+  status     tenant_subscriptions_status @default(trial)
+  starts_at  DateTime                    @db.Timestamp(0)
+  ends_at    DateTime?                   @db.Timestamp(0)
+  price      Decimal?                    @db.Decimal(10, 2)
+  features   String?                     @db.LongText
+  notes      String?                     @db.Text
+  created_at DateTime?                   @db.Timestamp(0)
+  updated_at DateTime?                   @db.Timestamp(0)
+  plans      plans?                      @relation(fields: [plan_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "tenant_subscriptions_plan_id_foreign")
+  tenants    tenants                     @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tenant_subscriptions_tenant_id_foreign")
+
+  @@index([plan_id], map: "tenant_subscriptions_plan_id_foreign")
+  @@index([tenant_id], map: "tenant_subscriptions_tenant_id_foreign")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tenants {
+  id                     BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  name                   String                 @db.VarChar(255)
+  slug                   String                 @unique(map: "tenants_slug_unique") @db.VarChar(255)
+  domain                 String?                @unique(map: "tenants_domain_unique") @db.VarChar(255)
+  email                  String                 @db.VarChar(255)
+  phone                  String?                @db.VarChar(255)
+  address                String?                @db.Text
+  logo                   String?                @db.VarChar(255)
+  timezone               String                 @default("Europe/Paris") @db.VarChar(255)
+  currency               String                 @default("EUR") @db.VarChar(255)
+  settings               String?                @db.LongText
+  status                 tenants_status         @default(trial)
+  trial_ends_at          DateTime?              @db.Timestamp(0)
+  created_at             DateTime?              @db.Timestamp(0)
+  updated_at             DateTime?              @db.Timestamp(0)
+  bank_accounts          BankAccount[]
+  bank_transactions      BankTransaction[]
+  cash_flow_forecasts    CashFlowForecast[]
+  clients                Client[]
+  gocardless_connections GocardlessConnection[]
+  gocardless_settings    GocardlessSettings?
+  invoice_items          InvoiceItem[]
+  invoices               Invoice[]
+  module_tenant          module_tenant[]
+  quotes                 Quote[]
+  recurring_transactions RecurringTransaction[]
+  rise_crm_configs       rise_crm_configs?
+  rise_crm_imports       rise_crm_imports[]
+  service_categories     ServiceCategory[]
+  services               Service[]
+  subscriptions          Subscription[]
+  support_email_configs  SupportEmailConfig?
+  tenant_modules         tenant_modules[]
+  tenant_subscriptions   tenant_subscriptions[]
+  ticket_reminders       TicketReminder[]
+  tickets                Ticket[]
+  user_tenants           user_tenants[]
+  users                  User[]
+  notifications          Notification[]
+  domains                Domain[]
+}
+
+model user_tenants {
+  id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id          BigInt            @db.UnsignedBigInt
+  tenant_id        BigInt            @db.UnsignedBigInt
+  role             user_tenants_role @default(user)
+  is_active        Boolean           @default(true)
+  last_accessed_at DateTime?         @db.Timestamp(0)
+  created_at       DateTime?         @db.Timestamp(0)
+  updated_at       DateTime?         @db.Timestamp(0)
+  tenants          tenants           @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_tenants_tenant_id_foreign")
+  users            User              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_tenants_user_id_foreign")
+
+  @@unique([user_id, tenant_id], map: "user_tenants_user_id_tenant_id_unique")
+  @@index([tenant_id, role], map: "user_tenants_tenant_id_role_index")
+  @@index([user_id, is_active], map: "user_tenants_user_id_is_active_index")
+}
+
+model Notification {
+  id          BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id   BigInt             @db.UnsignedBigInt
+  userId      BigInt?            @map("user_id") @db.UnsignedBigInt
+  type        NotificationType
+  title       String             @db.VarChar(255)
+  message     String             @db.Text
+  link        String?            @db.VarChar(500)
+  isRead      Boolean            @default(false) @map("is_read")
+  readAt      DateTime?          @map("read_at") @db.Timestamp(0)
+  entityType  String?            @map("entity_type") @db.VarChar(50)
+  entityId    BigInt?            @map("entity_id") @db.UnsignedBigInt
+  metadata    String?            @db.Text
+  createdAt   DateTime?          @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime?          @updatedAt @map("updated_at") @db.Timestamp(0)
+  tenants     tenants            @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "notifications_tenant_id_foreign")
+
+  @@index([tenant_id, userId, isRead], map: "notifications_tenant_user_read_index")
+  @@index([tenant_id, createdAt], map: "notifications_tenant_created_index")
+  @@map("notifications")
+}
+
+model Domain {
+  id             BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id      BigInt       @db.UnsignedBigInt
+  clientId       BigInt?      @map("client_id") @db.UnsignedBigInt
+  domain         String       @db.VarChar(255)
+  registrar      String       @default("ovh") @db.VarChar(50)
+  externalId     String?      @map("external_id") @db.VarChar(255)
+  status         DomainStatus @default(active)
+  nameServerType String?      @map("name_server_type") @db.VarChar(50)
+  offer          String?      @db.VarChar(100)
+  expirationDate DateTime?    @map("expiration_date") @db.Date
+  autoRenew      Boolean      @default(true) @map("auto_renew")
+  notes          String?      @db.Text
+  lastSyncAt     DateTime?    @map("last_sync_at") @db.Timestamp(0)
+  createdAt      DateTime?    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime?    @updatedAt @map("updated_at") @db.Timestamp(0)
+  tenants        tenants      @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "domains_tenant_id_foreign")
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "domains_client_id_foreign")
+
+  @@unique([tenant_id, domain], map: "domains_tenant_domain_unique")
+  @@index([tenant_id, expirationDate], map: "domains_expiration_index")
+  @@index([clientId], map: "domains_client_id_index")
+  @@map("domains")
+}
+
+enum DomainStatus {
+  active
+  expired
+  pending_transfer
+  pending_delete
+  suspended
+}
+
+enum NotificationType {
+  payment
+  invoice
+  quote
+  client
+  ticket
+  subscription
+  system
+  domain_expiring
+  domain_expired
+}
+
+enum ClientStatus {
+  active
+  inactive
+  prospect
+}
+
+enum InvoiceType {
+  standard
+  deposit
+  recurring
+}
+
+enum RecurringFrequency {
+  monthly
+  quarterly
+  yearly
+}
+
+enum BillingCycle {
+  monthly
+  quarterly
+  biannual
+  yearly
+  custom
+}
+
+enum SubscriptionStatus {
+  active
+  paused
+  cancelled
+  expired
+}
+
+enum TicketStatus {
+  new
+  open
+  pending
+  resolved
+  closed
+}
+
+enum TicketPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum ReminderStatus {
+  pending
+  sent
+  cancelled
+}
+
+enum BankAccountStatus {
+  active
+  inactive
+  syncing
+}
+
+enum users_role {
+  super_admin
+  tenant_owner
+  tenant_admin
+  tenant_user
+  client
+}
+
+enum clients_client_type {
+  individual
+  company
+}
+
+enum rise_crm_imports_status {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum tenant_subscriptions_status {
+  active
+  canceled
+  expired
+  trial
+}
+
+enum user_tenants_role {
+  owner
+  admin
+  user
+  viewer
+}
+
+enum cash_flow_forecasts_type {
+  actual
+  forecast
+  scenario
+}
+
+enum ticket_messages_type {
+  email_in
+  email_out
+  note
+  system
+}
+
+enum invoices_invoice_type {
+  standard
+  deposit
+  balance
+}
+
+enum quotes_status {
+  draft
+  sent
+  accepted
+  rejected
+  expired
+}
+
+enum recurring_transactions_type {
+  income
+  expense
+}
+
+enum bank_transactions_type {
+  credit
+  debit
+}
+
+enum emails_status {
+  sent
+  failed
+  pending
+}
+
+enum recurring_transactions_frequency {
+  daily
+  weekly
+  biweekly
+  monthly
+  quarterly
+  semi_annual @map("semi-annual")
+  annual
+}
+
+enum tenants_status {
+  active
+  suspended
+  trial
+  expired
+}
+
+enum gocardless_connections_status {
+  pending
+  linked
+  expired
+  error
+}
+
+enum recurring_transactions_status {
+  active
+  paused
+  completed
+  cancelled
+}
+
+enum bank_transactions_status {
+  pending
+  completed
+  failed
+  cancelled
+}
+
+enum invoices_discount_type {
+  percentage
+  fixed
+}
+
+// ============================================
+// CONTRACTS & ELECTRONIC SIGNATURE
+// ============================================
+
+model Contract {
+  id                BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id         BigInt             @db.UnsignedBigInt
+  clientId          BigInt             @map("client_id") @db.UnsignedBigInt
+  quoteId           BigInt?            @map("quote_id") @db.UnsignedBigInt
+  title             String             @db.VarChar(255)
+  description       String?            @db.Text
+  content           String?            @db.LongText // HTML content from editor
+  status            ContractStatus     @default(draft)
+  
+  // DocuSeal fields (signature provider)
+  docuseal_submission_id Int?          @map("docuseal_submission_id")
+  docuseal_slug          String?       @map("docuseal_slug") @db.VarChar(255)
+  
+  expirationDays    Int                @default(30) @map("expiration_days")
+  lockOrder         Boolean            @default(false) @map("lock_order")
+  signerReminders   Boolean            @default(true) @map("signer_reminders")
+  
+  sentAt            DateTime?          @map("sent_at") @db.Timestamp(0)
+  completedAt       DateTime?          @map("completed_at") @db.Timestamp(0)
+  voidedAt          DateTime?          @map("voided_at") @db.Timestamp(0)
+  expiresAt         DateTime?          @map("expires_at") @db.Timestamp(0)
+  
+  createdAt         DateTime?          @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime?          @updatedAt @map("updated_at") @db.Timestamp(0)
+  
+  client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  quote             Quote?             @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  documents         ContractDocument[]
+  signers           ContractSigner[]
+
+  @@index([tenant_id], map: "contracts_tenant_id_index")
+  @@index([clientId], map: "contracts_client_id_index")
+  @@index([quoteId], map: "contracts_quote_id_index")
+  @@index([status], map: "contracts_status_index")
+  @@map("contracts")
+}
+
+model ContractDocument {
+  id                BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  contractId        BigInt             @map("contract_id") @db.UnsignedBigInt
+  filename          String             @db.VarChar(255)
+  originalPath      String             @map("original_path") @db.VarChar(500)
+  signedPath        String?            @map("signed_path") @db.VarChar(500)
+  
+  // Document metadata
+  pageCount         Int?               @map("page_count")
+  
+  sortOrder         Int                @default(0) @map("sort_order")
+  createdAt         DateTime?          @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime?          @updatedAt @map("updated_at") @db.Timestamp(0)
+  
+  contract          Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  fields            ContractField[]
+  
+  @@index([contractId], map: "contract_documents_contract_id_index")
+  @@map("contract_documents")
+}
+
+model ContractField {
+  id                BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  documentId        BigInt             @map("document_id") @db.UnsignedBigInt
+  signerId          BigInt?            @map("signer_id") @db.UnsignedBigInt
+  
+  fieldType         ContractFieldType  @map("field_type")
+  pages             String             @db.VarChar(100) // e.g., "1", "1-3", "1,3,5"
+  position          String             @db.VarChar(255) // JSON: {"x": 100, "y": 200}
+  size              String             @db.VarChar(255) @default("{\"width\":200,\"height\":50}") // JSON: {"width": 200, "height": 50}
+  
+  // For text/date fields
+  content           String?            @db.Text
+  
+  // Position adjustments
+  horizontalAdjust  Int                @default(0) @map("horizontal_adjust")
+  verticalAdjust    Int                @default(0) @map("vertical_adjust")
+  
+  createdAt         DateTime?          @map("created_at") @db.Timestamp(0)
+  
+  document          ContractDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signer            ContractSigner?    @relation(fields: [signerId], references: [id], onDelete: SetNull)
+  
+  @@index([documentId], map: "contract_fields_document_id_index")
+  @@index([signerId], map: "contract_fields_signer_id_index")
+  @@map("contract_fields")
+}
+
+model ContractSigner {
+  id                BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  contractId        BigInt             @map("contract_id") @db.UnsignedBigInt
+  
+  name              String             @db.VarChar(255)
+  email             String             @db.VarChar(255)
+  phone             String?            @db.VarChar(50)
+  signerType        SignerType         @default(signer) @map("signer_type")
+  
+  // DocuSeal fields
+  docuseal_submitter_id Int?           @map("docuseal_submitter_id")
+  docuseal_slug         String?        @map("docuseal_slug") @db.VarChar(255)
+  
+  status            SignerStatus       @default(waiting)
+  accessCode        String?            @map("access_code") @db.VarChar(100)
+  forceSignatureType String?           @map("force_signature_type") @db.VarChar(20)
+  language          String             @default("fr") @db.VarChar(10)
+  
+  sortOrder         Int                @default(0) @map("sort_order")
+  viewedAt          DateTime?          @map("viewed_at") @db.Timestamp(0)
+  signedAt          DateTime?          @map("signed_at") @db.Timestamp(0)
+  declinedAt        DateTime?          @map("declined_at") @db.Timestamp(0)
+  declineReason     String?            @map("decline_reason") @db.Text
+  
+  createdAt         DateTime?          @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime?          @updatedAt @map("updated_at") @db.Timestamp(0)
+  
+  contract          Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  fields            ContractField[]
+  
+  @@index([contractId], map: "contract_signers_contract_id_index")
+  @@index([email], map: "contract_signers_email_index")
+  @@map("contract_signers")
+}
+
+// Enums for contracts
+enum ContractStatus {
+  draft
+  sent
+  viewed
+  partially_signed
+  completed
+  declined
+  expired
+  voided
+}
+
+enum ContractFieldType {
+  signature
+  initials
+  name
+  date
+  text
+  input
+  checkbox
+}
+
+enum SignerType {
+  signer
+  validator
+  viewer
+}
+
+enum SignerStatus {
+  waiting
+  sent
+  viewed
+  signed
+  declined
+  validated
+  nonvalidated
+  error
+}
