@@ -1,0 +1,13 @@
+Dockerfile
+.dockerignore
+node_modules
+npm-debug.log
+.next
+.git
+.gitignore
+*.md
+.env*
+.idea
+OLD
+db_backups
+public/uploads
