@@ -98,6 +98,25 @@ export async function GET() {
       o365TenantId: rawSettings.o365TenantId || rawSettings.o365_tenant_id || "",
       o365SupportEmail: rawSettings.o365SupportEmail || rawSettings.o365_support_email || "",
       o365AutoSync: rawSettings.o365AutoSync ?? rawSettings.o365_auto_sync ?? false,
+      o365AllowedGroups: rawSettings.o365AllowedGroups || "",
+
+      // GoCardless (Bank Account Data API)
+      gocardlessEnabled: rawSettings.gocardlessEnabled || false,
+      gocardlessSecretId: rawSettings.gocardlessSecretId || "",
+      gocardlessSecretKey: rawSettings.gocardlessSecretKey || "",
+      gocardlessEnvironment: rawSettings.gocardlessEnvironment || "sandbox",
+
+      // DocuSeal (Electronic Signatures)
+      docusealEnabled: rawSettings.docusealEnabled || false,
+      docusealApiUrl: rawSettings.docusealApiUrl || "https://api.docuseal.com",
+      docusealApiKey: rawSettings.docusealApiKey || "",
+      docusealWebhookSecret: rawSettings.docusealWebhookSecret || "",
+
+      // SEPA Direct Debit
+      sepaIcs: rawSettings.sepaIcs || "",
+      sepaCreditorName: rawSettings.sepaCreditorName || "",
+      sepaCreditorIban: rawSettings.sepaCreditorIban || "",
+      sepaCreditorBic: rawSettings.sepaCreditorBic || "",
     }
 
     return NextResponse.json({
@@ -186,15 +205,28 @@ export async function PUT(request: NextRequest) {
     }
 
     if (body.section === "email") {
+      // Preserve existing password if not provided (check both camelCase and snake_case for legacy)
+      const existingPassword = currentSettings.smtpPassword || currentSettings.smtp_password || ""
+
+      console.log("Saving email settings:", {
+        smtpHost: body.smtpHost,
+        smtpUsername: body.smtpUsername,
+        smtpPasswordProvided: !!body.smtpPassword,
+        smtpPasswordLength: body.smtpPassword?.length || 0,
+        existingPasswordLength: existingPassword?.length || 0,
+      })
+
       const updatedSettings = {
         ...currentSettings,
         smtpHost: body.smtpHost || "",
         smtpPort: body.smtpPort || 587,
         smtpUsername: body.smtpUsername || "",
-        smtpPassword: body.smtpPassword || currentSettings.smtpPassword || "",
+        smtpPassword: body.smtpPassword || existingPassword,
         smtpEncryption: body.smtpEncryption || "tls",
         smtpFromAddress: body.smtpFromAddress || "",
         smtpFromName: body.smtpFromName || "",
+        // Remove old snake_case key to avoid confusion
+        smtp_password: undefined,
       }
 
       await prisma.tenants.update({
@@ -350,6 +382,25 @@ export async function PUT(request: NextRequest) {
       if (body.o365TenantId !== undefined) updatedSettings.o365TenantId = body.o365TenantId
       if (body.o365SupportEmail !== undefined) updatedSettings.o365SupportEmail = body.o365SupportEmail
       if (body.o365AutoSync !== undefined) updatedSettings.o365AutoSync = body.o365AutoSync
+      if (body.o365AllowedGroups !== undefined) updatedSettings.o365AllowedGroups = body.o365AllowedGroups
+
+      // GoCardless settings
+      if (body.gocardlessEnabled !== undefined) updatedSettings.gocardlessEnabled = body.gocardlessEnabled
+      if (body.gocardlessSecretId !== undefined) updatedSettings.gocardlessSecretId = body.gocardlessSecretId
+      if (body.gocardlessSecretKey !== undefined) updatedSettings.gocardlessSecretKey = body.gocardlessSecretKey
+      if (body.gocardlessEnvironment !== undefined) updatedSettings.gocardlessEnvironment = body.gocardlessEnvironment
+
+      // DocuSeal settings
+      if (body.docusealEnabled !== undefined) updatedSettings.docusealEnabled = body.docusealEnabled
+      if (body.docusealApiUrl !== undefined) updatedSettings.docusealApiUrl = body.docusealApiUrl
+      if (body.docusealApiKey !== undefined) updatedSettings.docusealApiKey = body.docusealApiKey
+      if (body.docusealWebhookSecret !== undefined) updatedSettings.docusealWebhookSecret = body.docusealWebhookSecret
+
+      // SEPA settings
+      if (body.sepaIcs !== undefined) updatedSettings.sepaIcs = body.sepaIcs
+      if (body.sepaCreditorName !== undefined) updatedSettings.sepaCreditorName = body.sepaCreditorName
+      if (body.sepaCreditorIban !== undefined) updatedSettings.sepaCreditorIban = body.sepaCreditorIban
+      if (body.sepaCreditorBic !== undefined) updatedSettings.sepaCreditorBic = body.sepaCreditorBic
 
       await prisma.tenants.update({
         where: { id: BigInt(1) },

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import * as nodemailer from "nodemailer"
+import { prisma } from "@/lib/prisma"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const {
+    let {
       smtpHost,
       smtpPort,
       smtpUser,
@@ -15,10 +16,40 @@ export async function POST(request: NextRequest) {
       testEmail,
     } = body
 
+    // If password not provided, try to get it from database
+    if (!smtpPassword) {
+      try {
+        const tenant = await prisma.tenants.findFirst({
+          where: { id: BigInt(1) },
+          select: { settings: true },
+        })
+        if (tenant?.settings) {
+          const settings = JSON.parse(tenant.settings)
+          smtpPassword = settings.smtpPassword || settings.smtp_password || ""
+          // Also use DB settings if form fields are empty
+          if (!smtpHost) smtpHost = settings.smtpHost || settings.smtp_host || ""
+          if (!smtpPort) smtpPort = settings.smtpPort || settings.smtp_port || 587
+          if (!smtpUser) smtpUser = settings.smtpUsername || settings.smtp_username || ""
+          if (!smtpEncryption) smtpEncryption = settings.smtpEncryption || settings.smtp_encryption || "tls"
+          if (!smtpFromAddress) smtpFromAddress = settings.smtpFromAddress || settings.smtp_from_address || ""
+          if (!smtpFromName) smtpFromName = settings.smtpFromName || settings.smtp_from_name || ""
+        }
+      } catch (dbError) {
+        console.error("Error reading SMTP settings from database:", dbError)
+      }
+    }
+
     if (!smtpHost || !smtpPort || !smtpUser || !testEmail) {
       return NextResponse.json({
         success: false,
         message: "Paramètres SMTP manquants",
+      })
+    }
+
+    if (!smtpPassword) {
+      return NextResponse.json({
+        success: false,
+        message: "Mot de passe SMTP manquant. Veuillez le saisir ou l'enregistrer dans les paramètres.",
       })
     }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { docuseal, DocumentField, SubmitterInput } from "@/lib/docuseal"
+import { sendSignatureRequestEmail } from "@/lib/email"
 import fs from "fs"
 import path from "path"
 
@@ -155,23 +156,10 @@ export async function POST(
 
     // Build submitters array for DocuSeal
     // Each signer becomes a submitter with their name as the role
+    // We set send_email: false because we send our own beautiful emails via SMTP
     const submitters: SubmitterInput[] = contract.signers
       .filter(s => s.signerType === "signer")
       .map((signer) => {
-        // Custom email message
-        const emailSubject = `${tenant?.name || "Document"} - ${contract.title} à signer`
-        const emailBody = `Bonjour ${signer.name},
-
-Vous avez reçu un document "${contract.title}" à signer de la part de ${tenant?.name || "notre entreprise"}.
-
-Cliquez sur le lien ci-dessous pour consulter et signer le document :
-{{submitter.link}}
-
-Ce document a valeur légale conformément au règlement eIDAS.
-
-Cordialement,
-${tenant?.name || "L'équipe"}`
-
         // Only include phone if it's in international format (+XX...)
         const phone = signer.phone && /^\+\d+$/.test(signer.phone.replace(/\s/g, ''))
           ? signer.phone.replace(/\s/g, '')
@@ -183,11 +171,7 @@ ${tenant?.name || "L'équipe"}`
           name: signer.name,
           phone,
           external_id: signer.id.toString(),
-          send_email: true,
-          message: {
-            subject: emailSubject,
-            body: emailBody,
-          },
+          send_email: false, // We send our own emails via SMTP
         }
       })
 
@@ -200,11 +184,12 @@ ${tenant?.name || "L'équipe"}`
     console.log(`Submitters: ${submitters.map(s => s.email).join(", ")}`)
 
     // Create submission via DocuSeal API
+    // We disable DocuSeal's email sending and use our own SMTP
     const submission = await docuseal.createSubmissionFromPDF({
       name: contract.title,
       documents: documentsInput,
       submitters,
-      send_email: true,
+      send_email: false, // We send our own beautiful emails via SMTP
       order: contract.lockOrder ? "preserved" : "random",
       expire_at: expireAt.toISOString(),
       reply_to: tenant?.email || undefined,
@@ -241,11 +226,42 @@ ${tenant?.name || "L'équipe"}`
       }
     }
 
+    // Send our own beautiful HTML emails via SMTP
+    console.log("Sending signature request emails via SMTP...")
+    const emailResults = []
+
+    for (const submitter of submission.submitters) {
+      const signer = contract.signers.find((s) => s.id.toString() === submitter.external_id)
+      if (signer) {
+        const signingUrl = `https://docuseal.eu/s/${submitter.slug}`
+
+        try {
+          await sendSignatureRequestEmail(
+            signer.email,
+            signer.name,
+            signingUrl,
+            contract.title,
+            tenant?.name || "Notre équipe",
+            tenant?.name || "Notre entreprise",
+            expireAt,
+            undefined, // message personnalisé optionnel
+            undefined  // logoUrl optionnel
+          )
+          console.log(`✓ Email sent to ${signer.email}`)
+          emailResults.push({ email: signer.email, success: true })
+        } catch (emailError) {
+          console.error(`✗ Failed to send email to ${signer.email}:`, emailError)
+          emailResults.push({ email: signer.email, success: false, error: String(emailError) })
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       submissionId: submission.id,
       status: "sent",
       expiresAt: expireAt.toISOString(),
+      emailsSent: emailResults,
       submitters: submission.submitters.map(s => ({
         email: s.email,
         name: s.name,
