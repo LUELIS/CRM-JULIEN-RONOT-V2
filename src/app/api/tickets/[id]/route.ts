@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { notifyTicketAssignment, addReactionToMessage, parseSlackConfig } from "@/lib/slack"
+
+// Get Slack config from tenant settings
+async function getSlackConfig() {
+  const tenant = await prisma.tenants.findFirst({
+    where: { id: BigInt(1) },
+  })
+  if (!tenant?.settings) return null
+  const settings = JSON.parse(tenant.settings as string)
+  return parseSlackConfig(settings)
+}
 
 export async function GET(
   request: NextRequest,
@@ -181,14 +192,75 @@ export async function PUT(
           )
       }
 
+      // Get the ticket before update to check previous state
+      const previousTicket = await prisma.ticket.findUnique({
+        where: { id: BigInt(id) },
+        select: { assignedTo: true, status: true, slackTs: true },
+      })
+
       const ticket = await prisma.ticket.update({
         where: { id: BigInt(id) },
         data: updateData,
         include: {
           client: true,
-          assignee: true,
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              slackUserId: true,
+            },
+          },
         },
       })
+
+      // Slack notifications
+      const slackConfig = await getSlackConfig()
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://crm.julienronot.fr"
+
+      if (slackConfig && slackConfig.slackEnabled && slackConfig.slackBotToken && slackConfig.slackChannelId) {
+        // Assignment notification
+        if (body.action === "assign" && ticket.assignee && ticket.assignedTo !== previousTicket?.assignedTo) {
+          try {
+            await notifyTicketAssignment(
+              slackConfig,
+              {
+                id: ticket.id.toString(),
+                ticketNumber: ticket.ticketNumber,
+                subject: ticket.subject,
+                priority: ticket.priority,
+                status: ticket.status,
+                senderName: ticket.senderName,
+                senderEmail: ticket.senderEmail,
+              },
+              {
+                id: ticket.assignee.id.toString(),
+                name: ticket.assignee.name,
+                slackUserId: ticket.assignee.slackUserId,
+              },
+              `${baseUrl}/tickets/${ticket.id}`,
+              ticket.slackTs || undefined
+            )
+          } catch (e) {
+            console.error("[Tickets] Slack assignment notification error:", e)
+          }
+        }
+
+        // Reaction when resolved/closed
+        if (body.action === "changeStatus" && (body.status === "resolved" || body.status === "closed") && ticket.slackTs) {
+          try {
+            const emoji = body.status === "resolved" ? "white_check_mark" : "lock"
+            await addReactionToMessage(
+              slackConfig.slackBotToken,
+              slackConfig.slackChannelId,
+              ticket.slackTs,
+              emoji
+            )
+          } catch (e) {
+            console.error("[Tickets] Slack reaction error:", e)
+          }
+        }
+      }
 
       return NextResponse.json({
         id: ticket.id.toString(),

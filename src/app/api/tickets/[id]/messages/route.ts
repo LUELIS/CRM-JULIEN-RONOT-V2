@@ -87,6 +87,15 @@ export async function POST(
     // Get ticket to update
     const ticket = await prisma.ticket.findUnique({
       where: { id: BigInt(id) },
+      include: {
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            slackUserId: true,
+          },
+        },
+      },
     })
 
     if (!ticket) {
@@ -279,7 +288,12 @@ export async function POST(
               fromEmail: body.fromEmail || null,
             },
             ticketUrl,
-            ticket.slackTs || undefined
+            ticket.slackTs || undefined,
+            ticket.assignee ? {
+              id: ticket.assignee.id.toString(),
+              name: ticket.assignee.name,
+              slackUserId: ticket.assignee.slackUserId,
+            } : null
           )
 
           // Store Slack timestamp in message if available

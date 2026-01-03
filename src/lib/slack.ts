@@ -50,9 +50,15 @@ function buildMessagePayload(
   ticket: TicketInfo,
   message: MessageInfo,
   ticketUrl: string,
-  isNewTicket: boolean = false
+  isNewTicket: boolean = false,
+  assignee?: UserInfo | null
 ): object {
   const headerText = isNewTicket ? "🎫 Nouveau ticket" : "📧 Nouvelle réponse client"
+
+  // Build mention text if assignee has Slack ID
+  const mentionText = assignee?.slackUserId
+    ? `<@${assignee.slackUserId}> `
+    : ""
 
   const blocks: object[] = [
     {
@@ -63,6 +69,22 @@ function buildMessagePayload(
         emoji: true,
       },
     },
+  ]
+
+  // Add assignee mention if present
+  if (mentionText) {
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `👤 ${mentionText} un client a répondu au ticket assigné`,
+        },
+      ],
+    })
+  }
+
+  blocks.push(
     {
       type: "section",
       fields: [
@@ -112,8 +134,8 @@ function buildMessagePayload(
           style: "primary",
         },
       ],
-    },
-  ]
+    }
+  )
 
   // Add attachment info if present
   if (message.attachmentCount && message.attachmentCount > 0) {
@@ -414,13 +436,14 @@ export async function notifyClientReply(
   ticket: TicketInfo,
   message: MessageInfo,
   ticketUrl: string,
-  threadTs?: string
+  threadTs?: string,
+  assignee?: UserInfo | null
 ): Promise<{ success: boolean; slackTs?: string; error?: string }> {
   if (!shouldNotify(config) || !config.slackNotifyOnReply) {
     return { success: false, error: "Notifications disabled" }
   }
 
-  const payload = buildMessagePayload(ticket, message, ticketUrl, false)
+  const payload = buildMessagePayload(ticket, message, ticketUrl, false, assignee)
 
   if (config.slackBotToken && config.slackChannelId) {
     return await sendViaApi(

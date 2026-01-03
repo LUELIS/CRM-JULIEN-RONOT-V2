@@ -328,6 +328,15 @@ export async function GET(request: NextRequest) {
           ],
         },
         orderBy: { createdAt: "desc" },
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              slackUserId: true,
+            },
+          },
+        },
       })
 
       let isNewTicket = false
@@ -378,6 +387,15 @@ export async function GET(request: NextRequest) {
               emailMessageId: conversationId,
               lastActivityAt: new Date(),
               createdAt: new Date(),
+            },
+            include: {
+              assignee: {
+                select: {
+                  id: true,
+                  name: true,
+                  slackUserId: true,
+                },
+              },
             },
           })
 
@@ -461,7 +479,12 @@ export async function GET(request: NextRequest) {
                 fromEmail: senderEmail || null,
               },
               ticketUrl,
-              ticket.slackTs || undefined
+              ticket.slackTs || undefined,
+              ticket.assignee ? {
+                id: ticket.assignee.id.toString(),
+                name: ticket.assignee.name,
+                slackUserId: ticket.assignee.slackUserId,
+              } : null
             )
           }
         } catch (slackError) {
