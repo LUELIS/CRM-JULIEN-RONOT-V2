@@ -1396,8 +1396,10 @@ model Contract {
   status            ContractStatus     @default(draft)
   
   // DocuSeal fields (signature provider)
-  docuseal_submission_id Int?          @map("docuseal_submission_id")
-  docuseal_slug          String?       @map("docuseal_slug") @db.VarChar(255)
+  docuseal_submission_id       Int?          @map("docuseal_submission_id")
+  docuseal_slug                String?       @map("docuseal_slug") @db.VarChar(255)
+  docuseal_combined_document_url String?     @map("docuseal_combined_document_url") @db.Text
+  docuseal_audit_log_url       String?       @map("docuseal_audit_log_url") @db.Text
   
   expirationDays    Int                @default(30) @map("expiration_days")
   lockOrder         Boolean            @default(false) @map("lock_order")

@@ -119,7 +119,9 @@ class DocuSealService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${API_URL}/api${endpoint}`
+    const url = `${API_URL}${endpoint}`
+
+    console.log(`DocuSeal Request: ${options.method || 'GET'} ${url}`)
 
     const response = await fetch(url, {
       ...options,
@@ -130,9 +132,12 @@ class DocuSealService {
       },
     })
 
+    console.log(`DocuSeal Response: ${response.status} ${response.statusText}`)
+
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: response.statusText }))
-      console.error("DocuSeal API Error:", error)
+      const errorText = await response.text()
+      console.error("DocuSeal API Error Response:", errorText)
+      const error = JSON.parse(errorText).catch?.(() => ({ message: response.statusText })) || { message: errorText }
       throw new Error(`DocuSeal API Error: ${error.message || error.error || response.statusText}`)
     }
 
@@ -140,17 +145,83 @@ class DocuSealService {
   }
 
   /**
+   * Create a template from PDF documents
+   * Returns the template with fields configured
+   */
+  async createTemplateFromPDF(params: {
+    name: string
+    documents: DocumentInput[]
+  }): Promise<TemplateResponse & { id: number }> {
+    console.log("Creating DocuSeal template from PDF...")
+
+    const result = await this.request<TemplateResponse & { id: number }>("/templates/pdf", {
+      method: "POST",
+      body: JSON.stringify({
+        name: params.name,
+        documents: params.documents,
+      }),
+    })
+
+    console.log(`Template created: ${result.id}, name: ${result.name}`)
+    return result
+  }
+
+  /**
    * Create a submission from PDF documents
-   * This creates a one-off submission without needing a template
+   * This first creates a template, then creates a submission from it
    */
   async createSubmissionFromPDF(params: CreateSubmissionParams): Promise<SubmissionResponse> {
     console.log("Creating DocuSeal submission from PDF...")
     console.log("Submitters:", params.submitters.map(s => ({ role: s.role, email: s.email })))
 
-    const result = await this.request<SubmissionResponse>("/submissions/pdf", {
-      method: "POST",
-      body: JSON.stringify(params),
+    // Step 1: Create template from documents
+    const template = await this.createTemplateFromPDF({
+      name: params.name || "Contract",
+      documents: params.documents,
     })
+
+    // Step 2: Create submission from template
+    const submissionParams = {
+      template_id: template.id,
+      submitters: params.submitters,
+      send_email: params.send_email,
+      send_sms: params.send_sms,
+      order: params.order,
+      expire_at: params.expire_at,
+      completed_redirect_url: params.completed_redirect_url,
+      bcc_completed: params.bcc_completed,
+      reply_to: params.reply_to,
+      message: params.message,
+    }
+
+    const result = await this.request<SubmissionResponse | SubmitterResponse[]>("/submissions", {
+      method: "POST",
+      body: JSON.stringify(submissionParams),
+    })
+
+    console.log("Submission response:", JSON.stringify(result, null, 2))
+
+    // DocuSeal returns an array of submitters, not a submission object
+    if (Array.isArray(result)) {
+      // Build a SubmissionResponse from the submitters array
+      const submitters = result as SubmitterResponse[]
+      const firstSubmitter = submitters[0]
+      return {
+        id: firstSubmitter?.submission_id,
+        source: "api",
+        submitters_order: "preserved",
+        slug: "",
+        audit_log_url: null,
+        combined_document_url: null,
+        expire_at: null,
+        completed_at: null,
+        created_at: firstSubmitter?.created_at || new Date().toISOString(),
+        updated_at: firstSubmitter?.updated_at || new Date().toISOString(),
+        archived_at: null,
+        status: "pending",
+        submitters,
+      }
+    }
 
     console.log(`Submission created: ${result.id}, status: ${result.status}`)
     return result

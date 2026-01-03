@@ -172,11 +172,16 @@ Ce document a valeur légale conformément au règlement eIDAS.
 Cordialement,
 ${tenant?.name || "L'équipe"}`
 
+        // Only include phone if it's in international format (+XX...)
+        const phone = signer.phone && /^\+\d+$/.test(signer.phone.replace(/\s/g, ''))
+          ? signer.phone.replace(/\s/g, '')
+          : undefined
+
         return {
           role: signer.name, // Role must match field roles
           email: signer.email,
           name: signer.name,
-          phone: signer.phone || undefined,
+          phone,
           external_id: signer.id.toString(),
           send_email: true,
           message: {

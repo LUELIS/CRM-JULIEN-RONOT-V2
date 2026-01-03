@@ -32,6 +32,7 @@ interface Signer {
   signedAt: string | null
   declinedAt: string | null
   declineReason: string | null
+  docuseal_slug: string | null
 }
 
 interface Document {
@@ -58,6 +59,9 @@ interface Contract {
   voidedAt: string | null
   documents: Document[]
   signers: Signer[]
+  docuseal_submission_id: number | null
+  docuseal_combined_document_url: string | null
+  docuseal_audit_log_url: string | null
 }
 
 const statusConfig: Record<string, { label: string; bg: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -93,6 +97,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [voiding, setVoiding] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
     fetchContract()
@@ -116,6 +122,25 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const handleRefresh = () => {
     setRefreshing(true)
     fetchContract()
+  }
+
+  const handleSyncFromDocuSeal = async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch(`/api/contracts/${id}/sync`, { method: "POST" })
+      const data = await res.json()
+      if (data.success) {
+        // Refresh contract data
+        await fetchContract()
+      } else {
+        alert(data.error || "Erreur lors de la synchronisation")
+      }
+    } catch (error) {
+      console.error("Error syncing from DocuSeal:", error)
+      alert("Erreur lors de la synchronisation")
+    } finally {
+      setSyncing(false)
+    }
   }
 
   const handleVoid = async () => {
@@ -223,6 +248,19 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
             />
           </button>
 
+          {/* Sync from DocuSeal button - show for sent contracts */}
+          {contract.docuseal_submission_id && contract.status !== "draft" && contract.status !== "completed" && (
+            <Button
+              onClick={handleSyncFromDocuSeal}
+              disabled={syncing}
+              variant="outline"
+              className="rounded-xl"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Synchronisation..." : "Sync DocuSeal"}
+            </Button>
+          )}
+
           {contract.status === "draft" && (
             <Link href={`/contracts/${id}/edit`}>
               <Button className="rounded-xl" style={{ background: "#0064FA" }}>
@@ -243,17 +281,66 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           )}
 
           {contract.status === "completed" && (
-            <Button
-              onClick={() => window.open(`/api/contracts/${id}/download?type=signed`, "_blank")}
-              className="rounded-xl"
-              style={{ background: "#28B95F" }}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Télécharger signé
-            </Button>
+            <>
+              <Button
+                onClick={() => setShowPreview(!showPreview)}
+                variant="outline"
+                className="rounded-xl"
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                {showPreview ? "Masquer" : "Aperçu"}
+              </Button>
+              <Button
+                onClick={() => window.open(`/api/contracts/${id}/download?type=signed`, "_blank")}
+                className="rounded-xl"
+                style={{ background: "#28B95F" }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Télécharger signé
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      {/* Document Preview for completed contracts */}
+      {showPreview && contract.status === "completed" && contract.docuseal_combined_document_url && (
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+        >
+          <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "#EEEEEE" }}>
+            <h3 className="text-sm font-semibold" style={{ color: "#111111" }}>
+              <FileText className="w-4 h-4 inline mr-2" style={{ color: "#28B95F" }} />
+              Document signé
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.open(`/api/contracts/${id}/download?type=signed`, "_blank")}
+                className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1"
+                style={{ background: "#D4EDDA", color: "#28B95F" }}
+              >
+                <Download className="w-3 h-3" />
+                Télécharger
+              </button>
+              <button
+                onClick={() => window.open(`/api/contracts/${id}/download?type=audit`, "_blank")}
+                className="text-xs px-3 py-1.5 rounded-lg flex items-center gap-1"
+                style={{ background: "#E3F2FD", color: "#0064FA" }}
+              >
+                <Download className="w-3 h-3" />
+                Piste d'audit
+              </button>
+            </div>
+          </div>
+          <iframe
+            src={`/api/contracts/${id}/download?type=signed`}
+            className="w-full"
+            style={{ height: "600px", border: "none" }}
+            title="Document signé"
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
@@ -287,6 +374,9 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               <div className="space-y-3">
                 {contract.signers.map((signer) => {
                   const signerConf = signerStatusConfig[signer.status] || signerStatusConfig.waiting
+                  const signingUrl = signer.docuseal_slug ? `https://docuseal.eu/s/${signer.docuseal_slug}` : null
+                  const canSign = signingUrl && signer.status !== "signed" && signer.status !== "validated" && signer.status !== "declined"
+
                   return (
                     <div
                       key={signer.id}
@@ -320,28 +410,44 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
                           </span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <span
-                          className="text-xs font-medium"
-                          style={{ color: signerConf.color }}
-                        >
-                          {signerConf.label}
-                        </span>
-                        {signer.signedAt && (
-                          <p className="text-[10px] mt-0.5" style={{ color: "#999999" }}>
-                            {formatDate(signer.signedAt)}
-                          </p>
+                      <div className="flex items-center gap-2">
+                        {/* Signing link */}
+                        {canSign && (
+                          <a
+                            href={signingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:opacity-80"
+                            style={{ background: "#E3F2FD", color: "#0064FA" }}
+                            title="Ouvrir le lien de signature"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Signer
+                          </a>
                         )}
-                        {signer.viewedAt && !signer.signedAt && (
-                          <p className="text-[10px] mt-0.5" style={{ color: "#999999" }}>
-                            Vu le {formatDate(signer.viewedAt)}
-                          </p>
-                        )}
-                        {signer.declineReason && (
-                          <p className="text-[10px] mt-0.5" style={{ color: "#F04B69" }}>
-                            {signer.declineReason}
-                          </p>
-                        )}
+                        <div className="text-right">
+                          <span
+                            className="text-xs font-medium"
+                            style={{ color: signerConf.color }}
+                          >
+                            {signerConf.label}
+                          </span>
+                          {signer.signedAt && (
+                            <p className="text-[10px] mt-0.5" style={{ color: "#999999" }}>
+                              {formatDate(signer.signedAt)}
+                            </p>
+                          )}
+                          {signer.viewedAt && !signer.signedAt && (
+                            <p className="text-[10px] mt-0.5" style={{ color: "#999999" }}>
+                              Vu le {formatDate(signer.viewedAt)}
+                            </p>
+                          )}
+                          {signer.declineReason && (
+                            <p className="text-[10px] mt-0.5" style={{ color: "#F04B69" }}>
+                              {signer.declineReason}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )
