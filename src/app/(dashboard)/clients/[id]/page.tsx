@@ -561,7 +561,7 @@ export default function ClientDetailPage() {
         <div className="rounded-2xl lg:col-span-2" style={{ background: "#FFFFFF", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
           <Tabs defaultValue="invoices" className="w-full">
             <div className="p-4 lg:p-6 pb-0 overflow-x-auto">
-              <TabsList className="inline-flex lg:grid lg:grid-cols-6 w-max lg:w-full gap-1 p-1 rounded-xl" style={{ background: "#F5F5F7" }}>
+              <TabsList className="inline-flex lg:grid lg:grid-cols-7 w-max lg:w-full gap-1 p-1 rounded-xl" style={{ background: "#F5F5F7" }}>
                 <TabsTrigger value="invoices" className="flex items-center gap-2 rounded-lg whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: "#666666" }}>
                   <FileText className="h-4 w-4" />
                   <span className="hidden sm:inline">Factures</span>

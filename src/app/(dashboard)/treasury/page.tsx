@@ -21,6 +21,13 @@ import {
   Link2,
   ChevronLeft,
   ChevronRight,
+  Loader2,
+  Landmark,
+  Unlink,
+  AlertCircle,
+  ExternalLink,
+  X,
+  Clock,
 } from "lucide-react"
 
 interface BankAccount {
@@ -92,8 +99,36 @@ interface CategoryStat {
   amount: number
 }
 
+interface GocardlessConnection {
+  id: string
+  requisitionId: string
+  institutionId: string
+  institutionName: string
+  institutionLogo: string | null
+  status: string
+  errorMessage: string | null
+  expiresAt: string | null
+  createdAt: string | null
+  bankAccount: {
+    id: string
+    accountName: string
+    iban: string | null
+    currentBalance: number
+    lastSyncAt: string | null
+  } | null
+}
+
+interface Institution {
+  id: string
+  name: string
+  bic: string
+  logo: string
+  countries: string[]
+  maxHistoricalDays: number
+}
+
 export default function TreasuryPage() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "accounts" | "transactions">("dashboard")
+  const [activeTab, setActiveTab] = useState<"dashboard" | "accounts" | "transactions" | "sync">("dashboard")
   const [loading, setLoading] = useState(true)
   const [accounts, setAccounts] = useState<BankAccount[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -118,6 +153,17 @@ export default function TreasuryPage() {
   // Dropdown menu states
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
+  // GoCardless states
+  const [connections, setConnections] = useState<GocardlessConnection[]>([])
+  const [institutions, setInstitutions] = useState<Institution[]>([])
+  const [connectModalOpen, setConnectModalOpen] = useState(false)
+  const [institutionSearch, setInstitutionSearch] = useState("")
+  const [loadingInstitutions, setLoadingInstitutions] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [rateLimit, setRateLimit] = useState<{ limit: number | null; remaining: number | null; reset: string | null } | null>(null)
+
   const fetchAccounts = useCallback(async () => {
     try {
       const res = await fetch("/api/treasury/accounts")
@@ -128,6 +174,146 @@ export default function TreasuryPage() {
       console.error("Error fetching accounts:", error)
     }
   }, [])
+
+  const fetchConnections = useCallback(async () => {
+    try {
+      const res = await fetch("/api/gocardless/connections")
+      const data = await res.json()
+      setConnections(data.connections || [])
+    } catch (error) {
+      console.error("Error fetching connections:", error)
+    }
+  }, [])
+
+  const fetchInstitutions = async () => {
+    setLoadingInstitutions(true)
+    try {
+      const res = await fetch("/api/gocardless/institutions?country=FR")
+      const data = await res.json()
+      if (data.error) {
+        console.error("GoCardless error:", data.error)
+        setInstitutions([])
+      } else {
+        setInstitutions(data.institutions || [])
+      }
+    } catch (error) {
+      console.error("Error fetching institutions:", error)
+    } finally {
+      setLoadingInstitutions(false)
+    }
+  }
+
+  const handleConnect = async (institution: Institution) => {
+    setConnecting(true)
+    try {
+      const res = await fetch("/api/gocardless/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institutionId: institution.id,
+          institutionName: institution.name,
+          institutionLogo: institution.logo,
+          maxHistoricalDays: institution.maxHistoricalDays,
+        }),
+      })
+      const data = await res.json()
+      if (data.link) {
+        // Redirect to bank authentication
+        window.location.href = data.link
+      } else {
+        console.error("No link returned:", data)
+      }
+    } catch (error) {
+      console.error("Error connecting:", error)
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  const handleSync = async (bankAccountId?: string) => {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch("/api/gocardless/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankAccountId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        const totalNew = data.results.reduce((sum: number, r: { newTransactions?: number }) => sum + (r.newTransactions || 0), 0)
+        setSyncResult({ success: true, message: `${totalNew} nouvelles transactions synchronisées` })
+        // Update rate limit info from sync response
+        if (data.rateLimit) {
+          setRateLimit(data.rateLimit)
+        }
+        fetchAccounts()
+        fetchTransactions()
+        fetchConnections()
+      } else {
+        setSyncResult({ success: false, message: data.error || "Erreur de synchronisation" })
+      }
+    } catch (error) {
+      setSyncResult({ success: false, message: "Erreur de connexion" })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const fetchRateLimit = async () => {
+    try {
+      const res = await fetch("/api/gocardless/rate-limit")
+      const data = await res.json()
+      if (data.rateLimit) {
+        setRateLimit(data.rateLimit)
+      }
+    } catch (error) {
+      console.error("Error fetching rate limit:", error)
+    }
+  }
+
+  const handleDisconnect = async (connectionId: string) => {
+    if (!confirm("Voulez-vous vraiment déconnecter ce compte bancaire ?")) return
+    try {
+      await fetch(`/api/gocardless/connections?id=${connectionId}`, { method: "DELETE" })
+      fetchConnections()
+    } catch (error) {
+      console.error("Error disconnecting:", error)
+    }
+  }
+
+  const handleDeleteAccount = async (accountId: string, accountName: string) => {
+    // First try without force to check if there are transactions
+    const res = await fetch(`/api/treasury/accounts/${accountId}`, { method: "DELETE" })
+    const data = await res.json()
+
+    if (data.requiresForce) {
+      // Account has transactions, ask for confirmation
+      const confirmDelete = confirm(
+        `Le compte "${accountName}" contient ${data.transactionCount} transaction(s).\n\n` +
+        `Voulez-vous vraiment supprimer ce compte ET toutes ses transactions ?\n\n` +
+        `Cette action est IRRÉVERSIBLE.`
+      )
+      if (!confirmDelete) return
+
+      // Force delete
+      const forceRes = await fetch(`/api/treasury/accounts/${accountId}?force=true`, { method: "DELETE" })
+      if (forceRes.ok) {
+        fetchAccounts()
+        fetchConnections()
+        setOpenMenuId(null)
+      } else {
+        const errorData = await forceRes.json()
+        alert(`Erreur: ${errorData.error}`)
+      }
+    } else if (res.ok) {
+      fetchAccounts()
+      fetchConnections()
+      setOpenMenuId(null)
+    } else {
+      alert(`Erreur: ${data.error}`)
+    }
+  }
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -158,10 +344,12 @@ export default function TreasuryPage() {
   }, [pagination.page, pagination.perPage, search, typeFilter, accountFilter, reconciledFilter, startDate, endDate])
 
   useEffect(() => {
-    Promise.all([fetchAccounts(), fetchTransactions()]).then(() => {
+    Promise.all([fetchAccounts(), fetchTransactions(), fetchConnections()]).then(() => {
       setLoading(false)
     })
-  }, [fetchAccounts, fetchTransactions])
+    // Also fetch rate limit info on load
+    fetchRateLimit()
+  }, [fetchAccounts, fetchTransactions, fetchConnections])
 
   const handleReconcile = async (transactionId: string, reconcile: boolean) => {
     try {
@@ -218,6 +406,7 @@ export default function TreasuryPage() {
     { id: "dashboard", label: "Vue d'ensemble" },
     { id: "accounts", label: `Comptes (${accounts.length})` },
     { id: "transactions", label: "Transactions" },
+    { id: "sync", label: "Synchronisation" },
   ] as const
 
   return (
@@ -245,30 +434,37 @@ export default function TreasuryPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {connections.length > 0 && (
+              <button
+                onClick={() => handleSync()}
+                disabled={syncing}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ background: "#0064FA", color: "#FFFFFF" }}
+              >
+                {syncing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Synchroniser
+              </button>
+            )}
             <button
-              onClick={() => { fetchAccounts(); fetchTransactions(); }}
+              onClick={() => { fetchAccounts(); fetchTransactions(); fetchConnections(); }}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:bg-[#EEEEEE]"
               style={{ background: "#F5F5F7", color: "#444444" }}
             >
               <RefreshCw className="h-4 w-4" />
               Actualiser
             </button>
-            <Link
-              href="/treasury/transactions/new"
+            <button
+              onClick={() => { setConnectModalOpen(true); fetchInstitutions(); }}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={{ background: "#F5F5F7", color: "#444444", border: "1px solid #EEEEEE" }}
+              style={{ background: "#14B4E6", color: "#FFFFFF" }}
             >
-              <Plus className="h-4 w-4" />
-              Transaction
-            </Link>
-            <Link
-              href="/treasury/accounts/new"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={{ background: "#28B95F", color: "#FFFFFF" }}
-            >
-              <Plus className="h-4 w-4" />
-              Compte
-            </Link>
+              <Landmark className="h-4 w-4" />
+              Connecter une banque
+            </button>
           </div>
         </div>
       </div>
@@ -789,6 +985,15 @@ export default function TreasuryPage() {
                                 <Plus className="h-4 w-4" />
                                 Ajouter une transaction
                               </Link>
+                              <div className="my-1" style={{ borderTop: "1px solid #EEEEEE" }} />
+                              <button
+                                onClick={() => handleDeleteAccount(account.id, account.accountName)}
+                                className="flex items-center gap-2 px-4 py-2 text-sm transition-all hover:bg-[#FEE2E8] w-full text-left"
+                                style={{ color: "#F04B69" }}
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Supprimer le compte
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1099,7 +1304,399 @@ export default function TreasuryPage() {
             )}
           </div>
         )}
+
+        {/* Sync Tab */}
+        {activeTab === "sync" && (
+          <div className="p-6 space-y-6">
+            {/* Sync Result Alert */}
+            {syncResult && (
+              <div
+                className="flex items-center gap-3 p-4 rounded-xl"
+                style={{
+                  background: syncResult.success ? "#D4EDDA" : "#FEE2E8",
+                  border: `1px solid ${syncResult.success ? "#28B95F" : "#F04B69"}`,
+                }}
+              >
+                {syncResult.success ? (
+                  <CheckCircle2 className="h-5 w-5" style={{ color: "#28B95F" }} />
+                ) : (
+                  <AlertCircle className="h-5 w-5" style={{ color: "#F04B69" }} />
+                )}
+                <span style={{ color: syncResult.success ? "#28B95F" : "#F04B69" }}>
+                  {syncResult.message}
+                </span>
+              </div>
+            )}
+
+            {/* GoCardless Info */}
+            <div
+              className="rounded-xl p-5"
+              style={{ background: "#F0F9FF", border: "1px solid #14B4E6" }}
+            >
+              <div className="flex items-start gap-4">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "#14B4E6" }}
+                >
+                  <Landmark className="h-6 w-6" style={{ color: "#FFFFFF" }} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg" style={{ color: "#111111" }}>
+                    Synchronisation bancaire via GoCardless
+                  </h3>
+                  <p className="text-sm mt-1" style={{ color: "#666666" }}>
+                    Connectez vos comptes bancaires pour synchroniser automatiquement vos transactions.
+                    Les données sont récupérées en lecture seule via Open Banking.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 mt-4">
+                    <button
+                      onClick={() => { setConnectModalOpen(true); fetchInstitutions(); }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                      style={{ background: "#14B4E6", color: "#FFFFFF" }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Connecter une banque
+                    </button>
+                    {connections.length > 0 && (
+                      <button
+                        onClick={() => handleSync()}
+                        disabled={syncing}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+                        style={{ background: "#0064FA", color: "#FFFFFF" }}
+                      >
+                        {syncing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        Synchroniser maintenant
+                      </button>
+                    )}
+                    {/* Rate Limit Indicator */}
+                    {rateLimit && rateLimit.remaining !== null && (
+                      <div
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
+                        style={{
+                          background: rateLimit.remaining < 10 ? "#FEE2E8" : rateLimit.remaining < 50 ? "#FFF9E6" : "#E8F8EE",
+                          color: rateLimit.remaining < 10 ? "#F04B69" : rateLimit.remaining < 50 ? "#DCB40A" : "#28B95F",
+                        }}
+                      >
+                        <Clock className="h-4 w-4" />
+                        <span className="font-medium">{rateLimit.remaining}</span>
+                        <span className="opacity-75">requêtes restantes</span>
+                        {rateLimit.limit && (
+                          <span className="opacity-50">/ {rateLimit.limit}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Connected Banks */}
+            <div>
+              <h2 className="text-lg font-semibold mb-4" style={{ color: "#111111" }}>
+                Comptes connectés ({connections.filter(c => c.status === "linked").length})
+              </h2>
+
+              {connections.length === 0 ? (
+                <div
+                  className="flex flex-col items-center justify-center py-12 text-center rounded-xl"
+                  style={{ background: "#F5F5F7" }}
+                >
+                  <div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                    style={{ background: "#EEEEEE" }}
+                  >
+                    <Landmark className="h-8 w-8" style={{ color: "#999999" }} />
+                  </div>
+                  <h3 className="text-lg font-medium mb-1" style={{ color: "#111111" }}>
+                    Aucune banque connectée
+                  </h3>
+                  <p className="text-sm mb-4 max-w-md" style={{ color: "#666666" }}>
+                    Connectez votre banque pour synchroniser automatiquement vos transactions et soldes
+                  </p>
+                  <button
+                    onClick={() => { setConnectModalOpen(true); fetchInstitutions(); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
+                    style={{ background: "#14B4E6", color: "#FFFFFF" }}
+                  >
+                    <Landmark className="h-4 w-4" />
+                    Connecter une banque
+                  </button>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {connections.map((conn) => (
+                    <div
+                      key={conn.id}
+                      className="rounded-xl p-4 flex items-center justify-between"
+                      style={{ background: "#F5F5F7" }}
+                    >
+                      <div className="flex items-center gap-4">
+                        {conn.institutionLogo ? (
+                          <img
+                            src={conn.institutionLogo}
+                            alt={conn.institutionName}
+                            className="w-12 h-12 rounded-xl object-contain"
+                            style={{ background: "#FFFFFF", padding: "4px" }}
+                          />
+                        ) : (
+                          <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center"
+                            style={{ background: "#EEEEEE" }}
+                          >
+                            <Landmark className="h-6 w-6" style={{ color: "#666666" }} />
+                          </div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold" style={{ color: "#111111" }}>
+                              {conn.institutionName}
+                            </h3>
+                            <span
+                              className="px-2 py-0.5 rounded-full text-xs font-medium"
+                              style={{
+                                background: conn.status === "linked" ? "#D4EDDA" : conn.status === "expired" ? "#FFF3E0" : conn.status === "pending" ? "#E8F4FD" : "#FEE2E8",
+                                color: conn.status === "linked" ? "#28B95F" : conn.status === "expired" ? "#F0783C" : conn.status === "pending" ? "#0064FA" : "#F04B69",
+                              }}
+                            >
+                              {conn.status === "linked" ? "Connecté" : conn.status === "expired" ? "Expiré" : conn.status === "pending" ? "En attente" : "Erreur"}
+                            </span>
+                          </div>
+                          {conn.bankAccount && (
+                            <p className="text-sm" style={{ color: "#666666" }}>
+                              {conn.bankAccount.accountName}
+                              {conn.bankAccount.iban && (
+                                <span className="font-mono ml-2" style={{ color: "#999999" }}>
+                                  {conn.bankAccount.iban.replace(/(.{4})/g, "$1 ").trim().slice(-14)}
+                                </span>
+                              )}
+                            </p>
+                          )}
+                          {conn.bankAccount?.lastSyncAt && (
+                            <p className="text-xs flex items-center gap-1 mt-1" style={{ color: "#999999" }}>
+                              <Clock className="h-3 w-3" />
+                              Dernière sync: {new Date(conn.bankAccount.lastSyncAt).toLocaleString("fr-FR")}
+                            </p>
+                          )}
+                          {conn.errorMessage && (
+                            <p className="text-xs mt-1" style={{ color: "#F04B69" }}>
+                              {conn.errorMessage}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {conn.status === "linked" && conn.bankAccount && (
+                          <>
+                            <p className="font-bold text-lg mr-4" style={{ color: "#111111" }}>
+                              {new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(conn.bankAccount.currentBalance)}
+                            </p>
+                            <button
+                              onClick={() => handleSync(conn.bankAccount!.id)}
+                              disabled={syncing}
+                              className="p-2 rounded-lg transition-all hover:bg-[#EEEEEE] disabled:opacity-50"
+                              title="Synchroniser"
+                            >
+                              {syncing ? (
+                                <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#0064FA" }} />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" style={{ color: "#0064FA" }} />
+                              )}
+                            </button>
+                          </>
+                        )}
+                        {conn.status === "expired" && (
+                          <button
+                            onClick={() => {
+                              // Pre-select this bank for reconnection
+                              setInstitutionSearch(conn.institutionName)
+                              setConnectModalOpen(true)
+                              fetchInstitutions()
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:opacity-80 flex items-center gap-2"
+                            style={{ background: "#F0783C", color: "#FFFFFF" }}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Reconnecter
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDisconnect(conn.id)}
+                          className="p-2 rounded-lg transition-all hover:bg-[#FEE2E8]"
+                          title="Supprimer"
+                        >
+                          <Unlink className="h-4 w-4" style={{ color: "#F04B69" }} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Info about expiration */}
+            {connections.some(c => c.status === "linked") && (
+              <div
+                className="rounded-xl p-4 flex items-start gap-3"
+                style={{ background: "#FFF9E6", border: "1px solid #DCB40A" }}
+              >
+                <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: "#DCB40A" }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: "#111111" }}>
+                    Les connexions bancaires expirent après 90 jours
+                  </p>
+                  <p className="text-sm mt-1" style={{ color: "#666666" }}>
+                    Vous devrez reconnecter votre banque périodiquement pour continuer la synchronisation.
+                    C&apos;est une exigence de la réglementation Open Banking.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Connect Bank Modal */}
+      {connectModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            style={{ background: "#FFFFFF" }}
+          >
+            <div className="p-6" style={{ borderBottom: "1px solid #EEEEEE" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: "#14B4E6" }}
+                  >
+                    <Landmark className="h-5 w-5" style={{ color: "#FFFFFF" }} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold" style={{ color: "#111111" }}>
+                      Connecter une banque
+                    </h3>
+                    <p className="text-sm" style={{ color: "#666666" }}>
+                      Sélectionnez votre banque pour synchroniser vos comptes
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setConnectModalOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center hover:opacity-70"
+                  style={{ background: "#F5F5F7" }}
+                >
+                  <X className="h-4 w-4" style={{ color: "#666666" }} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Search */}
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
+                  style={{ color: "#999999" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Rechercher une banque..."
+                  value={institutionSearch}
+                  onChange={(e) => setInstitutionSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2"
+                  style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                />
+              </div>
+
+              {/* Institutions List */}
+              {loadingInstitutions ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#14B4E6" }} />
+                </div>
+              ) : institutions.length === 0 ? (
+                <div className="text-center py-12">
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: "#F04B69" }} />
+                  <p className="font-medium" style={{ color: "#111111" }}>
+                    GoCardless non configuré
+                  </p>
+                  <p className="text-sm mt-1" style={{ color: "#666666" }}>
+                    Configurez GoCardless dans Paramètres &gt; Intégrations
+                  </p>
+                  <Link
+                    href="/settings?tab=integrations"
+                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-xl text-sm font-medium"
+                    style={{ background: "#F5F5F7", color: "#444444" }}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Aller aux paramètres
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid gap-2 max-h-96 overflow-y-auto">
+                  {institutions
+                    .filter((inst) =>
+                      inst.name.toLowerCase().includes(institutionSearch.toLowerCase()) ||
+                      inst.bic?.toLowerCase().includes(institutionSearch.toLowerCase())
+                    )
+                    .map((inst) => (
+                      <button
+                        key={inst.id}
+                        onClick={() => handleConnect(inst)}
+                        disabled={connecting}
+                        className="flex items-center gap-4 p-4 rounded-xl text-left transition-all hover:bg-[#F5F5F7] disabled:opacity-50"
+                        style={{ border: "1px solid #EEEEEE" }}
+                      >
+                        {inst.logo ? (
+                          <img
+                            src={inst.logo}
+                            alt={inst.name}
+                            className="w-12 h-12 rounded-xl object-contain"
+                            style={{ background: "#F5F5F7", padding: "4px" }}
+                          />
+                        ) : (
+                          <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center"
+                            style={{ background: "#F5F5F7" }}
+                          >
+                            <Landmark className="h-6 w-6" style={{ color: "#666666" }} />
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <p className="font-medium" style={{ color: "#111111" }}>
+                            {inst.name}
+                          </p>
+                          {inst.bic && (
+                            <p className="text-xs font-mono" style={{ color: "#999999" }}>
+                              {inst.bic}
+                            </p>
+                          )}
+                        </div>
+                        {connecting ? (
+                          <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#14B4E6" }} />
+                        ) : (
+                          <ExternalLink className="h-5 w-5" style={{ color: "#999999" }} />
+                        )}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6" style={{ borderTop: "1px solid #EEEEEE" }}>
+              <p className="text-xs text-center" style={{ color: "#999999" }}>
+                Vos données bancaires sont récupérées en lecture seule via GoCardless (Open Banking).
+                Aucune opération ne sera effectuée sur votre compte.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

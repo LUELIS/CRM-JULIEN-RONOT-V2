@@ -46,6 +46,7 @@ interface Contract {
   id: string
   title: string
   description: string | null
+  content: string | null
   status: string
   clientId: string | null
   clientName: string | null
@@ -456,6 +457,36 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
             </div>
           )}
 
+          {/* AI Generated Content Preview */}
+          {contract.status === "draft" && contract.content && contract.documents.length === 0 && (
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+            >
+              <div className="p-4 flex items-center justify-between border-b" style={{ borderColor: "#EEEEEE", background: "linear-gradient(135deg, #F3E8FF 0%, #E8F0FF 100%)" }}>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" style={{ color: "#5F00BA" }} />
+                  <h3 className="text-sm font-semibold" style={{ color: "#5F00BA" }}>
+                    Contrat généré par IA
+                  </h3>
+                </div>
+                <Link
+                  href={`/contracts/${id}/content`}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:opacity-90"
+                  style={{ background: "#5F00BA", color: "#FFFFFF" }}
+                >
+                  <FileText className="w-3 h-3" />
+                  Éditer le contenu
+                </Link>
+              </div>
+              <div
+                className="p-6 max-h-[500px] overflow-y-auto prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: contract.content }}
+                style={{ color: "#444444" }}
+              />
+            </div>
+          )}
+
           {/* Documents */}
           <div
             className="rounded-2xl p-6"
@@ -465,6 +496,38 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               <FileText className="w-4 h-4 inline mr-2" style={{ color: "#666666" }} />
               Documents ({contract.documents.length})
             </h3>
+
+            {/* No documents but has AI content */}
+            {contract.documents.length === 0 && contract.content && contract.status === "draft" && (
+              <div className="p-4 rounded-xl text-center" style={{ background: "#FEF3CD" }}>
+                <AlertCircle className="w-6 h-6 mx-auto mb-2" style={{ color: "#DCB40A" }} />
+                <p className="text-sm font-medium mb-1" style={{ color: "#444444" }}>
+                  Contenu généré par IA
+                </p>
+                <p className="text-xs mb-3" style={{ color: "#666666" }}>
+                  Ce contrat a été généré par l&apos;IA. Éditez le contenu puis convertissez-le en PDF pour pouvoir ajouter les champs de signature.
+                </p>
+                <Link
+                  href={`/contracts/${id}/content`}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:opacity-90"
+                  style={{ background: "#5F00BA", color: "#FFFFFF" }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Éditer et convertir
+                </Link>
+              </div>
+            )}
+
+            {/* No documents and no content */}
+            {contract.documents.length === 0 && !contract.content && (
+              <div className="p-4 rounded-xl text-center" style={{ background: "#F5F5F7" }}>
+                <FileText className="w-6 h-6 mx-auto mb-2" style={{ color: "#999999" }} />
+                <p className="text-sm" style={{ color: "#666666" }}>
+                  Aucun document ajouté
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               {contract.documents.map((doc) => (
                 <div

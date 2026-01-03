@@ -72,6 +72,12 @@ model Client {
   notes                        String?                @db.Text
   status                       ClientStatus           @default(prospect)
   user_id                      BigInt?                @db.UnsignedBigInt
+  // SEPA Direct Debit fields
+  iban                         String?                @db.VarChar(34)
+  bic                          String?                @db.VarChar(11)
+  sepaMandate                  String?                @map("sepa_mandate") @db.VarChar(35)
+  sepaMandateDate              DateTime?              @map("sepa_mandate_date") @db.Date
+  sepaSequenceType             String?                @default("RCUR") @map("sepa_sequence_type") @db.VarChar(4)
   createdAt                    DateTime?              @map("created_at") @db.Timestamp(0)
   updatedAt                    DateTime?              @updatedAt @map("updated_at") @db.Timestamp(0)
   services                     ClientService[]
@@ -585,6 +591,7 @@ model BankTransaction {
   sub_category             String?                  @db.VarChar(255)
   tags                     String?                  @db.LongText
   isReconciled             Boolean?                 @default(false) @map("is_reconciled")
+  reconciledAmount         Decimal                  @default(0.00) @map("reconciled_amount") @db.Decimal(15, 2) // Montant total réconcilié (somme des factures liées)
   invoice_id               BigInt?                  @db.UnsignedBigInt
   expense_id               BigInt?                  @db.UnsignedBigInt
   recurring_transaction_id BigInt?                  @db.UnsignedBigInt
@@ -1115,6 +1122,8 @@ model tenants {
   users                  User[]
   notifications          Notification[]
   domains                Domain[]
+  emailCampaigns         EmailCampaign[]
+  emailTemplates         EmailTemplate[]
 }
 
 model user_tenants {
@@ -1545,4 +1554,130 @@ enum SignerStatus {
   validated
   nonvalidated
   error
+}
+
+// ============================================
+// BATCH RECONCILIATION (Many-to-Many Invoice <-> BankTransaction)
+// ============================================
+
+model InvoiceBankReconciliation {
+  id                BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id         BigInt          @db.UnsignedBigInt
+  invoiceId         BigInt          @map("invoice_id") @db.UnsignedBigInt
+  bankTransactionId BigInt          @map("bank_transaction_id") @db.UnsignedBigInt
+  amount            Decimal         @db.Decimal(15, 2) // Montant de cette facture réconcilié avec cette transaction
+  reconciledAt      DateTime        @default(now()) @map("reconciled_at") @db.Timestamp(0)
+  notes             String?         @db.Text
+  createdAt         DateTime?       @map("created_at") @db.Timestamp(0)
+
+  @@unique([invoiceId, bankTransactionId], map: "invoice_bank_reconciliation_unique")
+  @@index([invoiceId], map: "invoice_bank_reconciliation_invoice_id_index")
+  @@index([bankTransactionId], map: "invoice_bank_reconciliation_transaction_id_index")
+  @@index([tenant_id], map: "invoice_bank_reconciliation_tenant_id_index")
+  @@map("invoice_bank_reconciliations")
+}
+
+// ============================================
+// EMAIL CAMPAIGNS
+// ============================================
+
+model EmailCampaign {
+  id              BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id       BigInt              @db.UnsignedBigInt
+  name            String              @db.VarChar(255)
+  subject         String              @db.VarChar(500)
+  fromName        String?             @map("from_name") @db.VarChar(255)
+  fromEmail       String?             @map("from_email") @db.VarChar(255)
+  replyTo         String?             @map("reply_to") @db.VarChar(255)
+  designJson      String?             @map("design_json") @db.LongText // Unlayer JSON design
+  htmlContent     String?             @map("html_content") @db.LongText
+  textContent     String?             @map("text_content") @db.LongText
+  status          CampaignStatus      @default(draft)
+  recipientType   RecipientType       @default(all_clients) @map("recipient_type")
+  recipientFilter String?             @map("recipient_filter") @db.Text // JSON filter for client selection
+  scheduledAt     DateTime?           @map("scheduled_at") @db.Timestamp(0)
+  sentAt          DateTime?           @map("sent_at") @db.Timestamp(0)
+  createdBy       BigInt?             @map("created_by") @db.UnsignedBigInt
+  createdAt       DateTime?           @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime?           @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  tenant          tenants             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  recipients      EmailRecipient[]
+
+  @@index([tenant_id], map: "email_campaigns_tenant_id_index")
+  @@index([status], map: "email_campaigns_status_index")
+  @@map("email_campaigns")
+}
+
+model EmailRecipient {
+  id            BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id     BigInt              @db.UnsignedBigInt
+  campaignId    BigInt              @map("campaign_id") @db.UnsignedBigInt
+  clientId      BigInt?             @map("client_id") @db.UnsignedBigInt
+  email         String              @db.VarChar(255)
+  name          String?             @db.VarChar(255)
+  status        EmailSendStatus     @default(pending)
+  sentAt        DateTime?           @map("sent_at") @db.Timestamp(0)
+  openedAt      DateTime?           @map("opened_at") @db.Timestamp(0)
+  clickedAt     DateTime?           @map("clicked_at") @db.Timestamp(0)
+  bouncedAt     DateTime?           @map("bounced_at") @db.Timestamp(0)
+  errorMessage  String?             @map("error_message") @db.Text
+  trackingId    String?             @unique @map("tracking_id") @db.VarChar(64)
+  createdAt     DateTime?           @default(now()) @map("created_at") @db.Timestamp(0)
+
+  campaign      EmailCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId], map: "email_recipients_campaign_id_index")
+  @@index([clientId], map: "email_recipients_client_id_index")
+  @@index([email], map: "email_recipients_email_index")
+  @@index([status], map: "email_recipients_status_index")
+  @@index([tenant_id], map: "email_recipients_tenant_id_index")
+  @@map("email_recipients")
+}
+
+model EmailTemplate {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id     BigInt    @db.UnsignedBigInt
+  name          String    @db.VarChar(255)
+  description   String?   @db.Text
+  category      String?   @db.VarChar(100)
+  designJson    String?   @map("design_json") @db.LongText
+  htmlContent   String?   @map("html_content") @db.LongText
+  thumbnail     String?   @db.Text // Base64 thumbnail
+  isDefault     Boolean   @default(false) @map("is_default")
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  tenant        tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id], map: "email_templates_tenant_id_index")
+  @@index([category], map: "email_templates_category_index")
+  @@map("email_templates")
+}
+
+enum CampaignStatus {
+  draft
+  scheduled
+  sending
+  sent
+  paused
+  cancelled
+}
+
+enum RecipientType {
+  all_clients
+  active_clients
+  prospects
+  custom_filter
+  manual_list
+}
+
+enum EmailSendStatus {
+  pending
+  sent
+  delivered
+  opened
+  clicked
+  bounced
+  failed
 }

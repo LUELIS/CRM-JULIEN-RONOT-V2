@@ -193,6 +193,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const { searchParams } = new URL(request.url)
+  const force = searchParams.get("force") === "true"
 
   try {
     // Check if account has transactions
@@ -200,18 +202,36 @@ export async function DELETE(
       where: { bankAccountId: BigInt(id) },
     })
 
-    if (transactionCount > 0) {
+    if (transactionCount > 0 && !force) {
       return NextResponse.json(
-        { error: "Impossible de supprimer un compte avec des transactions" },
+        {
+          error: "Ce compte a des transactions. Utilisez force=true pour supprimer avec les transactions.",
+          transactionCount,
+          requiresForce: true,
+        },
         { status: 400 }
       )
     }
 
+    // Delete related records first if force delete
+    if (force && transactionCount > 0) {
+      // Delete GoCardless connections linked to this account
+      await prisma.gocardlessConnection.deleteMany({
+        where: { bank_account_id: BigInt(id) },
+      })
+
+      // Delete all transactions
+      await prisma.bankTransaction.deleteMany({
+        where: { bankAccountId: BigInt(id) },
+      })
+    }
+
+    // Delete the account
     await prisma.bankAccount.delete({
       where: { id: BigInt(id) },
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, deletedTransactions: force ? transactionCount : 0 })
   } catch (error) {
     console.error("Error deleting bank account:", error)
     return NextResponse.json(

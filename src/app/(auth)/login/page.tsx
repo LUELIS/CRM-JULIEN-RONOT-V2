@@ -7,6 +7,18 @@ import Link from "next/link"
 import Image from "next/image"
 import { Loader2, Mail, Lock, Zap, ArrowRight, AlertCircle } from "lucide-react"
 
+// Microsoft logo SVG component
+function MicrosoftLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+      <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+      <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+      <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+    </svg>
+  )
+}
+
 interface TenantData {
   name: string
   logo: string | null
@@ -15,6 +27,7 @@ interface TenantData {
 export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false)
   const [error, setError] = useState("")
   const [focusedField, setFocusedField] = useState<string | null>(null)
   const [tenant, setTenant] = useState<TenantData | null>(null)
@@ -53,6 +66,18 @@ export default function LoginPage() {
       setError("Une erreur est survenue")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function handleMicrosoftSignIn() {
+    setIsMicrosoftLoading(true)
+    setError("")
+    try {
+      // Use custom Microsoft SSO route that reads credentials from database settings
+      window.location.href = "/api/auth/microsoft?callbackUrl=/"
+    } catch {
+      setError("Erreur lors de la connexion Microsoft")
+      setIsMicrosoftLoading(false)
     }
   }
 
@@ -253,6 +278,37 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* SSO Divider */}
+          <div className="flex items-center gap-4 my-6">
+            <div className="flex-1 h-px" style={{ background: "#EEEEEE" }} />
+            <span className="text-xs font-medium" style={{ color: "#AEAEAE" }}>
+              ou
+            </span>
+            <div className="flex-1 h-px" style={{ background: "#EEEEEE" }} />
+          </div>
+
+          {/* Microsoft SSO Button */}
+          <button
+            type="button"
+            onClick={handleMicrosoftSignIn}
+            disabled={isMicrosoftLoading || isLoading}
+            className="w-full h-12 rounded-xl font-medium flex items-center justify-center gap-3 transition-all duration-200 hover:bg-gray-50 disabled:opacity-50"
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #DDDDDD",
+              color: "#333333",
+            }}
+          >
+            {isMicrosoftLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <>
+                <MicrosoftLogo className="h-5 w-5" />
+                Se connecter avec Microsoft
+              </>
+            )}
+          </button>
 
           {/* Footer */}
           <div className="mt-8 pt-6 border-t" style={{ borderColor: "#EEEEEE" }}>

@@ -39,6 +39,8 @@ interface Invoice {
   dueDate: string
   paymentDate: string | null
   paymentMethod: string | null
+  paymentMethodLabel: string | null
+  debitDate: string | null
   subtotalHt: number
   taxAmount: number
   totalTtc: number
@@ -258,7 +260,25 @@ export default function ClientInvoiceDetailPage() {
                     Mode de paiement
                   </p>
                   <p className="font-medium" style={{ color: "#111111" }}>
-                    {invoice.paymentMethod}
+                    {invoice.paymentMethodLabel || invoice.paymentMethod}
+                  </p>
+                </div>
+              </div>
+            )}
+            {invoice.debitDate && (
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ background: "#EEF2FF" }}
+                >
+                  <Calendar className="w-5 h-5" style={{ color: "#6366F1" }} />
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "#999999" }}>
+                    Date de prélèvement
+                  </p>
+                  <p className="font-medium" style={{ color: "#6366F1" }}>
+                    {formatDate(invoice.debitDate)}
                   </p>
                 </div>
               </div>

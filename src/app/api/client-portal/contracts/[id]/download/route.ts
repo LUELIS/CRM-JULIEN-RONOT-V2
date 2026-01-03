@@ -17,7 +17,7 @@ export async function GET(
     }
 
     const user = session.user as any
-    if (user.role !== "client" || !user.clientId) {
+    if (user.type !== "client" || !user.clientId) {
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 

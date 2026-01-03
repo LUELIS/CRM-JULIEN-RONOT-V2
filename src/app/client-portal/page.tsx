@@ -9,9 +9,10 @@ import {
   FileText,
   FileCheck,
   Euro,
-  Clock,
   ChevronRight,
   ArrowUpRight,
+  CreditCard,
+  CalendarClock,
 } from "lucide-react"
 
 interface DashboardStats {
@@ -31,6 +32,13 @@ interface DashboardStats {
     totalTtc: number
     status: string
     issueDate: string
+  }[]
+  upcomingDebits: {
+    id: string
+    invoiceNumber: string
+    amount: number
+    debitDate: string | null
+    paymentMethod: string | null
   }[]
 }
 
@@ -106,6 +114,37 @@ export default function ClientDashboardPage() {
     )
   }
 
+  const formatDebitDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    // Reset time to compare just the dates
+    now.setHours(0, 0, 0, 0)
+    date.setHours(0, 0, 0, 0)
+    const diffDays = Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+    const formattedDate = new Intl.DateTimeFormat("fr-FR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(date)
+
+    if (diffDays < 0) return `En retard (${formattedDate})`
+    if (diffDays === 0) return `Aujourd'hui`
+    if (diffDays === 1) return `Demain`
+    if (diffDays <= 7) return `Dans ${diffDays} jours (${formattedDate})`
+    return formattedDate
+  }
+
+  const paymentMethodLabels: Record<string, string> = {
+    bank_transfer: "Virement bancaire",
+    direct_debit: "Prélèvement automatique",
+    debit: "Prélèvement automatique",
+    prelevement_sepa: "Prélèvement SEPA",
+    card: "Carte bancaire",
+    check: "Chèque",
+    cash: "Espèces",
+  }
+
   return (
     <div className="space-y-8">
       {/* Welcome Header */}
@@ -117,6 +156,57 @@ export default function ClientDashboardPage() {
           Bienvenue dans votre espace client
         </p>
       </div>
+
+      {/* Upcoming Debits */}
+      {stats?.upcomingDebits && stats.upcomingDebits.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold" style={{ color: "#6366F1" }}>
+            {stats.upcomingDebits.length > 1
+              ? `${stats.upcomingDebits.length} prélèvements à venir`
+              : "Prochain prélèvement"
+            }
+          </h2>
+          {stats.upcomingDebits.map((debit) => (
+            <Link
+              key={debit.id}
+              href={`/client-portal/invoices/${debit.id}`}
+              className="block p-4 rounded-2xl transition-all hover:scale-[1.01]"
+              style={{
+                background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+                border: "1px solid #C7D2FE",
+              }}
+            >
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "#6366F1" }}
+                >
+                  <CalendarClock className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm" style={{ color: "#3730A3" }}>
+                    {debit.invoiceNumber}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: "#5B21B6" }}>
+                    {debit.debitDate
+                      ? formatDebitDate(debit.debitDate)
+                      : "Date à définir"
+                    }
+                    {debit.paymentMethod && (
+                      <span className="text-indigo-400"> • {paymentMethodLabels[debit.paymentMethod] || debit.paymentMethod}</span>
+                    )}
+                  </p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-lg font-bold" style={{ color: "#3730A3" }}>
+                    {formatCurrency(debit.amount)}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

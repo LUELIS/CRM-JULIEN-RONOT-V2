@@ -206,14 +206,14 @@ export async function PUT(request: NextRequest) {
 
     if (body.section === "email") {
       // Preserve existing password if not provided (check both camelCase and snake_case for legacy)
-      const existingPassword = currentSettings.smtpPassword || currentSettings.smtp_password || ""
+      const existingPassword = String(currentSettings.smtpPassword || currentSettings.smtp_password || "")
 
       console.log("Saving email settings:", {
         smtpHost: body.smtpHost,
         smtpUsername: body.smtpUsername,
         smtpPasswordProvided: !!body.smtpPassword,
         smtpPasswordLength: body.smtpPassword?.length || 0,
-        existingPasswordLength: existingPassword?.length || 0,
+        existingPasswordLength: existingPassword.length,
       })
 
       const updatedSettings = {

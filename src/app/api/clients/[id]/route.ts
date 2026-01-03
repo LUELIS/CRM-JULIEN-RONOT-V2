@@ -71,9 +71,22 @@ export async function GET(
       (sum, i) => sum + Number(i.totalTtc),
       0
     )
-    const mrr = client.subscriptions
+    // MRR from active subscriptions
+    const subscriptionMrr = client.subscriptions
       .filter((s) => s.status === "active")
       .reduce((sum, s) => sum + Number(s.amountTtc), 0)
+
+    // MRR from recurring services (add 20% VAT for TTC)
+    const servicesMrr = client.services
+      .filter((cs) => cs.is_active && cs.service.isRecurring)
+      .reduce((sum, cs) => {
+        const priceHt = Number(cs.custom_price_ht || cs.service.unitPriceHt)
+        const quantity = Number(cs.quantity || 1)
+        const priceTtc = priceHt * quantity * 1.2 // Assuming 20% VAT
+        return sum + priceTtc
+      }, 0)
+
+    const mrr = subscriptionMrr + servicesMrr
 
     const serializeDecimal = (obj: Record<string, unknown>) => {
       const result: Record<string, unknown> = {}
@@ -138,27 +151,33 @@ export async function PUT(
       data: {
         companyName: body.companyName,
         client_type: body.client_type,
-        first_name: body.first_name,
-        last_name: body.last_name,
-        email: body.email,
-        phone: body.phone,
-        siret: body.siret,
-        siren: body.siren,
-        vatNumber: body.vatNumber,
-        apeCode: body.apeCode,
-        legalForm: body.legalForm,
+        first_name: body.first_name || null,
+        last_name: body.last_name || null,
+        email: body.email || null,
+        phone: body.phone || null,
+        siret: body.siret || null,
+        siren: body.siren || null,
+        vatNumber: body.vatNumber || null,
+        apeCode: body.apeCode || null,
+        legalForm: body.legalForm || null,
         capital: body.capital ? parseFloat(body.capital) : null,
-        address: body.address,
-        postalCode: body.postalCode,
-        city: body.city,
-        country: body.country,
-        website: body.website,
-        contactFirstname: body.contactFirstname,
-        contactLastname: body.contactLastname,
-        contactEmail: body.contactEmail,
-        contactPhone: body.contactPhone,
-        notes: body.notes,
-        status: body.status,
+        address: body.address || null,
+        postalCode: body.postalCode || null,
+        city: body.city || null,
+        country: body.country || "France",
+        website: body.website || null,
+        contactFirstname: body.contactFirstname || null,
+        contactLastname: body.contactLastname || null,
+        contactEmail: body.contactEmail || null,
+        contactPhone: body.contactPhone || null,
+        notes: body.notes || null,
+        status: body.status || "prospect",
+        // SEPA Direct Debit
+        iban: body.iban || null,
+        bic: body.bic || null,
+        sepaMandate: body.sepaMandate || null,
+        sepaMandateDate: body.sepaMandateDate ? new Date(body.sepaMandateDate) : null,
+        sepaSequenceType: body.sepaSequenceType || "RCUR",
       },
     })
 

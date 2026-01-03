@@ -73,6 +73,17 @@ export async function GET(
       },
     })
 
+    // Payment method labels
+    const paymentMethodLabels: Record<string, string> = {
+      bank_transfer: "Virement bancaire",
+      direct_debit: "Prélèvement automatique",
+      debit: "Prélèvement automatique",
+      prelevement_sepa: "Prélèvement SEPA",
+      card: "Carte bancaire",
+      check: "Chèque",
+      cash: "Espèces",
+    }
+
     return NextResponse.json({
       id: invoice.id.toString(),
       invoiceNumber: invoice.invoiceNumber,
@@ -81,9 +92,13 @@ export async function GET(
       dueDate: invoice.dueDate?.toISOString(),
       paymentDate: invoice.paymentDate?.toISOString(),
       paymentMethod: invoice.paymentMethod,
+      paymentMethodLabel: paymentMethodLabels[invoice.paymentMethod || ""] || invoice.paymentMethod,
+      debitDate: invoice.debit_date?.toISOString(),
       subtotalHt: Number(invoice.subtotalHt),
       taxAmount: Number(invoice.taxAmount),
-      totalTtc: Number(invoice.totalTtc),
+      totalTtc: Number(invoice.total_ttc_after_discount) > 0
+        ? Number(invoice.total_ttc_after_discount)
+        : Number(invoice.totalTtc),
       discountType: invoice.discount_type,
       discountValue: Number(invoice.discount_value || 0),
       discountAmount: Number(invoice.discountAmount || 0),

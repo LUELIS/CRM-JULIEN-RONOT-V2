@@ -47,8 +47,8 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#F5F5F7" }}>
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-t-transparent" style={{ borderColor: "#0064FA", borderTopColor: "transparent" }} />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent" />
       </div>
     )
   }
@@ -61,11 +61,11 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
   const isImpersonating = (session?.user as any)?.isImpersonating
 
   const navigation = [
-    { name: "Tableau de bord", href: "/client-portal", icon: Home },
-    { name: "Mes factures", href: "/client-portal/invoices", icon: FileText },
-    { name: "Mes devis", href: "/client-portal/quotes", icon: FileCheck },
-    { name: "Mes contrats", href: "/client-portal/contracts", icon: FileSignature },
-    { name: "Mes services", href: "/client-portal/services", icon: Package },
+    { name: "Accueil", href: "/client-portal", icon: Home },
+    { name: "Factures", href: "/client-portal/invoices", icon: FileText },
+    { name: "Devis", href: "/client-portal/quotes", icon: FileCheck },
+    { name: "Contrats", href: "/client-portal/contracts", icon: FileSignature },
+    { name: "Services", href: "/client-portal/services", icon: Package },
     ...(isPrimaryUser ? [{ name: "Utilisateurs", href: "/client-portal/users", icon: Users }] : []),
   ]
 
@@ -77,25 +77,20 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "#F5F5F7" }}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50/30 to-indigo-50/40">
       {/* Impersonation Banner */}
       <ImpersonationBanner />
 
-      {/* Header */}
+      {/* Mobile Header */}
       <header
-        className="sticky z-50"
-        style={{
-          background: "#FFFFFF",
-          borderBottom: "1px solid #EEEEEE",
-          top: isImpersonating ? "40px" : "0",
-        }}
+        className="lg:hidden sticky z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/60"
+        style={{ top: isImpersonating ? "40px" : "0" }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link href="/client-portal" className="flex items-center gap-3">
+        <div className="px-4">
+          <div className="flex items-center justify-between h-14">
+            <Link href="/client-portal" className="flex items-center gap-2.5">
               {tenant?.logo ? (
-                <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-[#F5F5F7] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100 flex items-center justify-center">
                   {tenant.logo.startsWith("data:") ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -107,104 +102,62 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
                     <Image
                       src={`/uploads/${tenant.logo}`}
                       alt={tenant.name || "Logo"}
-                      width={40}
-                      height={40}
+                      width={32}
+                      height={32}
                       className="object-contain"
                     />
                   )}
                 </div>
               ) : (
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: "#DCB40A" }}
-                >
-                  <Zap className="w-5 h-5" style={{ color: "#111111" }} />
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-white" />
                 </div>
               )}
-              <span className="text-lg font-semibold" style={{ color: "#111111" }}>
-                {tenant?.name || "Espace Client"}
+              <span className="text-sm font-semibold text-slate-800">
+                Espace Client
               </span>
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  style={{
-                    color: isActive(item.href) ? "#0064FA" : "#444444",
-                    background: isActive(item.href) ? "#E6F0FF" : "transparent",
-                  }}
-                >
-                  <item.icon className="w-4 h-4" />
-                  {item.name}
-                </Link>
-              ))}
-            </nav>
-
-            {/* User Menu */}
-            <div className="flex items-center gap-4">
-              <button
-                className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-[#F5F5F7]"
-                style={{ color: "#666666" }}
-              >
-                <User className="w-4 h-4" />
-                <span>{session?.user?.name}</span>
-              </button>
-              <button
-                onClick={() => signOut({ callbackUrl: "/client/login" })}
-                className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-[#FEE2E8]"
-                style={{ color: "#F04B69" }}
-              >
-                <LogOut className="w-4 h-4" />
-                Déconnexion
-              </button>
-
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg hover:bg-[#F5F5F7]"
-              >
-                {mobileMenuOpen ? (
-                  <X className="w-6 h-6" style={{ color: "#444444" }} />
-                ) : (
-                  <Menu className="w-6 h-6" style={{ color: "#444444" }} />
-                )}
-              </button>
-            </div>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-5 h-5 text-slate-600" />
+              ) : (
+                <Menu className="w-5 h-5 text-slate-600" />
+              )}
+            </button>
           </div>
         </div>
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t" style={{ background: "#FFFFFF", borderColor: "#EEEEEE" }}>
-            <div className="px-4 py-3 space-y-1">
+          <div className="border-t border-slate-200/60 bg-white/95 backdrop-blur-xl">
+            <div className="px-3 py-3 space-y-1">
               {navigation.map((item) => (
                 <Link
                   key={item.name}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors"
-                  style={{
-                    color: isActive(item.href) ? "#0064FA" : "#444444",
-                    background: isActive(item.href) ? "#E6F0FF" : "transparent",
-                  }}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isActive(item.href)
+                      ? "bg-blue-50 text-blue-600"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
                 >
-                  <item.icon className="w-5 h-5" />
+                  <item.icon className={`w-5 h-5 ${isActive(item.href) ? "text-blue-500" : "text-slate-400"}`} />
                   {item.name}
                 </Link>
               ))}
-              <div className="pt-3 border-t" style={{ borderColor: "#EEEEEE" }}>
-                <div className="flex items-center gap-3 px-3 py-3" style={{ color: "#666666" }}>
+              <div className="pt-3 mt-2 border-t border-slate-200/60">
+                <div className="flex items-center gap-3 px-3 py-2.5 text-slate-500">
                   <User className="w-5 h-5" />
-                  <span>{session?.user?.name}</span>
+                  <span className="text-sm">{session?.user?.name}</span>
                 </div>
                 <button
                   onClick={() => signOut({ callbackUrl: "/client/login" })}
-                  className="flex w-full items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors hover:bg-[#FEE2E8]"
-                  style={{ color: "#F04B69" }}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
                 >
                   <LogOut className="w-5 h-5" />
                   Déconnexion
@@ -215,14 +168,134 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
+      {/* Desktop Layout */}
+      <div className="hidden lg:block min-h-screen">
+        <div className="flex">
+          {/* Floating Sidebar */}
+          <div
+            className="fixed left-6 bottom-6 z-40"
+            style={{
+              width: "220px",
+              top: isImpersonating ? "calc(40px + 1.5rem)" : "1.5rem"
+            }}
+          >
+            <aside className="h-full bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg shadow-slate-200/50 border border-white/80 flex flex-col overflow-hidden">
+              {/* Logo Section */}
+              <div className="p-5">
+                <Link href="/client-portal" className="flex items-center gap-3">
+                  {tenant?.logo ? (
+                    <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100 flex items-center justify-center shadow-sm">
+                      {tenant.logo.startsWith("data:") ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={tenant.logo}
+                          alt={tenant.name || "Logo"}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <Image
+                          src={`/uploads/${tenant.logo}`}
+                          alt={tenant.name || "Logo"}
+                          width={40}
+                          height={40}
+                          className="object-contain"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-blue-500/25">
+                      <Zap className="w-5 h-5 text-white" />
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-sm font-semibold text-slate-800 block">
+                      {tenant?.name || "Mon Espace"}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      Espace client
+                    </span>
+                  </div>
+                </Link>
+              </div>
+
+              {/* Navigation */}
+              <nav className="flex-1 px-3 py-2 space-y-1">
+                {navigation.map((item) => (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      isActive(item.href)
+                        ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/25"
+                        : "text-slate-600 hover:bg-slate-100/80"
+                    }`}
+                  >
+                    <item.icon
+                      className={`w-[18px] h-[18px] ${
+                        isActive(item.href) ? "text-white/90" : "text-slate-400"
+                      }`}
+                    />
+                    <span>{item.name}</span>
+                  </Link>
+                ))}
+              </nav>
+
+              {/* User Section */}
+              <div className="p-3 border-t border-slate-100">
+                <div className="flex items-center gap-3 px-3 py-2 mb-1">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                    <User className="w-4 h-4 text-slate-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 truncate">
+                      {session?.user?.name}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {session?.user?.email}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => signOut({ callbackUrl: "/client/login" })}
+                  className="flex w-full items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-slate-500 hover:text-red-500 hover:bg-red-50/80 transition-all"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Déconnexion
+                </button>
+              </div>
+            </aside>
+          </div>
+
+          {/* Main Content */}
+          <main
+            className="flex-1 min-h-screen"
+            style={{
+              marginLeft: "256px",
+              paddingTop: isImpersonating ? "40px" : "0"
+            }}
+          >
+            <div className="p-8">
+              {/* Content Card */}
+              <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-sm shadow-slate-200/50 border border-white/80 min-h-[calc(100vh-64px)]">
+                <div className="p-6">
+                  {children}
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      {/* Mobile Content */}
+      <main className="lg:hidden px-4 py-6">
+        <div className="bg-white/60 backdrop-blur-sm rounded-2xl shadow-sm border border-white/80 p-5">
+          {children}
+        </div>
       </main>
 
-      {/* Footer */}
-      <footer className="py-6 text-center text-xs" style={{ color: "#AEAEAE" }}>
-        {tenant?.name || "Aurora CRM"} &copy; {new Date().getFullYear()}
+      {/* Footer - Mobile only */}
+      <footer className="lg:hidden py-6 text-center text-xs text-slate-400">
+        {tenant?.name || "Espace Client"} © {new Date().getFullYear()}
       </footer>
     </div>
   )

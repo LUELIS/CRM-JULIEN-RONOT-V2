@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -19,6 +19,8 @@ import {
   PanelRightOpen,
   X,
   FileSignature,
+  Landmark,
+  Mail,
 } from "lucide-react"
 import { signOut, useSession } from "next-auth/react"
 import { useTenant } from "@/contexts/tenant-context"
@@ -32,7 +34,7 @@ interface NavItem {
   children?: { id: string; label: string; href: string }[]
 }
 
-const navItems: NavItem[] = [
+const baseNavItems: Omit<NavItem, "badge">[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { id: "clients", label: "Clients", href: "/clients", icon: Users },
   {
@@ -43,6 +45,7 @@ const navItems: NavItem[] = [
     children: [
       { id: "invoices", label: "Factures", href: "/invoices" },
       { id: "quotes", label: "Devis", href: "/quotes" },
+      { id: "prelevements", label: "Prélèvements", href: "/prelevements" },
     ],
   },
   { id: "contracts", label: "Contrats", href: "/contracts", icon: FileSignature },
@@ -58,8 +61,51 @@ const navItems: NavItem[] = [
     ],
   },
   { id: "treasury", label: "Trésorerie", href: "/treasury", icon: Wallet },
-  { id: "tickets", label: "Tickets", href: "/tickets", icon: Ticket, badge: 3 },
+  { id: "campaigns", label: "Campagnes", href: "/campaigns", icon: Mail },
+  { id: "tickets", label: "Tickets", href: "/tickets", icon: Ticket },
 ]
+
+// Deep Blue Navy Theme
+const theme = {
+  // Backgrounds
+  sidebarBg: "linear-gradient(180deg, #0A1628 0%, #0D1E36 100%)",
+  sidebarBgSolid: "#0A1628",
+
+  // Text colors
+  textInactive: "rgba(255, 255, 255, 0.6)",
+  textHover: "rgba(255, 255, 255, 0.85)",
+  textActive: "#FFFFFF",
+  textMuted: "rgba(255, 255, 255, 0.4)",
+
+  // Icon colors
+  iconInactive: "rgba(255, 255, 255, 0.5)",
+  iconHover: "rgba(255, 255, 255, 0.8)",
+  iconActive: "#FFFFFF",
+
+  // Accents
+  accentPrimary: "#DCB40A",    // Yellow - Logo
+  accentSecondary: "#3B82F6",  // Blue - Active items
+  accentDanger: "#F04B69",     // Red - Logout/badges
+
+  // Borders & separators
+  border: "rgba(255, 255, 255, 0.08)",
+  divider: "rgba(255, 255, 255, 0.06)",
+
+  // Hover & Active backgrounds
+  itemHover: "rgba(255, 255, 255, 0.06)",
+  itemActive: "#3B82F6",
+  submenuBg: "rgba(0, 0, 0, 0.15)",
+  submenuBorder: "rgba(255, 255, 255, 0.1)",
+
+  // Button styles
+  buttonBorder: "rgba(255, 255, 255, 0.12)",
+  buttonBg: "rgba(255, 255, 255, 0.04)",
+  buttonHoverBg: "rgba(255, 255, 255, 0.08)",
+
+  // Tooltip
+  tooltipBg: "#FFFFFF",
+  tooltipText: "#0A1628",
+}
 
 interface SidebarProps {
   isOpen?: boolean
@@ -73,6 +119,32 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [expandedMenus, setExpandedMenus] = useState<string[]>(["billing", "services"])
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const [openTicketsCount, setOpenTicketsCount] = useState(0)
+
+  // Fetch open tickets count
+  useEffect(() => {
+    const fetchOpenTickets = async () => {
+      try {
+        const res = await fetch("/api/tickets/count")
+        if (res.ok) {
+          const data = await res.json()
+          setOpenTicketsCount(data.openCount || 0)
+        }
+      } catch (error) {
+        console.error("Error fetching tickets count:", error)
+      }
+    }
+    fetchOpenTickets()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchOpenTickets, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Build navItems with dynamic badge
+  const navItems: NavItem[] = baseNavItems.map((item) => ({
+    ...item,
+    badge: item.id === "tickets" && openTicketsCount > 0 ? openTicketsCount : undefined,
+  }))
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/" || pathname === "/dashboard"
@@ -104,11 +176,14 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
       {/* Header */}
       <div
         className="flex items-center gap-3 px-4 h-16 border-b"
-        style={{ borderColor: "#EEEEEE" }}
+        style={{ borderColor: theme.border }}
       >
         <Link href="/dashboard" className="flex items-center gap-3 flex-1 min-w-0">
           {tenant?.logo ? (
-            <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 bg-[#F5F5F7] flex items-center justify-center">
+            <div
+              className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center"
+              style={{ background: "#FFFFFF" }}
+            >
               {/* Support both base64 data URLs and legacy file paths */}
               {tenant.logo.startsWith("data:") ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -130,17 +205,17 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
           ) : (
             <div
               className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "#DCB40A" }}
+              style={{ background: "#FFFFFF" }}
             >
-              <Zap className="w-6 h-6" style={{ color: "#111111" }} />
+              <Zap className="w-6 h-6" style={{ color: theme.accentPrimary }} />
             </div>
           )}
           {showLabels && (
             <div className="min-w-0">
-              <span className="text-[15px] font-semibold block" style={{ color: "#111111" }}>
+              <span className="text-[15px] font-semibold block" style={{ color: theme.textActive }}>
                 {tenant?.name?.split(" ")[0] || "Aurora"}
               </span>
-              <span className="text-[11px] font-medium block" style={{ color: "#999999" }}>
+              <span className="text-[11px] font-medium block" style={{ color: theme.textMuted }}>
                 {tenant?.name?.split(" ").slice(1).join(" ") || "CRM"}
               </span>
             </div>
@@ -149,22 +224,29 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
         {!isMobile && (
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-[#F5F5F7] flex-shrink-0"
-            style={{ border: "1px solid #EEEEEE" }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all flex-shrink-0 hover:bg-white/10"
+            style={{
+              border: `1px solid ${theme.buttonBorder}`,
+              background: theme.buttonBg,
+            }}
           >
             {collapsed ? (
-              <PanelRightOpen className="w-4 h-4" style={{ color: "#666666" }} />
+              <PanelRightOpen className="w-4 h-4" style={{ color: theme.textInactive }} />
             ) : (
-              <PanelLeftClose className="w-4 h-4" style={{ color: "#666666" }} />
+              <PanelLeftClose className="w-4 h-4" style={{ color: theme.textInactive }} />
             )}
           </button>
         )}
         {isMobile && (
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-[#F5F5F7]"
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:bg-white/10"
+            style={{
+              border: `1px solid ${theme.buttonBorder}`,
+              background: theme.buttonBg,
+            }}
           >
-            <X className="w-4 h-4" style={{ color: "#666666" }} />
+            <X className="w-4 h-4" style={{ color: theme.textInactive }} />
           </button>
         )}
       </div>
@@ -189,25 +271,27 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                   }}
                   onMouseEnter={() => setHoveredItem(item.id)}
                   onMouseLeave={() => setHoveredItem(null)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left relative"
-                  style={{ background: active ? "#0064FA" : "transparent" }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left relative group"
+                  style={{
+                    background: active ? theme.itemActive : "transparent",
+                  }}
                 >
                   <Icon
-                    className="w-5 h-5 flex-shrink-0"
-                    style={{ color: active ? "#FFFFFF" : "#666666" }}
+                    className="w-5 h-5 flex-shrink-0 transition-colors"
+                    style={{ color: active ? theme.iconActive : theme.iconInactive }}
                   />
                   {showLabels && (
                     <>
                       <span
-                        className="flex-1 text-[14px] font-medium"
-                        style={{ color: active ? "#FFFFFF" : "#444444" }}
+                        className="flex-1 text-[14px] font-medium transition-colors"
+                        style={{ color: active ? theme.textActive : theme.textInactive }}
                       >
                         {item.label}
                       </span>
                       <ChevronDown
                         className="w-4 h-4 transition-transform duration-200"
                         style={{
-                          color: active ? "#FFFFFF" : "#CCCCCC",
+                          color: active ? theme.textActive : theme.textMuted,
                           transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
                         }}
                       />
@@ -216,8 +300,8 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                   {/* Tooltip when collapsed */}
                   {!showLabels && isHovered && (
                     <div
-                      className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap z-50"
-                      style={{ background: "#111111", color: "#FFFFFF" }}
+                      className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap z-50 shadow-lg"
+                      style={{ background: theme.tooltipBg, color: theme.tooltipText }}
                     >
                       {item.label}
                       <div
@@ -225,7 +309,7 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                         style={{
                           borderTop: "6px solid transparent",
                           borderBottom: "6px solid transparent",
-                          borderRight: "6px solid #111111",
+                          borderRight: `6px solid ${theme.tooltipBg}`,
                         }}
                       />
                     </div>
@@ -237,25 +321,27 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                   onClick={isMobile ? onClose : undefined}
                   onMouseEnter={() => setHoveredItem(item.id)}
                   onMouseLeave={() => setHoveredItem(null)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative"
-                  style={{ background: active ? "#0064FA" : "transparent" }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative group"
+                  style={{
+                    background: active ? theme.itemActive : "transparent",
+                  }}
                 >
                   <Icon
-                    className="w-5 h-5 flex-shrink-0"
-                    style={{ color: active ? "#FFFFFF" : "#666666" }}
+                    className="w-5 h-5 flex-shrink-0 transition-colors"
+                    style={{ color: active ? theme.iconActive : theme.iconInactive }}
                   />
                   {showLabels && (
                     <>
                       <span
-                        className="flex-1 text-[14px] font-medium"
-                        style={{ color: active ? "#FFFFFF" : "#444444" }}
+                        className="flex-1 text-[14px] font-medium transition-colors"
+                        style={{ color: active ? theme.textActive : theme.textInactive }}
                       >
                         {item.label}
                       </span>
                       {item.badge && (
                         <span
                           className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold text-white flex items-center justify-center"
-                          style={{ background: "#F04B69" }}
+                          style={{ background: theme.accentDanger }}
                         >
                           {item.badge}
                         </span>
@@ -265,7 +351,7 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                   {!showLabels && item.badge && (
                     <span
                       className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
-                      style={{ background: "#F04B69" }}
+                      style={{ background: theme.accentDanger }}
                     >
                       {item.badge}
                     </span>
@@ -273,8 +359,8 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                   {/* Tooltip when collapsed */}
                   {!showLabels && isHovered && (
                     <div
-                      className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap z-50"
-                      style={{ background: "#111111", color: "#FFFFFF" }}
+                      className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap z-50 shadow-lg"
+                      style={{ background: theme.tooltipBg, color: theme.tooltipText }}
                     >
                       {item.label}
                       <div
@@ -282,7 +368,7 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                         style={{
                           borderTop: "6px solid transparent",
                           borderBottom: "6px solid transparent",
-                          borderRight: "6px solid #111111",
+                          borderRight: `6px solid ${theme.tooltipBg}`,
                         }}
                       />
                     </div>
@@ -301,7 +387,7 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                 >
                   <div
                     className="ml-5 pl-4 mt-1 mb-1 flex flex-col gap-0.5"
-                    style={{ borderLeft: "1px solid #EEEEEE" }}
+                    style={{ borderLeft: `1px solid ${theme.submenuBorder}` }}
                   >
                     {item.children?.map((child) => {
                       const childActive = isActive(child.href)
@@ -310,11 +396,11 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                           key={child.id}
                           href={child.href}
                           onClick={isMobile ? onClose : undefined}
-                          className="px-3 py-2 rounded-lg text-[13px] transition-all hover:bg-[#F5F5F7]"
+                          className="px-3 py-2 rounded-lg text-[13px] transition-all"
                           style={{
-                            color: childActive ? "#111111" : "#666666",
+                            color: childActive ? theme.textActive : theme.textInactive,
                             fontWeight: childActive ? 500 : 400,
-                            background: childActive ? "#F5F5F7" : "transparent",
+                            background: childActive ? "rgba(255, 255, 255, 0.08)" : "transparent",
                           }}
                         >
                           {child.label}
@@ -330,31 +416,31 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
       </nav>
 
       {/* Bottom section */}
-      <div className="px-3 pb-4 pt-3 border-t" style={{ borderColor: "#EEEEEE" }}>
+      <div className="px-3 pb-4 pt-3 border-t" style={{ borderColor: theme.border }}>
         {/* Settings */}
         <Link
           href="/settings"
           onMouseEnter={() => setHoveredItem("settings")}
           onMouseLeave={() => setHoveredItem(null)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative hover:bg-[#F5F5F7]"
-          style={{ background: isActive("/settings") ? "#0064FA" : "transparent" }}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative"
+          style={{ background: isActive("/settings") ? theme.itemActive : "transparent" }}
         >
           <Settings
             className="w-5 h-5 flex-shrink-0"
-            style={{ color: isActive("/settings") ? "#FFFFFF" : "#666666" }}
+            style={{ color: isActive("/settings") ? theme.iconActive : theme.iconInactive }}
           />
           {showLabels && (
             <span
               className="flex-1 text-[14px] font-medium"
-              style={{ color: isActive("/settings") ? "#FFFFFF" : "#444444" }}
+              style={{ color: isActive("/settings") ? theme.textActive : theme.textInactive }}
             >
               Paramètres
             </span>
           )}
           {!showLabels && hoveredItem === "settings" && (
             <div
-              className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap z-50"
-              style={{ background: "#111111", color: "#FFFFFF" }}
+              className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap z-50 shadow-lg"
+              style={{ background: theme.tooltipBg, color: theme.tooltipText }}
             >
               Paramètres
               <div
@@ -362,7 +448,7 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                 style={{
                   borderTop: "6px solid transparent",
                   borderBottom: "6px solid transparent",
-                  borderRight: "6px solid #111111",
+                  borderRight: `6px solid ${theme.tooltipBg}`,
                 }}
               />
             </div>
@@ -371,21 +457,24 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
 
         {/* User */}
         {showLabels && (
-          <div className="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-2xl cursor-pointer transition-colors hover:bg-[#F5F5F7]">
+          <div
+            className="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-2xl cursor-pointer transition-colors"
+            style={{ background: theme.itemHover }}
+          >
             <div className="relative">
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ background: "#0064FA" }}
+                style={{ background: theme.accentSecondary }}
               >
                 <span className="text-[11px] font-semibold text-white">{userInitials}</span>
               </div>
               <div
                 className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
-                style={{ background: "#28B95F", borderColor: "#FFFFFF" }}
+                style={{ background: "#28B95F", borderColor: theme.sidebarBgSolid }}
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-medium truncate" style={{ color: "#111111" }}>
+              <p className="text-[13px] font-medium truncate" style={{ color: theme.textActive }}>
                 {session?.user?.name || "Utilisateur"}
               </p>
             </div>
@@ -397,18 +486,19 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
           onClick={() => signOut({ callbackUrl: "/login" })}
           onMouseEnter={() => setHoveredItem("logout")}
           onMouseLeave={() => setHoveredItem(null)}
-          className="mt-2 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors hover:bg-[#FEE2E8] relative"
+          className="mt-2 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors relative"
+          style={{ background: hoveredItem === "logout" ? "rgba(240, 75, 105, 0.15)" : "transparent" }}
         >
-          <LogOut className="h-4 w-4 flex-shrink-0" style={{ color: "#F04B69" }} />
+          <LogOut className="h-4 w-4 flex-shrink-0" style={{ color: theme.accentDanger }} />
           {showLabels && (
-            <span className="text-[13px] font-medium" style={{ color: "#F04B69" }}>
+            <span className="text-[13px] font-medium" style={{ color: theme.accentDanger }}>
               Déconnexion
             </span>
           )}
           {!showLabels && hoveredItem === "logout" && (
             <div
-              className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap z-50"
-              style={{ background: "#111111", color: "#FFFFFF" }}
+              className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg text-[13px] font-medium whitespace-nowrap z-50 shadow-lg"
+              style={{ background: theme.tooltipBg, color: theme.tooltipText }}
             >
               Déconnexion
               <div
@@ -416,7 +506,7 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
                 style={{
                   borderTop: "6px solid transparent",
                   borderBottom: "6px solid transparent",
-                  borderRight: "6px solid #111111",
+                  borderRight: `6px solid ${theme.tooltipBg}`,
                 }}
               />
             </div>
@@ -433,8 +523,8 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
         className="hidden lg:block h-screen flex-shrink-0 transition-all duration-300 relative z-10"
         style={{
           width: collapsed ? 72 : 260,
-          background: "#FFFFFF",
-          borderRight: "1px solid #EEEEEE",
+          background: theme.sidebarBg,
+          borderRight: `1px solid ${theme.border}`,
         }}
       >
         {sidebarContent(!collapsed)}
@@ -442,15 +532,15 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
 
       {/* Mobile Overlay */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+        <div className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       )}
 
       {/* Mobile Sidebar */}
       <div
         className="lg:hidden fixed inset-y-0 left-0 z-50 w-[280px] transition-transform duration-300"
         style={{
-          background: "#FFFFFF",
-          boxShadow: "4px 0 24px rgba(0, 0, 0, 0.12)",
+          background: theme.sidebarBg,
+          boxShadow: "4px 0 24px rgba(0, 0, 0, 0.3)",
           transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
         }}
       >

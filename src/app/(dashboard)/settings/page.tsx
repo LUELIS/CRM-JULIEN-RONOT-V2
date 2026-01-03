@@ -28,9 +28,14 @@ import {
   Loader2,
   Puzzle,
   MessageSquare,
+  Users,
   Sparkles,
   ChevronDown,
   ExternalLink,
+  Building,
+  PenTool,
+  Webhook,
+  Landmark,
 } from "lucide-react"
 import Image from "next/image"
 import { useTenant } from "@/contexts/tenant-context"
@@ -77,6 +82,42 @@ interface SettingsData {
     ovhConsumerKey?: string
     ovhEndpoint?: string
     cloudflareApiToken?: string
+    // Slack
+    slackEnabled?: boolean
+    slackWebhookUrl?: string
+    slackBotToken?: string
+    slackChannelId?: string
+    slackNotifyOnNew?: boolean
+    slackNotifyOnReply?: boolean
+    // OpenAI
+    openaiEnabled?: boolean
+    openaiApiKey?: string
+    openaiModel?: string
+    openaiAutoSuggest?: boolean
+    openaiAutoClassify?: boolean
+    // O365
+    o365Enabled?: boolean
+    o365ClientId?: string
+    o365ClientSecret?: string
+    o365TenantId?: string
+    o365SupportEmail?: string
+    o365AutoSync?: boolean
+    o365AllowedGroups?: string
+    // GoCardless
+    gocardlessEnabled?: boolean
+    gocardlessSecretId?: string
+    gocardlessSecretKey?: string
+    gocardlessEnvironment?: string
+    // DocuSeal
+    docusealEnabled?: boolean
+    docusealApiUrl?: string
+    docusealApiKey?: string
+    docusealWebhookSecret?: string
+    // SEPA
+    sepaIcs?: string
+    sepaCreditorName?: string
+    sepaCreditorIban?: string
+    sepaCreditorBic?: string
   }
 }
 
@@ -181,6 +222,29 @@ function SettingsContent() {
   const [o365TenantId, setO365TenantId] = useState("")
   const [o365SupportEmail, setO365SupportEmail] = useState("")
   const [o365AutoSync, setO365AutoSync] = useState(false)
+  const [o365AllowedGroups, setO365AllowedGroups] = useState("")
+  const [azureGroups, setAzureGroups] = useState<Array<{ id: string; name: string; description: string; type: string }>>([])
+  const [loadingAzureGroups, setLoadingAzureGroups] = useState(false)
+  const [azureGroupsError, setAzureGroupsError] = useState("")
+
+  // GoCardless (Bank Account Data)
+  const [gocardlessEnabled, setGocardlessEnabled] = useState(false)
+  const [gocardlessSecretId, setGocardlessSecretId] = useState("")
+  const [gocardlessSecretKey, setGocardlessSecretKey] = useState("")
+  const [gocardlessEnvironment, setGocardlessEnvironment] = useState<"sandbox" | "production">("sandbox")
+
+  // DocuSeal (Electronic Signatures)
+  const [docusealEnabled, setDocusealEnabled] = useState(false)
+  const [docusealApiUrl, setDocusealApiUrl] = useState("https://api.docuseal.com")
+  const [docusealApiKey, setDocusealApiKey] = useState("")
+  const [docusealWebhookSecret, setDocusealWebhookSecret] = useState("")
+
+  // SEPA Direct Debit
+  const [sepaIcs, setSepaIcs] = useState("")
+  const [sepaCreditorName, setSepaCreditorName] = useState("")
+  const [sepaCreditorIban, setSepaCreditorIban] = useState("")
+  const [sepaCreditorBic, setSepaCreditorBic] = useState("")
+
   const [showIntegrationSecrets, setShowIntegrationSecrets] = useState(false)
   const [integrationTestResult, setIntegrationTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [activeIntegrationTab, setActiveIntegrationTab] = useState("slack")
@@ -247,6 +311,25 @@ function SettingsContent() {
         setO365TenantId(data.settings?.o365TenantId || "")
         setO365SupportEmail(data.settings?.o365SupportEmail || "")
         setO365AutoSync(data.settings?.o365AutoSync ?? false)
+        setO365AllowedGroups(data.settings?.o365AllowedGroups || "")
+
+        // GoCardless
+        setGocardlessEnabled(data.settings?.gocardlessEnabled || false)
+        setGocardlessSecretId(data.settings?.gocardlessSecretId || "")
+        setGocardlessSecretKey(data.settings?.gocardlessSecretKey || "")
+        setGocardlessEnvironment((data.settings?.gocardlessEnvironment as "sandbox" | "production") || "sandbox")
+
+        // DocuSeal
+        setDocusealEnabled(data.settings?.docusealEnabled || false)
+        setDocusealApiUrl(data.settings?.docusealApiUrl || "https://api.docuseal.com")
+        setDocusealApiKey(data.settings?.docusealApiKey || "")
+        setDocusealWebhookSecret(data.settings?.docusealWebhookSecret || "")
+
+        // SEPA
+        setSepaIcs(data.settings?.sepaIcs || "")
+        setSepaCreditorName(data.settings?.sepaCreditorName || "")
+        setSepaCreditorIban(data.settings?.sepaCreditorIban || "")
+        setSepaCreditorBic(data.settings?.sepaCreditorBic || "")
       }
     } catch (error) {
       console.error("Error fetching settings:", error)
@@ -506,6 +589,38 @@ function SettingsContent() {
     }
   }
 
+  const fetchAzureGroups = async () => {
+    setLoadingAzureGroups(true)
+    setAzureGroupsError("")
+    try {
+      const res = await fetch("/api/settings/azure-groups")
+      const data = await res.json()
+      if (data.groups) {
+        setAzureGroups(data.groups)
+      } else {
+        setAzureGroupsError(data.error || "Erreur lors de la récupération des groupes")
+      }
+    } catch {
+      setAzureGroupsError("Erreur lors de la récupération des groupes")
+    } finally {
+      setLoadingAzureGroups(false)
+    }
+  }
+
+  const toggleAzureGroup = (groupId: string) => {
+    const currentGroups = o365AllowedGroups ? o365AllowedGroups.split(",").map(g => g.trim()).filter(Boolean) : []
+    if (currentGroups.includes(groupId)) {
+      setO365AllowedGroups(currentGroups.filter(g => g !== groupId).join(", "))
+    } else {
+      setO365AllowedGroups([...currentGroups, groupId].join(", "))
+    }
+  }
+
+  const isGroupSelected = (groupId: string): boolean => {
+    const currentGroups = o365AllowedGroups ? o365AllowedGroups.split(",").map(g => g.trim()).filter(Boolean) : []
+    return currentGroups.includes(groupId)
+  }
+
   const tabs = [
     { id: "company", label: "Entreprise", icon: Building2, color: "#0064FA" },
     { id: "appearance", label: "Apparence", icon: ImagePlus, color: "#5F00BA" },
@@ -590,7 +705,7 @@ function SettingsContent() {
       {/* Company Tab */}
       {activeTab === "company" && (
         <div
-          className="rounded-2xl p-6 max-w-2xl space-y-6"
+          className="rounded-2xl p-6 w-full space-y-6"
           style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
         >
           <div className="flex items-center gap-3">
@@ -655,7 +770,7 @@ function SettingsContent() {
 
       {/* Appearance Tab */}
       {activeTab === "appearance" && (
-        <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+        <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#EDE9FE" }}>
               <ImagePlus className="h-5 w-5" style={{ color: "#5F00BA" }} />
@@ -767,7 +882,7 @@ function SettingsContent() {
 
       {/* Goals Tab */}
       {activeTab === "goals" && (
-        <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+        <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#D4EDDA" }}>
               <Target className="h-5 w-5" style={{ color: "#28B95F" }} />
@@ -818,7 +933,7 @@ function SettingsContent() {
 
       {/* Email Tab */}
       {activeTab === "email" && (
-        <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+        <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#F3E8FF" }}>
               <Mail className="h-5 w-5" style={{ color: "#5F00BA" }} />
@@ -895,7 +1010,7 @@ function SettingsContent() {
 
       {/* Payment Tab */}
       {activeTab === "payment" && (
-        <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+        <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#D4EDDA" }}>
               <CreditCard className="h-5 w-5" style={{ color: "#28B95F" }} />
@@ -945,7 +1060,7 @@ function SettingsContent() {
 
       {/* Invoice Tab */}
       {activeTab === "invoice" && (
-        <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+        <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#FEF3CD" }}>
               <FileText className="h-5 w-5" style={{ color: "#F0783C" }} />
@@ -1043,7 +1158,7 @@ function SettingsContent() {
       {activeTab === "dns" && (
         <div className="space-y-6">
           {/* OVH Section */}
-          <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#E3F2FD" }}>
                 <Globe className="h-5 w-5" style={{ color: "#14B4E6" }} />
@@ -1171,7 +1286,7 @@ function SettingsContent() {
           </div>
 
           {/* Cloudflare Section */}
-          <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#FEF3CD" }}>
                 <svg className="h-5 w-5" style={{ color: "#F0783C" }} viewBox="0 0 24 24" fill="currentColor">
@@ -1232,7 +1347,7 @@ function SettingsContent() {
       {activeTab === "integrations" && (
         <div className="space-y-6">
           {/* Header */}
-          <div className="rounded-2xl p-6 max-w-2xl" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <div className="rounded-2xl p-6 w-full" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#D4EDDA" }}>
                 <Puzzle className="h-5 w-5" style={{ color: "#28B95F" }} />
@@ -1246,7 +1361,7 @@ function SettingsContent() {
 
           {/* Test result */}
           {integrationTestResult && (
-            <div className="max-w-2xl p-4 rounded-xl flex items-center justify-between" style={{ background: integrationTestResult.type === "success" ? "#D4EDDA" : "#FEE2E8", border: `1px solid ${integrationTestResult.type === "success" ? "#28B95F" : "#F04B69"}` }}>
+            <div className="w-full p-4 rounded-xl flex items-center justify-between" style={{ background: integrationTestResult.type === "success" ? "#D4EDDA" : "#FEE2E8", border: `1px solid ${integrationTestResult.type === "success" ? "#28B95F" : "#F04B69"}` }}>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: integrationTestResult.type === "success" ? "#28B95F" : "#F04B69" }}>
                   {integrationTestResult.type === "success" ? <CheckCircle className="h-5 w-5" style={{ color: "#FFFFFF" }} /> : <AlertCircle className="h-5 w-5" style={{ color: "#FFFFFF" }} />}
@@ -1258,24 +1373,36 @@ function SettingsContent() {
           )}
 
           {/* Integration Sub-tabs */}
-          <div className="flex gap-1 p-1 rounded-xl max-w-2xl" style={{ background: "#F5F5F7" }}>
-            <button onClick={() => setActiveIntegrationTab("slack")} className="flex-1 px-4 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "slack" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "slack" ? "#5F00BA" : "#666666", boxShadow: activeIntegrationTab === "slack" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+          <div className="flex flex-wrap gap-1 p-1 rounded-xl w-full" style={{ background: "#F5F5F7" }}>
+            <button onClick={() => setActiveIntegrationTab("slack")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "slack" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "slack" ? "#5F00BA" : "#666666", boxShadow: activeIntegrationTab === "slack" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
               <MessageSquare className="h-4 w-4" />
               <span className="hidden sm:inline">Slack</span>
             </button>
-            <button onClick={() => setActiveIntegrationTab("openai")} className="flex-1 px-4 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "openai" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "openai" ? "#28B95F" : "#666666", boxShadow: activeIntegrationTab === "openai" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+            <button onClick={() => setActiveIntegrationTab("openai")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "openai" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "openai" ? "#28B95F" : "#666666", boxShadow: activeIntegrationTab === "openai" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
               <Sparkles className="h-4 w-4" />
               <span className="hidden sm:inline">OpenAI</span>
             </button>
-            <button onClick={() => setActiveIntegrationTab("o365")} className="flex-1 px-4 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "o365" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "o365" ? "#0064FA" : "#666666", boxShadow: activeIntegrationTab === "o365" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+            <button onClick={() => setActiveIntegrationTab("o365")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "o365" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "o365" ? "#0064FA" : "#666666", boxShadow: activeIntegrationTab === "o365" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
               <Mail className="h-4 w-4" />
-              <span className="hidden sm:inline">Office 365</span>
+              <span className="hidden sm:inline">O365</span>
+            </button>
+            <button onClick={() => setActiveIntegrationTab("gocardless")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "gocardless" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "gocardless" ? "#14B4E6" : "#666666", boxShadow: activeIntegrationTab === "gocardless" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+              <Building className="h-4 w-4" />
+              <span className="hidden sm:inline">GoCardless</span>
+            </button>
+            <button onClick={() => setActiveIntegrationTab("docuseal")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "docuseal" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "docuseal" ? "#F0783C" : "#666666", boxShadow: activeIntegrationTab === "docuseal" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+              <PenTool className="h-4 w-4" />
+              <span className="hidden sm:inline">DocuSeal</span>
+            </button>
+            <button onClick={() => setActiveIntegrationTab("sepa")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "sepa" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "sepa" ? "#0064FA" : "#666666", boxShadow: activeIntegrationTab === "sepa" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+              <Landmark className="h-4 w-4" />
+              <span className="hidden sm:inline">SEPA</span>
             </button>
           </div>
 
           {/* Slack Settings */}
           {activeIntegrationTab === "slack" && (
-            <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#F3E8FF" }}>
@@ -1368,7 +1495,7 @@ function SettingsContent() {
 
           {/* OpenAI Settings */}
           {activeIntegrationTab === "openai" && (
-            <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#D4EDDA" }}>
@@ -1464,7 +1591,7 @@ function SettingsContent() {
 
           {/* O365 Settings */}
           {activeIntegrationTab === "o365" && (
-            <div className="rounded-2xl p-6 max-w-2xl space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#E3F2FD" }}>
@@ -1529,6 +1656,88 @@ function SettingsContent() {
                         <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: o365AutoSync ? "#0064FA" : "#CCCCCC" }} />
                       </label>
                     </div>
+
+                    {/* SSO Access Control */}
+                    <div className="space-y-3 pt-4" style={{ borderTop: "1px solid #EEEEEE" }}>
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium" style={{ color: "#444444" }}>Groupes Azure AD autorisés (SSO)</label>
+                        <button
+                          onClick={fetchAzureGroups}
+                          disabled={loadingAzureGroups || !o365ClientId || !o365ClientSecret || !o365TenantId}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-opacity hover:opacity-80 disabled:opacity-50"
+                          style={{ background: "#E8F0FE", color: "#0064FA" }}
+                        >
+                          {loadingAzureGroups ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Users className="h-3 w-3" />
+                          )}
+                          Récupérer les groupes
+                        </button>
+                      </div>
+
+                      {azureGroupsError && (
+                        <div className="p-3 rounded-lg text-sm" style={{ background: "#FEE2E2", color: "#DC2626" }}>
+                          {azureGroupsError}
+                        </div>
+                      )}
+
+                      {azureGroups.length > 0 && (
+                        <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#EEEEEE" }}>
+                          <div className="max-h-60 overflow-y-auto">
+                            {azureGroups.map((group) => (
+                              <label
+                                key={group.id}
+                                className="flex items-start gap-3 p-3 cursor-pointer transition-colors hover:bg-gray-50"
+                                style={{ borderBottom: "1px solid #EEEEEE" }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isGroupSelected(group.id)}
+                                  onChange={() => toggleAzureGroup(group.id)}
+                                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-sm" style={{ color: "#111111" }}>{group.name}</span>
+                                    <span className="px-1.5 py-0.5 rounded text-xs" style={{
+                                      background: group.type === "security" ? "#E8F0FE" : group.type === "mail" ? "#FEF3C7" : "#F3E8FF",
+                                      color: group.type === "security" ? "#0064FA" : group.type === "mail" ? "#D97706" : "#7C3AED"
+                                    }}>
+                                      {group.type === "security" ? "Sécurité" : group.type === "mail" ? "Mail" : "Autre"}
+                                    </span>
+                                  </div>
+                                  {group.description && (
+                                    <p className="text-xs mt-0.5 truncate" style={{ color: "#666666" }}>{group.description}</p>
+                                  )}
+                                  <p className="text-xs font-mono mt-0.5" style={{ color: "#999999" }}>{group.id}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {azureGroups.length === 0 && !azureGroupsError && (
+                        <div className="p-4 rounded-xl text-center" style={{ background: "#F5F5F7" }}>
+                          <Users className="h-8 w-8 mx-auto mb-2" style={{ color: "#999999" }} />
+                          <p className="text-sm" style={{ color: "#666666" }}>
+                            Cliquez sur &quot;Récupérer les groupes&quot; pour charger les groupes Azure AD
+                          </p>
+                        </div>
+                      )}
+
+                      {o365AllowedGroups && (
+                        <div className="flex items-center gap-2 text-xs" style={{ color: "#666666" }}>
+                          <CheckCircle className="h-3 w-3" style={{ color: "#28B95F" }} />
+                          <span>{o365AllowedGroups.split(",").filter(g => g.trim()).length} groupe(s) sélectionné(s)</span>
+                        </div>
+                      )}
+
+                      <p className="text-xs" style={{ color: "#999999" }}>
+                        Sélectionnez les groupes Azure AD dont les membres peuvent se connecter au CRM via SSO. Laisser vide pour autoriser tous les utilisateurs du tenant.
+                      </p>
+                    </div>
                   </div>
                 </>
               )}
@@ -1540,7 +1749,249 @@ function SettingsContent() {
                     Tester la connexion
                   </button>
                 )}
-                <button onClick={() => handleSave("integrations", { o365Enabled, o365ClientId, o365ClientSecret, o365TenantId, o365SupportEmail, o365AutoSync })} disabled={saving === "integrations"} className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background: "#0064FA", color: "#FFFFFF" }}>
+                <button onClick={() => handleSave("integrations", { o365Enabled, o365ClientId, o365ClientSecret, o365TenantId, o365SupportEmail, o365AutoSync, o365AllowedGroups })} disabled={saving === "integrations"} className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background: "#0064FA", color: "#FFFFFF" }}>
+                  {saving === "integrations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Enregistrer
+                </button>
+                {saved === "integrations" && <span className="flex items-center gap-1 text-sm" style={{ color: "#28B95F" }}><CheckCircle className="h-4 w-4" />Enregistré</span>}
+              </div>
+            </div>
+          )}
+
+          {/* GoCardless Settings */}
+          {activeIntegrationTab === "gocardless" && (
+            <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#E0F7FA" }}>
+                    <Building className="h-5 w-5" style={{ color: "#14B4E6" }} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold" style={{ color: "#111111" }}>GoCardless Bank Account Data</h2>
+                    <p className="text-sm" style={{ color: "#666666" }}>Connectez vos comptes bancaires via Open Banking</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={gocardlessEnabled} onChange={(e) => setGocardlessEnabled(e.target.checked)} className="sr-only peer" />
+                  <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: gocardlessEnabled ? "#14B4E6" : "#CCCCCC" }} />
+                </label>
+              </div>
+
+              {gocardlessEnabled && (
+                <>
+                  <div className="rounded-xl p-4" style={{ background: "#E0F7FA", border: "1px solid #14B4E6" }}>
+                    <h4 className="font-medium mb-2" style={{ color: "#14B4E6" }}>Configuration GoCardless</h4>
+                    <ol className="text-sm space-y-1 list-decimal list-inside" style={{ color: "#0097A7" }}>
+                      <li>Créez un compte sur <a href="https://bankaccountdata.gocardless.com/" target="_blank" rel="noopener noreferrer" className="underline">GoCardless Bank Account Data</a></li>
+                      <li>Créez une nouvelle clé API dans la section &quot;User secrets&quot;</li>
+                      <li>Copiez le Secret ID et la Secret Key</li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" style={{ color: "#444444" }}>Environnement</label>
+                      <select value={gocardlessEnvironment} onChange={(e) => setGocardlessEnvironment(e.target.value as "sandbox" | "production")} className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#14B4E6]/20" style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}>
+                        <option value="sandbox">Sandbox (Test)</option>
+                        <option value="production">Production</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" style={{ color: "#444444" }}>Secret ID *</label>
+                      <div className="relative">
+                        <input type={showIntegrationSecrets ? "text" : "password"} value={gocardlessSecretId} onChange={(e) => setGocardlessSecretId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="w-full px-4 py-2.5 pr-12 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-[#14B4E6]/20" style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }} />
+                        <button type="button" onClick={() => setShowIntegrationSecrets(!showIntegrationSecrets)} className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-70" style={{ color: "#999999" }}>
+                          {showIntegrationSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" style={{ color: "#444444" }}>Secret Key *</label>
+                      <div className="relative">
+                        <input type={showIntegrationSecrets ? "text" : "password"} value={gocardlessSecretKey} onChange={(e) => setGocardlessSecretKey(e.target.value)} placeholder="••••••••••••••••" className="w-full px-4 py-2.5 pr-12 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-[#14B4E6]/20" style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }} />
+                        <button type="button" onClick={() => setShowIntegrationSecrets(!showIntegrationSecrets)} className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-70" style={{ color: "#999999" }}>
+                          {showIntegrationSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 pt-4" style={{ borderTop: "1px solid #EEEEEE" }}>
+                <button onClick={() => handleSave("integrations", { gocardlessEnabled, gocardlessSecretId, gocardlessSecretKey, gocardlessEnvironment })} disabled={saving === "integrations"} className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background: "#14B4E6", color: "#FFFFFF" }}>
+                  {saving === "integrations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Enregistrer
+                </button>
+                {saved === "integrations" && <span className="flex items-center gap-1 text-sm" style={{ color: "#28B95F" }}><CheckCircle className="h-4 w-4" />Enregistré</span>}
+              </div>
+            </div>
+          )}
+
+          {/* DocuSeal Settings */}
+          {activeIntegrationTab === "docuseal" && (
+            <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#FFF3E0" }}>
+                    <PenTool className="h-5 w-5" style={{ color: "#F0783C" }} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold" style={{ color: "#111111" }}>DocuSeal</h2>
+                    <p className="text-sm" style={{ color: "#666666" }}>Signatures électroniques pour vos contrats</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={docusealEnabled} onChange={(e) => setDocusealEnabled(e.target.checked)} className="sr-only peer" />
+                  <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: docusealEnabled ? "#F0783C" : "#CCCCCC" }} />
+                </label>
+              </div>
+
+              {docusealEnabled && (
+                <>
+                  <div className="rounded-xl p-4" style={{ background: "#FFF3E0", border: "1px solid #F0783C" }}>
+                    <h4 className="font-medium mb-2" style={{ color: "#F0783C" }}>Configuration DocuSeal</h4>
+                    <ol className="text-sm space-y-1 list-decimal list-inside" style={{ color: "#E65100" }}>
+                      <li>Connectez-vous à votre instance <a href="https://docuseal.com" target="_blank" rel="noopener noreferrer" className="underline">DocuSeal</a></li>
+                      <li>Allez dans Settings &gt; API et créez une clé API</li>
+                      <li>Configurez le webhook URL ci-dessous dans DocuSeal</li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" style={{ color: "#444444" }}>URL de l&apos;API DocuSeal</label>
+                      <input value={docusealApiUrl} onChange={(e) => setDocusealApiUrl(e.target.value)} placeholder="https://api.docuseal.com" className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#F0783C]/20" style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }} />
+                      <p className="text-xs" style={{ color: "#999999" }}>Laissez par défaut pour DocuSeal Cloud, ou entrez l&apos;URL de votre instance self-hosted</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" style={{ color: "#444444" }}>Clé API *</label>
+                      <div className="relative">
+                        <input type={showIntegrationSecrets ? "text" : "password"} value={docusealApiKey} onChange={(e) => setDocusealApiKey(e.target.value)} placeholder="••••••••••••••••" className="w-full px-4 py-2.5 pr-12 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-[#F0783C]/20" style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }} />
+                        <button type="button" onClick={() => setShowIntegrationSecrets(!showIntegrationSecrets)} className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-70" style={{ color: "#999999" }}>
+                          {showIntegrationSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium flex items-center gap-2" style={{ color: "#444444" }}>
+                        <Webhook className="h-4 w-4" />
+                        Webhook Secret (optionnel)
+                      </label>
+                      <div className="relative">
+                        <input type={showIntegrationSecrets ? "text" : "password"} value={docusealWebhookSecret} onChange={(e) => setDocusealWebhookSecret(e.target.value)} placeholder="whsec_..." className="w-full px-4 py-2.5 pr-12 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-[#F0783C]/20" style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }} />
+                        <button type="button" onClick={() => setShowIntegrationSecrets(!showIntegrationSecrets)} className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-70" style={{ color: "#999999" }}>
+                          {showIntegrationSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <p className="text-xs" style={{ color: "#999999" }}>Pour valider les événements webhook (signature des documents)</p>
+                    </div>
+
+                    <div className="rounded-xl p-4" style={{ background: "#F5F5F7" }}>
+                      <p className="text-sm font-medium mb-2" style={{ color: "#444444" }}>URL du Webhook</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 px-3 py-2 rounded-lg text-xs font-mono" style={{ background: "#FFFFFF", border: "1px solid #EEEEEE", color: "#666666" }}>
+                          {typeof window !== "undefined" ? `${window.location.origin}/api/webhooks/docuseal` : "/api/webhooks/docuseal"}
+                        </code>
+                        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/docuseal`); }} className="p-2 rounded-lg hover:bg-[#EEEEEE] transition-all" title="Copier">
+                          <Copy className="h-4 w-4" style={{ color: "#666666" }} />
+                        </button>
+                      </div>
+                      <p className="text-xs mt-2" style={{ color: "#999999" }}>Configurez cette URL dans DocuSeal pour recevoir les notifications de signature</p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 pt-4" style={{ borderTop: "1px solid #EEEEEE" }}>
+                <button onClick={() => handleSave("integrations", { docusealEnabled, docusealApiUrl, docusealApiKey, docusealWebhookSecret })} disabled={saving === "integrations"} className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background: "#F0783C", color: "#FFFFFF" }}>
+                  {saving === "integrations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Enregistrer
+                </button>
+                {saved === "integrations" && <span className="flex items-center gap-1 text-sm" style={{ color: "#28B95F" }}><CheckCircle className="h-4 w-4" />Enregistré</span>}
+              </div>
+            </div>
+          )}
+
+          {/* SEPA Direct Debit Settings */}
+          {activeIntegrationTab === "sepa" && (
+            <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#E8F0FE" }}>
+                  <Landmark className="h-5 w-5" style={{ color: "#0064FA" }} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold" style={{ color: "#111111" }}>Prélèvements SEPA</h2>
+                  <p className="text-sm" style={{ color: "#666666" }}>Configurez vos informations créancier pour les prélèvements bancaires</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl p-4" style={{ background: "#E8F0FE", border: "1px solid #0064FA" }}>
+                <h4 className="font-medium mb-2" style={{ color: "#0064FA" }}>Informations requises</h4>
+                <p className="text-sm" style={{ color: "#1565C0" }}>
+                  Ces informations sont nécessaires pour générer les fichiers de prélèvement PAIN.008 à envoyer à votre banque.
+                  L&apos;ICS (Identifiant Créancier SEPA) est fourni par votre banque lors de l&apos;activation du service de prélèvement.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#444444" }}>ICS (Identifiant Créancier SEPA) *</label>
+                  <input
+                    value={sepaIcs}
+                    onChange={(e) => setSepaIcs(e.target.value.toUpperCase())}
+                    placeholder="FR00ZZZ000000"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-[#0064FA]/20"
+                    style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                  />
+                  <p className="text-xs" style={{ color: "#999999" }}>Format: 2 lettres pays + 2 chiffres + 3 caractères + 11 caractères</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#444444" }}>Nom du créancier *</label>
+                  <input
+                    value={sepaCreditorName}
+                    onChange={(e) => setSepaCreditorName(e.target.value)}
+                    placeholder="Nom de votre entreprise"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#0064FA]/20"
+                    style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#444444" }}>IBAN créancier *</label>
+                  <input
+                    value={sepaCreditorIban}
+                    onChange={(e) => setSepaCreditorIban(e.target.value.toUpperCase().replace(/\s/g, ""))}
+                    placeholder="FR7630001007941234567890185"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-[#0064FA]/20"
+                    style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#444444" }}>BIC créancier *</label>
+                  <input
+                    value={sepaCreditorBic}
+                    onChange={(e) => setSepaCreditorBic(e.target.value.toUpperCase())}
+                    placeholder="BNPAFRPP"
+                    className="w-full px-4 py-2.5 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-[#0064FA]/20"
+                    style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-4" style={{ borderTop: "1px solid #EEEEEE" }}>
+                <button
+                  onClick={() => handleSave("integrations", { sepaIcs, sepaCreditorName, sepaCreditorIban, sepaCreditorBic })}
+                  disabled={saving === "integrations"}
+                  className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ background: "#0064FA", color: "#FFFFFF" }}
+                >
                   {saving === "integrations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Enregistrer
                 </button>

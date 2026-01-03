@@ -96,6 +96,36 @@ export default function InvoiceDetailPage({
   const [debitDate, setDebitDate] = useState("")
   const [paymentLink, setPaymentLink] = useState("")
 
+  // Mark as paid modal states
+  const [markPaidDialogOpen, setMarkPaidDialogOpen] = useState(false)
+  const [markPaidDate, setMarkPaidDate] = useState(new Date().toISOString().split("T")[0])
+  const [markPaidMethod, setMarkPaidMethod] = useState("virement")
+  const [markPaidNotes, setMarkPaidNotes] = useState("")
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null)
+  const [bankTransactions, setBankTransactions] = useState<{
+    suggested: Array<{
+      id: string
+      date: string
+      amount: number
+      counterpartyName: string | null
+      label: string | null
+      reference: string | null
+      isExactMatch: boolean
+      isCloseMatch: boolean
+    }>
+    others: Array<{
+      id: string
+      date: string
+      amount: number
+      counterpartyName: string | null
+      label: string | null
+      reference: string | null
+      isExactMatch: boolean
+      isCloseMatch: boolean
+    }>
+  }>({ suggested: [], others: [] })
+  const [loadingTransactions, setLoadingTransactions] = useState(false)
+
   useEffect(() => {
     fetch(`/api/invoices/${id}`)
       .then((res) => {
@@ -273,6 +303,62 @@ export default function InvoiceDetailPage({
     if (invoice) {
       setNewDueDate(invoice.dueDate.split("T")[0])
       setDueDateDialogOpen(true)
+    }
+  }
+
+  const openMarkPaidModal = async () => {
+    setMarkPaidDialogOpen(true)
+    setLoadingTransactions(true)
+    setSelectedTransactionId(null)
+    setMarkPaidDate(new Date().toISOString().split("T")[0])
+    setMarkPaidMethod("virement")
+    setMarkPaidNotes("")
+
+    try {
+      const response = await fetch(`/api/invoices/${id}/reconcile-suggestions`)
+      if (response.ok) {
+        const data = await response.json()
+        setBankTransactions({
+          suggested: data.suggested || [],
+          others: data.others || [],
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching transactions:", error)
+    } finally {
+      setLoadingTransactions(false)
+    }
+  }
+
+  const handleMarkPaid = async () => {
+    if (!invoice) return
+    setActionLoading(true)
+
+    try {
+      const response = await fetch(`/api/invoices/${id}/mark-paid`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentDate: markPaidDate,
+          paymentMethod: markPaidMethod,
+          paymentNotes: markPaidNotes || null,
+          bankTransactionId: selectedTransactionId || null,
+        }),
+      })
+
+      if (response.ok) {
+        // Refresh invoice data
+        const invoiceResponse = await fetch(`/api/invoices/${id}`)
+        if (invoiceResponse.ok) {
+          const updatedInvoice = await invoiceResponse.json()
+          setInvoice(updatedInvoice)
+        }
+        setMarkPaidDialogOpen(false)
+      }
+    } catch (error) {
+      console.error("Error marking invoice as paid:", error)
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -715,7 +801,7 @@ export default function InvoiceDetailPage({
                 <button
                   className="w-full px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-opacity hover:opacity-80"
                   style={{ background: "#D4EDDA", color: "#28B95F" }}
-                  onClick={() => handleAction("markPaid")}
+                  onClick={openMarkPaidModal}
                   disabled={actionLoading}
                 >
                   <CheckCircle className="h-4 w-4" />
@@ -1239,6 +1325,265 @@ export default function InvoiceDetailPage({
                   <>
                     <CalendarClock className="h-4 w-4" />
                     Modifier
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark as Paid Modal with Bank Transaction Selection */}
+      {markPaidDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            style={{ background: "#FFFFFF" }}
+          >
+            <div className="p-6" style={{ borderBottom: "1px solid #EEEEEE" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: "#D4EDDA" }}
+                  >
+                    <CheckCircle className="h-5 w-5" style={{ color: "#28B95F" }} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold" style={{ color: "#111111" }}>
+                      Marquer comme payée
+                    </h3>
+                    <p className="text-sm" style={{ color: "#666666" }}>
+                      Enregistrez le paiement et rapprochez-le d&apos;une transaction bancaire
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setMarkPaidDialogOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center hover:opacity-70"
+                  style={{ background: "#F5F5F7" }}
+                >
+                  <X className="h-4 w-4" style={{ color: "#666666" }} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+              {/* Payment Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#444444" }}>
+                    Date de paiement
+                  </label>
+                  <input
+                    type="date"
+                    value={markPaidDate}
+                    onChange={(e) => setMarkPaidDate(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                    style={inputStyle}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: "#444444" }}>
+                    Méthode de paiement
+                  </label>
+                  <select
+                    value={markPaidMethod}
+                    onChange={(e) => setMarkPaidMethod(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                    style={inputStyle}
+                  >
+                    <option value="virement">Virement bancaire</option>
+                    <option value="prelevement">Prélèvement SEPA</option>
+                    <option value="carte">Carte bancaire</option>
+                    <option value="cheque">Chèque</option>
+                    <option value="especes">Espèces</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Invoice Amount Reminder */}
+              <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: "#F5F5F7" }}>
+                <div>
+                  <p className="text-sm" style={{ color: "#666666" }}>Montant de la facture</p>
+                  <p className="text-lg font-bold" style={{ color: "#111111" }}>
+                    {invoice && formatCurrency(invoice.totalTtc)}
+                  </p>
+                </div>
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: "#D4EDDA" }}
+                >
+                  <Euro className="h-5 w-5" style={{ color: "#28B95F" }} />
+                </div>
+              </div>
+
+              {/* Bank Transaction Selection */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium" style={{ color: "#444444" }}>
+                    Rapprocher avec une transaction bancaire (optionnel)
+                  </label>
+                  {selectedTransactionId && (
+                    <button
+                      onClick={() => setSelectedTransactionId(null)}
+                      className="text-xs px-2 py-1 rounded-lg hover:opacity-80"
+                      style={{ background: "#FEE2E8", color: "#F04B69" }}
+                    >
+                      Désélectionner
+                    </button>
+                  )}
+                </div>
+
+                {loadingTransactions ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#0064FA" }} />
+                    <span className="ml-2" style={{ color: "#666666" }}>Chargement des transactions...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {/* Suggested Transactions */}
+                    {bankTransactions.suggested.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#28B95F" }}>
+                          Correspondances suggérées
+                        </p>
+                        {bankTransactions.suggested.map((tx) => (
+                          <label
+                            key={tx.id}
+                            className="flex items-center p-3 rounded-xl cursor-pointer transition-all"
+                            style={{
+                              border: `2px solid ${selectedTransactionId === tx.id ? "#28B95F" : tx.isExactMatch ? "#28B95F" : "#DCB40A"}`,
+                              background: selectedTransactionId === tx.id ? "#D4EDDA" : tx.isExactMatch ? "#F0FDF4" : "#FFFBEB",
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="bank_transaction"
+                              checked={selectedTransactionId === tx.id}
+                              onChange={() => setSelectedTransactionId(tx.id)}
+                              className="w-4 h-4"
+                              style={{ accentColor: "#28B95F" }}
+                            />
+                            <div className="ml-3 flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-semibold truncate" style={{ color: "#111111" }}>
+                                  {formatCurrency(tx.amount)}
+                                </span>
+                                <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{
+                                  background: tx.isExactMatch ? "#D4EDDA" : "#FFF9E6",
+                                  color: tx.isExactMatch ? "#28B95F" : "#DCB40A"
+                                }}>
+                                  {tx.isExactMatch ? "Montant exact" : "Proche"}
+                                </span>
+                              </div>
+                              <p className="text-sm truncate" style={{ color: "#666666" }}>
+                                {tx.counterpartyName || tx.label || "Transaction sans libellé"}
+                              </p>
+                              <p className="text-xs" style={{ color: "#999999" }}>
+                                {formatShortDate(tx.date)} {tx.reference && `• Réf: ${tx.reference}`}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Other Transactions */}
+                    {bankTransactions.others.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#666666" }}>
+                          Autres transactions non rapprochées
+                        </p>
+                        {bankTransactions.others.slice(0, 5).map((tx) => (
+                          <label
+                            key={tx.id}
+                            className="flex items-center p-3 rounded-xl cursor-pointer transition-all"
+                            style={{
+                              border: `2px solid ${selectedTransactionId === tx.id ? "#0064FA" : "#EEEEEE"}`,
+                              background: selectedTransactionId === tx.id ? "#E3F2FD" : "#FFFFFF",
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="bank_transaction"
+                              checked={selectedTransactionId === tx.id}
+                              onChange={() => setSelectedTransactionId(tx.id)}
+                              className="w-4 h-4"
+                              style={{ accentColor: "#0064FA" }}
+                            />
+                            <div className="ml-3 flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-semibold" style={{ color: "#111111" }}>
+                                  {formatCurrency(tx.amount)}
+                                </span>
+                              </div>
+                              <p className="text-sm truncate" style={{ color: "#666666" }}>
+                                {tx.counterpartyName || tx.label || "Transaction sans libellé"}
+                              </p>
+                              <p className="text-xs" style={{ color: "#999999" }}>
+                                {formatShortDate(tx.date)}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+
+                    {bankTransactions.suggested.length === 0 && bankTransactions.others.length === 0 && (
+                      <div className="text-center py-6 rounded-xl" style={{ background: "#F5F5F7" }}>
+                        <p style={{ color: "#666666" }}>Aucune transaction non rapprochée disponible</p>
+                        <p className="text-sm mt-1" style={{ color: "#999999" }}>
+                          Les transactions sont synchronisées depuis GoCardless
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: "#444444" }}>
+                  Notes (optionnel)
+                </label>
+                <textarea
+                  value={markPaidNotes}
+                  onChange={(e) => setMarkPaidNotes(e.target.value)}
+                  placeholder="Référence de paiement, informations complémentaires..."
+                  rows={2}
+                  className="w-full px-4 py-2.5 rounded-xl text-sm outline-none resize-none"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div
+              className="p-6 flex gap-3"
+              style={{ borderTop: "1px solid #EEEEEE" }}
+            >
+              <button
+                className="flex-1 px-4 py-2.5 rounded-xl font-medium transition-opacity hover:opacity-80"
+                style={{ background: "#F5F5F7", color: "#666666" }}
+                onClick={() => setMarkPaidDialogOpen(false)}
+              >
+                Annuler
+              </button>
+              <button
+                className="flex-1 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: "#28B95F", color: "#FFFFFF" }}
+                onClick={handleMarkPaid}
+                disabled={!markPaidDate || actionLoading}
+              >
+                {actionLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    {selectedTransactionId ? "Valider et rapprocher" : "Marquer comme payée"}
                   </>
                 )}
               </button>

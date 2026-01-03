@@ -23,7 +23,12 @@ async function getTenantSettings(): Promise<TenantSettings> {
   }
 
   try {
-    return JSON.parse(tenant.settings) as TenantSettings
+    const parsed = JSON.parse(tenant.settings)
+    // Map snake_case to camelCase and ensure proper types
+    return {
+      monthlyGoal: parsed.monthly_goal ? Number(parsed.monthly_goal) : undefined,
+      monthlyGoalMode: parsed.monthly_goal_mode as "auto" | "fixed" | undefined,
+    }
   } catch {
     return {}
   }

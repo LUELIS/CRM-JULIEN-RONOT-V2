@@ -106,11 +106,8 @@ export async function GET(request: NextRequest) {
         completedAt: c.completedAt?.toISOString(),
         expiresAt: c.expiresAt?.toISOString(),
         createdAt: c.createdAt?.toISOString(),
-        client: {
-          id: c.client.id.toString(),
-          companyName: c.client.companyName,
-          email: c.client.email,
-        },
+        clientId: c.clientId?.toString() || null,
+        clientName: c.client?.companyName || null,
         signers: c.signers.map((s) => ({
           id: s.id.toString(),
           name: s.name,
@@ -118,6 +115,8 @@ export async function GET(request: NextRequest) {
           status: s.status,
           type: s.signerType,
         })),
+        signersCount: c.signers.length,
+        signedCount: c.signers.filter((s) => s.status === "signed").length,
         documentsCount: c.documents.length,
       })),
       stats,

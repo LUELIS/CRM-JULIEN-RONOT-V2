@@ -3,6 +3,8 @@ import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import { prisma } from "./prisma"
 // Types extended in @/types/index.ts
+// Note: Microsoft SSO is handled separately via /api/auth/microsoft routes
+// to allow dynamic credentials from database settings
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,

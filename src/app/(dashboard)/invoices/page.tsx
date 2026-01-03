@@ -130,6 +130,38 @@ export default function InvoicesPage() {
   const [paymentNotes, setPaymentNotes] = useState("")
   const [markingPaid, setMarkingPaid] = useState(false)
 
+  // Bank Reconciliation State
+  const [bankTransactions, setBankTransactions] = useState<{
+    suggested: Array<{
+      id: string
+      date: string
+      amount: number
+      remainingAmount: number
+      reconciledAmount: number
+      isPartiallyReconciled: boolean
+      label: string | null
+      counterpartyName: string | null
+      isExactMatch: boolean
+      isCloseMatch: boolean
+      invoiceFitsInRemaining: boolean
+    }>
+    others: Array<{
+      id: string
+      date: string
+      amount: number
+      remainingAmount: number
+      reconciledAmount: number
+      isPartiallyReconciled: boolean
+      label: string | null
+      counterpartyName: string | null
+      isExactMatch: boolean
+      isCloseMatch: boolean
+      invoiceFitsInRemaining: boolean
+    }>
+  }>({ suggested: [], others: [] })
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null)
+  const [loadingTransactions, setLoadingTransactions] = useState(false)
+
   const fetchInvoices = useCallback(async () => {
     setLoading(true)
     try {
@@ -260,7 +292,7 @@ export default function InvoicesPage() {
     }
   }
 
-  const openPaymentModal = (invoice: Invoice) => {
+  const openPaymentModal = async (invoice: Invoice) => {
     setPaymentInvoice(invoice)
     if (invoice.paymentMethod === "debit" && invoice.debitDate) {
       setPaymentDate(invoice.debitDate.split("T")[0])
@@ -274,7 +306,26 @@ export default function InvoicesPage() {
     }
     setPaymentMethodModal(invoice.paymentMethod ? paymentMethodMap[invoice.paymentMethod] || "" : "")
     setPaymentNotes("")
+    setSelectedTransactionId(null)
+    setBankTransactions({ suggested: [], others: [] })
     setPaymentModalOpen(true)
+
+    // Fetch bank transaction suggestions
+    setLoadingTransactions(true)
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/reconcile-suggestions`)
+      if (res.ok) {
+        const data = await res.json()
+        setBankTransactions({
+          suggested: data.suggested || [],
+          others: data.others || [],
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching bank transactions:", error)
+    } finally {
+      setLoadingTransactions(false)
+    }
   }
 
   const handleMarkPaid = async () => {
@@ -289,6 +340,7 @@ export default function InvoicesPage() {
           paymentDate,
           paymentMethod: paymentMethodModal,
           paymentNotes,
+          bankTransactionId: selectedTransactionId, // Link to bank transaction
         }),
       })
       if (response.ok) {
@@ -1530,6 +1582,130 @@ export default function InvoicesPage() {
                   <option value="stripe">Stripe</option>
                   <option value="autre">Autre</option>
                 </select>
+              </div>
+
+              {/* Bank Transaction Selection */}
+              <div>
+                <label className="text-sm font-medium mb-2 block" style={{ color: "#444444" }}>
+                  Rapprochement bancaire (optionnel)
+                </label>
+                {loadingTransactions ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#0064FA" }} />
+                  </div>
+                ) : bankTransactions.suggested.length > 0 || bankTransactions.others.length > 0 ? (
+                  <div className="space-y-2 max-h-40 overflow-y-auto rounded-xl p-2" style={{ background: "#F5F5F7" }}>
+                    {bankTransactions.suggested.length > 0 && (
+                      <>
+                        <p className="text-xs font-medium px-2" style={{ color: "#28B95F" }}>
+                          Correspondances suggérées
+                        </p>
+                        {bankTransactions.suggested.map((tx) => (
+                          <button
+                            key={tx.id}
+                            type="button"
+                            onClick={() => setSelectedTransactionId(selectedTransactionId === tx.id ? null : tx.id)}
+                            className="w-full text-left p-2 rounded-lg transition-all flex items-center justify-between"
+                            style={{
+                              background: selectedTransactionId === tx.id ? "#D4EDDA" : "#FFFFFF",
+                              border: selectedTransactionId === tx.id ? "2px solid #28B95F" : "1px solid #EEEEEE",
+                            }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium" style={{ color: "#111111" }}>
+                                  {tx.isPartiallyReconciled ? (
+                                    <>
+                                      <span style={{ color: "#0064FA" }}>{formatCurrencyFull(tx.remainingAmount)}</span>
+                                      <span className="text-xs" style={{ color: "#999999" }}> / {formatCurrencyFull(tx.amount)}</span>
+                                    </>
+                                  ) : (
+                                    formatCurrencyFull(tx.amount)
+                                  )}
+                                </p>
+                                {tx.isExactMatch && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#D4EDDA", color: "#28B95F" }}>
+                                    Exact
+                                  </span>
+                                )}
+                                {tx.isPartiallyReconciled && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#E3F2FD", color: "#0064FA" }}>
+                                    Batch
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs truncate" style={{ color: "#666666" }}>
+                                {new Date(tx.date).toLocaleDateString("fr-FR")} - {tx.counterpartyName || tx.label || "Transaction"}
+                              </p>
+                              {tx.isPartiallyReconciled && (
+                                <p className="text-xs" style={{ color: "#0064FA" }}>
+                                  Déjà réconcilié: {formatCurrencyFull(tx.reconciledAmount)}
+                                </p>
+                              )}
+                            </div>
+                            {selectedTransactionId === tx.id && (
+                              <CheckCircle className="h-5 w-5 flex-shrink-0 ml-2" style={{ color: "#28B95F" }} />
+                            )}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {bankTransactions.others.length > 0 && (
+                      <>
+                        <p className="text-xs font-medium px-2 mt-2" style={{ color: "#666666" }}>
+                          Autres transactions
+                        </p>
+                        {bankTransactions.others.slice(0, 5).map((tx) => (
+                          <button
+                            key={tx.id}
+                            type="button"
+                            onClick={() => setSelectedTransactionId(selectedTransactionId === tx.id ? null : tx.id)}
+                            className="w-full text-left p-2 rounded-lg transition-all flex items-center justify-between"
+                            style={{
+                              background: selectedTransactionId === tx.id ? "#E8F4FD" : "#FFFFFF",
+                              border: selectedTransactionId === tx.id ? "2px solid #0064FA" : "1px solid #EEEEEE",
+                            }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium" style={{ color: "#111111" }}>
+                                  {tx.isPartiallyReconciled ? (
+                                    <>
+                                      <span style={{ color: "#0064FA" }}>{formatCurrencyFull(tx.remainingAmount)}</span>
+                                      <span className="text-xs" style={{ color: "#999999" }}> / {formatCurrencyFull(tx.amount)}</span>
+                                    </>
+                                  ) : (
+                                    formatCurrencyFull(tx.amount)
+                                  )}
+                                </p>
+                                {tx.isPartiallyReconciled && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "#E3F2FD", color: "#0064FA" }}>
+                                    Batch
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs truncate" style={{ color: "#666666" }}>
+                                {new Date(tx.date).toLocaleDateString("fr-FR")} - {tx.counterpartyName || tx.label || "Transaction"}
+                              </p>
+                              {tx.isPartiallyReconciled && (
+                                <p className="text-xs" style={{ color: "#0064FA" }}>
+                                  Déjà réconcilié: {formatCurrencyFull(tx.reconciledAmount)}
+                                </p>
+                              )}
+                            </div>
+                            {selectedTransactionId === tx.id && (
+                              <CheckCircle className="h-5 w-5 flex-shrink-0 ml-2" style={{ color: "#0064FA" }} />
+                            )}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs py-2" style={{ color: "#999999" }}>
+                    Aucune transaction bancaire non rapprochée disponible
+                  </p>
+                )}
               </div>
 
               {/* Notes */}

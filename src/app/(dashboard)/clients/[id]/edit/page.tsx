@@ -9,7 +9,35 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, User, Loader2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { ArrowLeft, Building2, User, Loader2, Landmark, Search, CheckCircle2, FileText } from "lucide-react"
+
+interface CompanySearchResult {
+  siren: string
+  siret: string
+  nom_complet: string
+  nom_raison_sociale: string
+  siege: {
+    adresse: string
+    code_postal: string
+    libelle_commune: string
+  }
+  activite_principale: string
+  nature_juridique: string
+}
+
+// Calculate French VAT number from SIREN
+function calculateVatNumber(siren: string): string {
+  if (!siren || siren.length !== 9) return ""
+  const sirenNum = parseInt(siren, 10)
+  const key = (12 + 3 * (sirenNum % 97)) % 97
+  return `FR${String(key).padStart(2, "0")}${siren}`
+}
 
 export default function EditClientPage() {
   const router = useRouter()
@@ -17,6 +45,14 @@ export default function EditClientPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [clientType, setClientType] = useState<"company" | "individual">("company")
+
+  // Company search states
+  const [searching, setSearching] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([])
+  const [showSearchModal, setShowSearchModal] = useState(false)
+  const [highlightedFields, setHighlightedFields] = useState<string[]>([])
+  const [successMessage, setSuccessMessage] = useState("")
 
   const [formData, setFormData] = useState({
     companyName: "",
@@ -41,6 +77,12 @@ export default function EditClientPage() {
     contactPhone: "",
     notes: "",
     status: "prospect",
+    // SEPA
+    iban: "",
+    bic: "",
+    sepaMandate: "",
+    sepaMandateDate: "",
+    sepaSequenceType: "RCUR",
   })
 
   useEffect(() => {
@@ -75,6 +117,12 @@ export default function EditClientPage() {
           contactPhone: client.contactPhone || "",
           notes: client.notes || "",
           status: client.status || "prospect",
+          // SEPA
+          iban: client.iban || "",
+          bic: client.bic || "",
+          sepaMandate: client.sepaMandate || "",
+          sepaMandateDate: client.sepaMandateDate ? client.sepaMandateDate.split("T")[0] : "",
+          sepaSequenceType: client.sepaSequenceType || "RCUR",
         })
       } catch (error) {
         console.error(error)
@@ -88,6 +136,59 @@ export default function EditClientPage() {
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const searchCompany = async () => {
+    if (!searchQuery.trim()) return
+    setSearching(true)
+    setSearchResults([])
+
+    try {
+      const isNumber = /^\d+$/.test(searchQuery.replace(/\s/g, ""))
+      const endpoint = isNumber
+        ? `https://recherche-entreprises.api.gouv.fr/search?q=${searchQuery}&page=1&per_page=10`
+        : `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(searchQuery)}&page=1&per_page=10`
+
+      const res = await fetch(endpoint)
+      const data = await res.json()
+      setSearchResults(data.results || [])
+    } catch (error) {
+      console.error("Search failed:", error)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const selectCompany = (company: CompanySearchResult) => {
+    const newFormData = {
+      ...formData,
+      companyName: company.nom_complet || company.nom_raison_sociale,
+      siret: company.siret,
+      siren: company.siren,
+      vatNumber: calculateVatNumber(company.siren),
+      apeCode: company.activite_principale,
+      legalForm: company.nature_juridique,
+      address: company.siege?.adresse || "",
+      postalCode: company.siege?.code_postal || "",
+      city: company.siege?.libelle_commune || "",
+    }
+
+    setFormData(newFormData)
+    setShowSearchModal(false)
+    setSearchResults([])
+    setSearchQuery("")
+
+    // Highlight filled fields
+    const filledFields = ["companyName", "siret", "siren", "vatNumber", "apeCode", "legalForm", "address", "postalCode", "city"]
+      .filter((f) => newFormData[f as keyof typeof newFormData])
+    setHighlightedFields(filledFields)
+
+    // Show success message
+    setSuccessMessage("Informations mises à jour !")
+    setTimeout(() => {
+      setSuccessMessage("")
+      setHighlightedFields([])
+    }, 3000)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,6 +225,16 @@ export default function EditClientPage() {
 
   return (
     <div className="space-y-6">
+      {/* Success Toast */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg bg-green-500 text-white">
+            <CheckCircle2 className="h-5 w-5" />
+            <span className="font-semibold">{successMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.push(`/clients/${params.id}`)}>
@@ -159,6 +270,50 @@ export default function EditClientPage() {
                 </Tabs>
               </CardContent>
             </Card>
+
+            {/* API Lookup Section */}
+            {clientType === "company" && (
+              <Card className="border-blue-200 bg-blue-50/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-blue-700">
+                    <Search className="h-5 w-5" />
+                    Rechercher une entreprise
+                  </CardTitle>
+                  <CardDescription>
+                    Saisissez le SIRET ou le nom pour récupérer automatiquement les informations
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="SIRET ou nom de l'entreprise..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          setShowSearchModal(true)
+                          searchCompany()
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setShowSearchModal(true)
+                        searchCompany()
+                      }}
+                      disabled={!searchQuery.trim()}
+                      className="gradient-primary text-white"
+                    >
+                      <Search className="h-4 w-4 mr-2" />
+                      Rechercher
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Basic Info */}
             <Card>
@@ -384,6 +539,77 @@ export default function EditClientPage() {
                 />
               </CardContent>
             </Card>
+
+            {/* SEPA Direct Debit */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Landmark className="h-5 w-5" />
+                  Prélèvement SEPA
+                </CardTitle>
+                <CardDescription>
+                  Informations bancaires pour les prélèvements automatiques
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="iban">IBAN</Label>
+                  <Input
+                    id="iban"
+                    value={formData.iban}
+                    onChange={(e) => handleChange("iban", e.target.value.toUpperCase().replace(/\s/g, ""))}
+                    placeholder="FR76 1234 5678 9012 3456 7890 123"
+                    maxLength={34}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bic">BIC</Label>
+                  <Input
+                    id="bic"
+                    value={formData.bic}
+                    onChange={(e) => handleChange("bic", e.target.value.toUpperCase())}
+                    placeholder="BNPAFRPP"
+                    maxLength={11}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="sepaMandate">Référence Unique de Mandat (RUM)</Label>
+                  <Input
+                    id="sepaMandate"
+                    value={formData.sepaMandate}
+                    onChange={(e) => handleChange("sepaMandate", e.target.value)}
+                    placeholder="RUM-2024-001"
+                    maxLength={35}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="sepaMandateDate">Date de signature du mandat</Label>
+                  <Input
+                    id="sepaMandateDate"
+                    type="date"
+                    value={formData.sepaMandateDate}
+                    onChange={(e) => handleChange("sepaMandateDate", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="sepaSequenceType">Type de séquence</Label>
+                  <Select
+                    value={formData.sepaSequenceType}
+                    onValueChange={(v) => handleChange("sepaSequenceType", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FRST">Premier prélèvement (FRST)</SelectItem>
+                      <SelectItem value="RCUR">Récurrent (RCUR)</SelectItem>
+                      <SelectItem value="OOFF">Ponctuel (OOFF)</SelectItem>
+                      <SelectItem value="FNAL">Dernier prélèvement (FNAL)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar */}
@@ -428,6 +654,94 @@ export default function EditClientPage() {
           </div>
         </div>
       </form>
+
+      {/* Search Modal */}
+      <Dialog open={showSearchModal} onOpenChange={setShowSearchModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5 text-blue-600" />
+              Recherche d&apos;entreprise
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Search Input */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="SIRET ou nom d'entreprise..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    searchCompany()
+                  }
+                }}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                onClick={searchCompany}
+                disabled={searching || !searchQuery.trim()}
+                className="gradient-primary text-white"
+              >
+                {searching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+
+            {/* Loading */}
+            {searching && (
+              <div className="text-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600" />
+                <p className="mt-2 text-muted-foreground">Recherche en cours...</p>
+              </div>
+            )}
+
+            {/* Results */}
+            {!searching && searchResults.length > 0 && (
+              <div className="max-h-96 overflow-y-auto space-y-2">
+                <p className="text-sm text-muted-foreground mb-2">
+                  {searchResults.length} résultat(s) trouvé(s)
+                </p>
+                {searchResults.map((company, index) => (
+                  <button
+                    key={company.siret || `company-${index}`}
+                    type="button"
+                    onClick={() => selectCompany(company)}
+                    className="w-full p-4 rounded-lg border hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                  >
+                    <div className="font-semibold">
+                      {company.nom_complet || company.nom_raison_sociale}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      SIRET: {company.siret}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {company.siege?.adresse}, {company.siege?.code_postal} {company.siege?.libelle_commune}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* No Results */}
+            {!searching && searchResults.length === 0 && searchQuery && (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                <p className="mt-2 text-muted-foreground">Aucune entreprise trouvée</p>
+                <p className="text-sm text-muted-foreground">
+                  Essayez avec un autre SIRET ou nom
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -536,3 +536,430 @@ export async function sendSignatureRequestEmail(
     html,
   })
 }
+
+/**
+ * Send invoice email to client
+ */
+export async function sendInvoiceEmail(
+  email: string,
+  clientName: string,
+  invoiceNumber: string,
+  invoiceDate: string,
+  dueDate: string,
+  totalAmount: string,
+  viewUrl: string,
+  senderCompany: string,
+  logoUrl?: string,
+  message?: string
+) {
+  const customMessage = message
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 16px 20px; background-color: #F0F4FF; border-left: 4px solid #0064FA;">
+            <p style="color: #1a1a1a; font-size: 14px; line-height: 1.6; margin: 0; font-style: italic;">"${message}"</p>
+          </td>
+        </tr>
+      </table>`
+    : ""
+
+  const logoSection = logoUrl
+    ? `<img src="${logoUrl}" alt="${senderCompany}" style="max-height: 50px; max-width: 200px; margin-bottom: 16px;" />`
+    : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto 16px auto;">
+        <tr>
+          <td width="64" height="64" align="center" valign="middle" bgcolor="#0064FA" style="font-size: 32px; color: white;">
+            &#128195;
+          </td>
+        </tr>
+      </table>`
+
+  const html = `
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="fr">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Facture ${invoiceNumber}</title>
+        <!--[if mso]>
+        <style type="text/css">
+          body, table, td {font-family: Arial, Helvetica, sans-serif !important;}
+        </style>
+        <![endif]-->
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f5f5">
+          <tr>
+            <td align="center" style="padding: 40px 20px;">
+              <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width: 600px;">
+
+                <!-- Header -->
+                <tr>
+                  <td align="center" bgcolor="#0064FA" style="padding: 48px 40px 32px 40px;">
+                    ${logoSection}
+                    <h1 style="color: #ffffff; font-size: 26px; margin: 0 0 8px 0; font-weight: bold;">
+                      Nouvelle facture
+                    </h1>
+                    <p style="color: #B8D4FF; font-size: 15px; margin: 0;">
+                      ${senderCompany}
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px;">
+                    <!-- Greeting -->
+                    <p style="color: #1a1a1a; font-size: 18px; line-height: 1.5; margin: 0 0 20px 0; font-weight: bold;">
+                      Bonjour ${clientName},
+                    </p>
+
+                    <p style="color: #4a4a4a; font-size: 15px; line-height: 1.6; margin: 0 0 28px 0;">
+                      Veuillez trouver ci-dessous votre facture. Vous pouvez la consulter et la télécharger en cliquant sur le bouton ci-dessous.
+                    </p>
+
+                    <!-- Invoice Details Card -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 28px; border: 1px solid #e5e7eb;">
+                      <tr>
+                        <td bgcolor="#f8f9fc" style="padding: 20px; border-bottom: 1px solid #e5e7eb;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td width="50%">
+                                <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase;">Numéro</p>
+                                <p style="margin: 4px 0 0 0; color: #1a1a1a; font-size: 16px; font-weight: bold;">${invoiceNumber}</p>
+                              </td>
+                              <td width="50%" align="right">
+                                <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase;">Date</p>
+                                <p style="margin: 4px 0 0 0; color: #1a1a1a; font-size: 16px;">${invoiceDate}</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 24px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td width="50%">
+                                <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase;">Échéance</p>
+                                <p style="margin: 4px 0 0 0; color: #dc2626; font-size: 16px; font-weight: bold;">${dueDate}</p>
+                              </td>
+                              <td width="50%" align="right">
+                                <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase;">Montant TTC</p>
+                                <p style="margin: 4px 0 0 0; color: #0064FA; font-size: 24px; font-weight: bold;">${totalAmount}</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    ${customMessage}
+
+                    <!-- CTA Button - Outlook compatible -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0;">
+                      <tr>
+                        <td align="center">
+                          <!--[if mso]>
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${viewUrl}" style="height:54px;v-text-anchor:middle;width:280px;" arcsize="22%" stroke="f" fillcolor="#0064FA">
+                            <w:anchorlock/>
+                            <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">&#128195; Voir ma facture</center>
+                          </v:roundrect>
+                          <![endif]-->
+                          <!--[if !mso]><!-->
+                          <a href="${viewUrl}" style="display: inline-block; background-color: #0064FA; color: #ffffff; text-decoration: none; padding: 18px 56px; font-size: 17px; font-weight: bold; border-radius: 12px; mso-hide: all;">
+                            &#128195;&nbsp;&nbsp;Voir ma facture
+                          </a>
+                          <!--<![endif]-->
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Fallback link -->
+                    <p style="text-align: center; margin: 0 0 28px 0;">
+                      <span style="color: #6b7280; font-size: 12px;">Lien direct : </span>
+                      <a href="${viewUrl}" style="color: #0064FA; font-size: 12px; word-break: break-all;">${viewUrl}</a>
+                    </p>
+
+                    <!-- Payment Info -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 28px;">
+                      <tr>
+                        <td bgcolor="#fff8e6" style="padding: 18px 22px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td width="28" valign="top" style="font-size: 20px;">
+                                &#128176;
+                              </td>
+                              <td style="padding-left: 14px;">
+                                <p style="margin: 0; color: #92600e; font-size: 14px; line-height: 1.5;">
+                                  <strong>Modes de paiement acceptés :</strong> Virement bancaire, carte bancaire<br />
+                                  <span style="color: #b8860b;">Les coordonnées bancaires sont disponibles sur la facture.</span>
+                                </p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td bgcolor="#f8f9fc" style="padding: 24px 40px; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0; text-align: center;">
+                      Ce message a été envoyé par <strong>${senderCompany}</strong>
+                    </p>
+                    <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+                      Pour toute question concernant cette facture, n'hésitez pas à nous contacter.
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+
+              <!-- Sub-footer -->
+              <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px;">
+                <tr>
+                  <td style="padding: 24px 0;">
+                    <p style="color: #9ca3af; font-size: 11px; margin: 0; text-align: center;">
+                      © ${new Date().getFullYear()} ${senderCompany} - Tous droits réservés
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+
+  return sendEmail({
+    to: email,
+    subject: `Facture ${invoiceNumber} - ${senderCompany}`,
+    html,
+  })
+}
+
+/**
+ * Send quote email to client
+ */
+export async function sendQuoteEmail(
+  email: string,
+  clientName: string,
+  quoteNumber: string,
+  quoteDate: string,
+  validUntil: string,
+  totalAmount: string,
+  viewUrl: string,
+  senderCompany: string,
+  logoUrl?: string,
+  message?: string
+) {
+  const customMessage = message
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 16px 20px; background-color: #F5F0FF; border-left: 4px solid #7B2FD0;">
+            <p style="color: #1a1a1a; font-size: 14px; line-height: 1.6; margin: 0; font-style: italic;">"${message}"</p>
+          </td>
+        </tr>
+      </table>`
+    : ""
+
+  const logoSection = logoUrl
+    ? `<img src="${logoUrl}" alt="${senderCompany}" style="max-height: 50px; max-width: 200px; margin-bottom: 16px;" />`
+    : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto 16px auto;">
+        <tr>
+          <td width="64" height="64" align="center" valign="middle" bgcolor="#7B2FD0" style="font-size: 32px; color: white;">
+            &#128221;
+          </td>
+        </tr>
+      </table>`
+
+  const html = `
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="fr">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Devis ${quoteNumber}</title>
+        <!--[if mso]>
+        <style type="text/css">
+          body, table, td {font-family: Arial, Helvetica, sans-serif !important;}
+        </style>
+        <![endif]-->
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f5f5">
+          <tr>
+            <td align="center" style="padding: 40px 20px;">
+              <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width: 600px;">
+
+                <!-- Header -->
+                <tr>
+                  <td align="center" bgcolor="#7B2FD0" style="padding: 48px 40px 32px 40px;">
+                    ${logoSection}
+                    <h1 style="color: #ffffff; font-size: 26px; margin: 0 0 8px 0; font-weight: bold;">
+                      Nouveau devis
+                    </h1>
+                    <p style="color: #DBC4FF; font-size: 15px; margin: 0;">
+                      ${senderCompany}
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px;">
+                    <!-- Greeting -->
+                    <p style="color: #1a1a1a; font-size: 18px; line-height: 1.5; margin: 0 0 20px 0; font-weight: bold;">
+                      Bonjour ${clientName},
+                    </p>
+
+                    <p style="color: #4a4a4a; font-size: 15px; line-height: 1.6; margin: 0 0 28px 0;">
+                      Suite à notre échange, veuillez trouver ci-dessous notre proposition commerciale. Vous pouvez la consulter et l'accepter en ligne.
+                    </p>
+
+                    <!-- Quote Details Card -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 28px; border: 1px solid #e5e7eb;">
+                      <tr>
+                        <td bgcolor="#f8f5ff" style="padding: 20px; border-bottom: 1px solid #e5e7eb;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td width="50%">
+                                <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase;">Numéro</p>
+                                <p style="margin: 4px 0 0 0; color: #1a1a1a; font-size: 16px; font-weight: bold;">${quoteNumber}</p>
+                              </td>
+                              <td width="50%" align="right">
+                                <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase;">Date</p>
+                                <p style="margin: 4px 0 0 0; color: #1a1a1a; font-size: 16px;">${quoteDate}</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 24px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td width="50%">
+                                <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase;">Valide jusqu'au</p>
+                                <p style="margin: 4px 0 0 0; color: #dc2626; font-size: 16px; font-weight: bold;">${validUntil}</p>
+                              </td>
+                              <td width="50%" align="right">
+                                <p style="margin: 0; color: #6b7280; font-size: 12px; text-transform: uppercase;">Montant TTC</p>
+                                <p style="margin: 4px 0 0 0; color: #7B2FD0; font-size: 24px; font-weight: bold;">${totalAmount}</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    ${customMessage}
+
+                    <!-- CTA Button - Outlook compatible -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0;">
+                      <tr>
+                        <td align="center">
+                          <!--[if mso]>
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${viewUrl}" style="height:54px;v-text-anchor:middle;width:280px;" arcsize="22%" stroke="f" fillcolor="#7B2FD0">
+                            <w:anchorlock/>
+                            <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">&#128221; Voir mon devis</center>
+                          </v:roundrect>
+                          <![endif]-->
+                          <!--[if !mso]><!-->
+                          <a href="${viewUrl}" style="display: inline-block; background-color: #7B2FD0; color: #ffffff; text-decoration: none; padding: 18px 56px; font-size: 17px; font-weight: bold; border-radius: 12px; mso-hide: all;">
+                            &#128221;&nbsp;&nbsp;Voir mon devis
+                          </a>
+                          <!--<![endif]-->
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Fallback link -->
+                    <p style="text-align: center; margin: 0 0 28px 0;">
+                      <span style="color: #6b7280; font-size: 12px;">Lien direct : </span>
+                      <a href="${viewUrl}" style="color: #7B2FD0; font-size: 12px; word-break: break-all;">${viewUrl}</a>
+                    </p>
+
+                    <!-- Validity Notice -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 28px;">
+                      <tr>
+                        <td bgcolor="#f0fdf4" style="padding: 18px 22px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td width="28" valign="top" style="font-size: 20px;">
+                                &#10003;
+                              </td>
+                              <td style="padding-left: 14px;">
+                                <p style="margin: 0; color: #166534; font-size: 14px; line-height: 1.5;">
+                                  <strong>Acceptation en ligne</strong><br />
+                                  <span style="color: #15803d;">Vous pouvez accepter ce devis directement depuis votre espace client en quelques clics.</span>
+                                </p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Questions -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 20px;">
+                      <tr>
+                        <td bgcolor="#f5f5f5" style="padding: 18px 22px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td width="28" valign="top" style="font-size: 20px;">
+                                &#128172;
+                              </td>
+                              <td style="padding-left: 14px;">
+                                <p style="margin: 0; color: #4a4a4a; font-size: 14px; line-height: 1.5;">
+                                  <strong>Des questions ?</strong><br />
+                                  <span style="color: #6b7280;">N'hésitez pas à nous contacter pour toute précision ou modification.</span>
+                                </p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td bgcolor="#f8f9fc" style="padding: 24px 40px; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0; text-align: center;">
+                      Ce message a été envoyé par <strong>${senderCompany}</strong>
+                    </p>
+                    <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+                      Nous restons à votre disposition pour toute information complémentaire.
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+
+              <!-- Sub-footer -->
+              <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px;">
+                <tr>
+                  <td style="padding: 24px 0;">
+                    <p style="color: #9ca3af; font-size: 11px; margin: 0; text-align: center;">
+                      © ${new Date().getFullYear()} ${senderCompany} - Tous droits réservés
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+
+  return sendEmail({
+    to: email,
+    subject: `Devis ${quoteNumber} - ${senderCompany}`,
+    html,
+  })
+}
