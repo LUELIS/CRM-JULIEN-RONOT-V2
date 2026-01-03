@@ -314,18 +314,11 @@ export async function GET(request: NextRequest) {
         where: { email: senderEmail },
       })
 
-      // Check for existing ticket
+      // Check for existing ticket - only match by O365 conversationId (email thread)
+      // A new email from the same sender with a different subject should create a new ticket
       let ticket = await prisma.ticket.findFirst({
         where: {
-          OR: [
-            { emailMessageId: conversationId },
-            {
-              AND: [
-                { senderEmail: senderEmail },
-                { status: { notIn: ["closed", "resolved"] } },
-              ],
-            },
-          ],
+          emailMessageId: conversationId,
         },
         orderBy: { createdAt: "desc" },
         include: {
