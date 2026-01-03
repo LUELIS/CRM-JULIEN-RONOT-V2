@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { notifyClientReply, parseSlackConfig } from "@/lib/slack"
-import { sendO365Email, cleanHtmlContent } from "@/lib/o365-email"
+import { sendO365Email, generateTicketEmailTemplate } from "@/lib/o365-email"
 
 // Get Slack config from tenant settings
 async function getSlackConfig() {
@@ -174,20 +174,53 @@ export async function POST(
           select: { name: true, email: true },
         })
 
+        // Get tenant info for logo and company name
+        const tenant = await prisma.tenants.findFirst({
+          where: { id: BigInt(1) },
+          select: { name: true, logo: true },
+        })
+
+        // Get message history for this ticket (excluding the new message)
+        const previousMessages = await prisma.ticketMessage.findMany({
+          where: {
+            ticketId: BigInt(id),
+            id: { not: message.id },
+            isInternal: false, // Don't include internal notes
+          },
+          include: {
+            user: { select: { name: true } },
+          },
+          orderBy: { createdAt: "asc" },
+          take: 10, // Last 10 messages
+        })
+
         // Build email subject with Re: if it's a reply
         const emailSubject = ticket.subject.startsWith("Re:")
           ? ticket.subject
           : `Re: ${ticket.subject}`
 
-        // Build email body with signature
-        const signature = `
-<br><br>
-<div style="color: #666; font-size: 12px; border-top: 1px solid #ddd; padding-top: 10px; margin-top: 20px;">
-  ${sender?.name || "L'équipe support"}<br>
-  <a href="mailto:${sender?.email || ""}">${sender?.email || ""}</a>
-</div>`
+        // Build history for template
+        const history = previousMessages
+          .filter((msg) => msg.createdAt !== null)
+          .map((msg) => ({
+            content: msg.content,
+            senderName: msg.userId ? (msg.user?.name || "Support") : (msg.from_name || ticket.senderName || "Client"),
+            isStaff: !!msg.userId,
+            date: msg.createdAt as Date,
+          }))
 
-        const emailBody = body.content + signature
+        // Generate professional email template
+        const emailBody = generateTicketEmailTemplate({
+          logo: tenant?.logo || null,
+          companyName: tenant?.name || "Support",
+          ticketNumber: ticket.ticketNumber,
+          subject: ticket.subject,
+          newMessage: body.content,
+          senderName: sender?.name || "L'équipe support",
+          senderEmail: sender?.email || "",
+          recipientName: ticket.senderName || "Client",
+          history,
+        })
 
         console.log(`[Tickets] Sending email to ${recipientEmail}...`)
 
