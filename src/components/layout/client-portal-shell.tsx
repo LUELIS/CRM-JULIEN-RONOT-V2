@@ -96,13 +96,22 @@ export function ClientPortalShell({ children }: { children: React.ReactNode }) {
             <Link href="/client-portal" className="flex items-center gap-3">
               {tenant?.logo ? (
                 <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-[#F5F5F7] flex items-center justify-center">
-                  <Image
-                    src={`/uploads/${tenant.logo}`}
-                    alt={tenant.name || "Logo"}
-                    width={40}
-                    height={40}
-                    className="object-contain"
-                  />
+                  {tenant.logo.startsWith("data:") ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={tenant.logo}
+                      alt={tenant.name || "Logo"}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <Image
+                      src={`/uploads/${tenant.logo}`}
+                      alt={tenant.name || "Logo"}
+                      width={40}
+                      height={40}
+                      className="object-contain"
+                    />
+                  )}
                 </div>
               ) : (
                 <div

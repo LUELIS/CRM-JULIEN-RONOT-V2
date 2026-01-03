@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { writeFile, unlink } from "fs/promises"
-import { join } from "path"
-import { existsSync, mkdirSync } from "fs"
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,52 +30,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get current tenant to delete old logo if exists
-    const tenant = await prisma.tenants.findFirst({
-      where: { id: BigInt(1) },
-    })
-
-    // Delete old logo if exists
-    if (tenant?.logo) {
-      const oldLogoPath = join(process.cwd(), "public", "uploads", tenant.logo)
-      try {
-        if (existsSync(oldLogoPath)) {
-          await unlink(oldLogoPath)
-        }
-      } catch {
-        // Ignore deletion errors
-      }
-    }
-
-    // Create upload directory if not exists
-    const uploadDir = join(process.cwd(), "public", "uploads", "logos")
-    if (!existsSync(uploadDir)) {
-      mkdirSync(uploadDir, { recursive: true })
-    }
-
-    // Generate unique filename
-    const ext = file.name.split(".").pop() || "png"
-    const filename = `logo-${Date.now()}.${ext}`
-    const relativePath = `logos/${filename}`
-    const fullPath = join(uploadDir, filename)
-
-    // Write file
+    // Convert file to base64 data URL
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    await writeFile(fullPath, buffer)
+    const base64 = buffer.toString("base64")
+    const dataUrl = `data:${file.type};base64,${base64}`
 
-    // Update tenant
+    // Update tenant with base64 logo
     await prisma.tenants.update({
       where: { id: BigInt(1) },
       data: {
-        logo: relativePath,
+        logo: dataUrl,
         updated_at: new Date(),
       },
     })
 
     return NextResponse.json({
       success: true,
-      logo: relativePath,
+      logo: dataUrl,
     })
   } catch (error) {
     console.error("Error uploading logo:", error)
@@ -91,23 +60,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE() {
   try {
-    const tenant = await prisma.tenants.findFirst({
-      where: { id: BigInt(1) },
-    })
-
-    // Delete logo file if exists
-    if (tenant?.logo) {
-      const logoPath = join(process.cwd(), "public", "uploads", tenant.logo)
-      try {
-        if (existsSync(logoPath)) {
-          await unlink(logoPath)
-        }
-      } catch {
-        // Ignore deletion errors
-      }
-    }
-
-    // Update tenant
+    // Update tenant to remove logo
     await prisma.tenants.update({
       where: { id: BigInt(1) },
       data: {

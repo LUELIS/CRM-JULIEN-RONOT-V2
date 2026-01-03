@@ -109,13 +109,23 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
         <Link href="/dashboard" className="flex items-center gap-3 flex-1 min-w-0">
           {tenant?.logo ? (
             <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 bg-[#F5F5F7] flex items-center justify-center">
-              <Image
-                src={`/uploads/${tenant.logo}`}
-                alt={tenant.name || "Logo"}
-                width={44}
-                height={44}
-                className="object-contain"
-              />
+              {/* Support both base64 data URLs and legacy file paths */}
+              {tenant.logo.startsWith("data:") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tenant.logo}
+                  alt={tenant.name || "Logo"}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <Image
+                  src={`/uploads/${tenant.logo}`}
+                  alt={tenant.name || "Logo"}
+                  width={44}
+                  height={44}
+                  className="object-contain"
+                />
+              )}
             </div>
           ) : (
             <div

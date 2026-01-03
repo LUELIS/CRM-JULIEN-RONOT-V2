@@ -107,13 +107,22 @@ export default function ClientLoginPage() {
         <div className="flex flex-col items-center mb-8">
           {tenant?.logo ? (
             <div className="w-24 h-24 rounded-2xl overflow-hidden mb-4 bg-[#F5F5F7] flex items-center justify-center">
-              <Image
-                src={`/uploads/${tenant.logo}`}
-                alt={tenant.name || "Logo"}
-                width={96}
-                height={96}
-                className="object-contain"
-              />
+              {tenant.logo.startsWith("data:") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tenant.logo}
+                  alt={tenant.name || "Logo"}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <Image
+                  src={`/uploads/${tenant.logo}`}
+                  alt={tenant.name || "Logo"}
+                  width={96}
+                  height={96}
+                  className="object-contain"
+                />
+              )}
             </div>
           ) : (
             <div

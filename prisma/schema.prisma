@@ -1082,7 +1082,7 @@ model tenants {
   email                  String                 @db.VarChar(255)
   phone                  String?                @db.VarChar(255)
   address                String?                @db.Text
-  logo                   String?                @db.VarChar(255)
+  logo                   String?                @db.LongText
   timezone               String                 @default("Europe/Paris") @db.VarChar(255)
   currency               String                 @default("EUR") @db.VarChar(255)
   settings               String?                @db.LongText
