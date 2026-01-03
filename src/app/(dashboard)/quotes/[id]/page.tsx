@@ -28,6 +28,7 @@ import {
   FileSignature,
   Sparkles,
 } from "lucide-react"
+import { NotesSidebarCard } from "@/components/notes"
 
 interface Quote {
   id: string
@@ -945,6 +946,9 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ id: stri
               </Link>
             </div>
           </div>
+
+          {/* Notes Card */}
+          <NotesSidebarCard entityType="quote" entityId={id} />
         </div>
       </div>
 

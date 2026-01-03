@@ -16,9 +16,10 @@ import {
   ArrowLeft, Pencil, FileText, Receipt, RefreshCw, Ticket,
   Mail, Phone, MapPin, Globe, Building2, CreditCard, TrendingUp,
   Plus, Eye, ExternalLink, Euro, Clock, CheckCircle, AlertTriangle, Server, Trash2,
-  Users
+  Users, StickyNote
 } from "lucide-react"
 import { ClientUsersTab } from "@/components/clients/client-users-tab"
+import { NoteEntityTab } from "@/components/notes"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
 interface ClientData {
@@ -561,7 +562,7 @@ export default function ClientDetailPage() {
         <div className="rounded-2xl lg:col-span-2" style={{ background: "#FFFFFF", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
           <Tabs defaultValue="invoices" className="w-full">
             <div className="p-4 lg:p-6 pb-0 overflow-x-auto">
-              <TabsList className="inline-flex lg:grid lg:grid-cols-7 w-max lg:w-full gap-1 p-1 rounded-xl" style={{ background: "#F5F5F7" }}>
+              <TabsList className="inline-flex lg:grid lg:grid-cols-8 w-max lg:w-full gap-1 p-1 rounded-xl" style={{ background: "#F5F5F7" }}>
                 <TabsTrigger value="invoices" className="flex items-center gap-2 rounded-lg whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: "#666666" }}>
                   <FileText className="h-4 w-4" />
                   <span className="hidden sm:inline">Factures</span>
@@ -595,6 +596,10 @@ export default function ClientDetailPage() {
                 <TabsTrigger value="users" className="flex items-center gap-2 rounded-lg whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: "#666666" }}>
                   <Users className="h-4 w-4" />
                   <span className="hidden sm:inline">Utilisateurs</span>
+                </TabsTrigger>
+                <TabsTrigger value="notes" className="flex items-center gap-2 rounded-lg whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm" style={{ color: "#666666" }}>
+                  <StickyNote className="h-4 w-4" />
+                  <span className="hidden sm:inline">Notes</span>
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -1039,6 +1044,11 @@ export default function ClientDetailPage() {
               {/* Users Tab */}
               <TabsContent value="users" className="mt-0">
                 <ClientUsersTab clientId={client.id} clientName={client.companyName} />
+              </TabsContent>
+
+              {/* Notes Tab */}
+              <TabsContent value="notes" className="mt-0">
+                <NoteEntityTab entityType="client" entityId={client.id} />
               </TabsContent>
             </div>
           </Tabs>

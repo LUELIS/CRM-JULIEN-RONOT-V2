@@ -22,6 +22,7 @@ import {
   FileSignature,
   Landmark,
   Mail,
+  StickyNote,
 } from "lucide-react"
 import { signOut, useSession } from "next-auth/react"
 import { useTenant } from "@/contexts/tenant-context"
@@ -64,6 +65,7 @@ const baseNavItems: Omit<NavItem, "badge">[] = [
   { id: "treasury", label: "Trésorerie", href: "/treasury", icon: Wallet },
   { id: "campaigns", label: "Campagnes", href: "/campaigns", icon: Mail },
   { id: "tickets", label: "Tickets", href: "/tickets", icon: Ticket },
+  { id: "notes", label: "Notes", href: "/notes", icon: StickyNote },
   { id: "users", label: "Utilisateurs", href: "/users", icon: UserCog },
 ]
 

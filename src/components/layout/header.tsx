@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { Bell, Search, FileText, UserPlus, CreditCard, AlertCircle, X, Menu, Ticket, RefreshCw, Package, Globe, Clock, Command } from "lucide-react"
+import { Bell, Search, FileText, UserPlus, CreditCard, AlertCircle, X, Menu, Ticket, RefreshCw, Package, Globe, Clock, Command, StickyNote } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ import { SearchModal } from "./search-modal"
 
 interface Notification {
   id: string
-  type: "invoice" | "client" | "payment" | "quote" | "ticket" | "subscription" | "system" | "domain_expiring" | "domain_expired"
+  type: "invoice" | "client" | "payment" | "quote" | "ticket" | "subscription" | "system" | "domain_expiring" | "domain_expired" | "note_reminder"
   title: string
   message: string
   link: string | null
@@ -32,6 +32,7 @@ const notificationIcons = {
   system: AlertCircle,
   domain_expiring: Clock,
   domain_expired: Globe,
+  note_reminder: StickyNote,
 }
 
 const notificationColors = {
@@ -44,6 +45,7 @@ const notificationColors = {
   system: { bg: '#F5F5F7', color: '#666666' },
   domain_expiring: { bg: '#FEF3CD', color: '#F0783C' },
   domain_expired: { bg: '#FEE2E8', color: '#F04B69' },
+  note_reminder: { bg: '#FEF3CD', color: '#DCB40A' },
 }
 
 function formatTimeAgo(dateString: string): string {

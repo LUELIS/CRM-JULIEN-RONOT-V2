@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
+import { NotesSidebarCard } from "@/components/notes"
 
 const DNS_TYPES = ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"]
 
@@ -512,6 +513,9 @@ export default function DomainPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
         </div>
+
+        {/* Notes Card */}
+        <NotesSidebarCard entityType="domain" entityId={id} />
       </div>
 
       {/* Nameservers Section */}

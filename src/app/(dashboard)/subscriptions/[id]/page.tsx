@@ -41,6 +41,7 @@ import {
   Clock,
   Euro,
 } from "lucide-react"
+import { NotesSidebarCard } from "@/components/notes"
 
 interface SubscriptionItem {
   id: string
@@ -581,6 +582,9 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
               )}
             </div>
           </div>
+
+          {/* Notes Card */}
+          <NotesSidebarCard entityType="subscription" entityId={id} />
         </div>
       </div>
 

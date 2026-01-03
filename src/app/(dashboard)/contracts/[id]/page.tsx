@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { NotesSidebarCard } from "@/components/notes"
 
 interface Signer {
   id: string
@@ -666,6 +667,9 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               </div>
             </div>
           )}
+
+          {/* Notes Card */}
+          <NotesSidebarCard entityType="contract" entityId={id} />
         </div>
       </div>
 

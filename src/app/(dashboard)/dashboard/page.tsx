@@ -7,6 +7,7 @@ import {
   ArrowUp, ArrowDown, MoreVertical
 } from "lucide-react"
 import Link from "next/link"
+import { NoteDashboardWidget } from "@/components/notes"
 
 interface TenantSettings {
   monthlyGoal?: number
@@ -444,8 +445,8 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Objectif & Trésorerie */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Objectif, Trésorerie & Notes */}
+      <div className="grid gap-6 lg:grid-cols-3">
         {/* Objectif du mois */}
         <div
           className="rounded-[16px] p-5 transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
@@ -558,6 +559,9 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Notes Widget */}
+        <NoteDashboardWidget />
       </div>
 
       {/* Dernières factures */}

@@ -36,6 +36,8 @@ model User {
   user_tenants                   user_tenants[]
   client                         Client?          @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "users_client_id_foreign")
   tenants                        tenants?         @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "users_tenant_id_foreign")
+  notes                          Note[]
+  noteComments                   NoteComment[]
 
   @@unique([tenant_id, email, role], map: "users_tenant_email_role_unique")
   @@index([clientId], map: "users_client_id_foreign")
@@ -1210,6 +1212,7 @@ enum NotificationType {
   system
   domain_expiring
   domain_expired
+  note_reminder
 }
 
 enum ClientStatus {
@@ -1682,4 +1685,151 @@ enum EmailSendStatus {
   clicked
   bounced
   failed
+}
+
+
+// ============================================
+// Notes System (Blinko-inspired)
+// ============================================
+
+enum NoteType {
+  quick    // Flash/Blinko - idée rapide
+  note     // Note structurée
+  todo     // Tâche avec deadline
+}
+
+model Note {
+  id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id       BigInt           @db.UnsignedBigInt
+  createdBy       BigInt           @map("created_by") @db.UnsignedBigInt
+  content         String           @db.LongText
+  type            NoteType         @default(note)
+  isArchived      Boolean          @default(false) @map("is_archived")
+  isRecycle       Boolean          @default(false) @map("is_recycle")
+  isTop           Boolean          @default(false) @map("is_top")
+
+  // Partage
+  isShare         Boolean          @default(false) @map("is_share")
+  shareToken      String?          @unique @map("share_token") @db.VarChar(64)
+  sharePassword   String?          @map("share_password") @db.VarChar(255)
+  shareExpiryDate DateTime?        @map("share_expiry_date") @db.Timestamp(0)
+
+  // Rappel
+  reminderAt      DateTime?        @map("reminder_at") @db.Timestamp(0)
+  reminderSent    Boolean          @default(false) @map("reminder_sent")
+
+  // Timestamps
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Relations
+  author          User             @relation(fields: [createdBy], references: [id], onDelete: Cascade, map: "notes_created_by_foreign")
+  entityLinks     NoteEntityLink[]
+  tags            NoteTag[]
+  attachments     NoteAttachment[]
+  history         NoteHistory[]
+  comments        NoteComment[]
+
+  @@index([tenant_id], map: "notes_tenant_id_index")
+  @@index([createdBy], map: "notes_created_by_index")
+  @@index([type], map: "notes_type_index")
+  @@index([isArchived], map: "notes_is_archived_index")
+  @@index([isRecycle], map: "notes_is_recycle_index")
+  @@index([isTop], map: "notes_is_top_index")
+  @@map("notes")
+}
+
+model NoteEntityLink {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  noteId      BigInt   @map("note_id") @db.UnsignedBigInt
+  entityType  String   @map("entity_type") @db.VarChar(50) // client, invoice, quote, subscription, ticket, contract, domain
+  entityId    BigInt   @map("entity_id") @db.UnsignedBigInt
+  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade, map: "note_entity_links_note_id_foreign")
+
+  @@unique([noteId, entityType, entityId], map: "note_entity_links_unique")
+  @@index([entityType, entityId], map: "note_entity_links_entity_index")
+  @@map("note_entity_links")
+}
+
+model NoteTagDefinition {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id BigInt    @db.UnsignedBigInt
+  name      String    @db.VarChar(100)
+  color     String?   @db.VarChar(7)
+  icon      String?   @db.VarChar(50)
+  parentId  BigInt?   @map("parent_id") @db.UnsignedBigInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  notes     NoteTag[]
+
+  @@unique([tenant_id, name], map: "note_tag_definitions_tenant_name_unique")
+  @@index([tenant_id], map: "note_tag_definitions_tenant_id_index")
+  @@index([parentId], map: "note_tag_definitions_parent_id_index")
+  @@map("note_tag_definitions")
+}
+
+model NoteTag {
+  noteId  BigInt            @map("note_id") @db.UnsignedBigInt
+  tagId   BigInt            @map("tag_id") @db.UnsignedBigInt
+  note    Note              @relation(fields: [noteId], references: [id], onDelete: Cascade, map: "note_tags_note_id_foreign")
+  tag     NoteTagDefinition @relation(fields: [tagId], references: [id], onDelete: Cascade, map: "note_tags_tag_id_foreign")
+
+  @@id([noteId, tagId])
+  @@index([tagId], map: "note_tags_tag_id_index")
+  @@map("note_tags")
+}
+
+model NoteAttachment {
+  id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  noteId       BigInt   @map("note_id") @db.UnsignedBigInt
+  filename     String   @db.VarChar(255)
+  originalName String   @map("original_name") @db.VarChar(255)
+  mimeType     String?  @map("mime_type") @db.VarChar(100)
+  size         Int
+  path         String   @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  note         Note     @relation(fields: [noteId], references: [id], onDelete: Cascade, map: "note_attachments_note_id_foreign")
+
+  @@index([noteId], map: "note_attachments_note_id_index")
+  @@map("note_attachments")
+}
+
+model NoteHistory {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  noteId    BigInt   @map("note_id") @db.UnsignedBigInt
+  content   String   @db.LongText
+  version   Int
+  changedBy BigInt?  @map("changed_by") @db.UnsignedBigInt
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade, map: "note_history_note_id_foreign")
+
+  @@index([noteId], map: "note_history_note_id_index")
+  @@index([version], map: "note_history_version_index")
+  @@map("note_history")
+}
+
+model NoteComment {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  noteId    BigInt   @map("note_id") @db.UnsignedBigInt
+  userId    BigInt?  @map("user_id") @db.UnsignedBigInt
+  parentId  BigInt?  @map("parent_id") @db.UnsignedBigInt
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade, map: "note_comments_note_id_foreign")
+  user      User?    @relation(fields: [userId], references: [id], onUpdate: NoAction, map: "note_comments_user_id_foreign")
+
+  @@index([noteId], map: "note_comments_note_id_index")
+  @@index([userId], map: "note_comments_user_id_index")
+  @@index([parentId], map: "note_comments_parent_id_index")
+  @@map("note_comments")
+}
+
+model NoteEmbedding {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  noteId    BigInt   @unique @map("note_id") @db.UnsignedBigInt
+  embedding String   @db.LongText  // JSON array of floats
+  model     String   @default("text-embedding-3-small") @db.VarChar(100)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@map("note_embeddings")
 }

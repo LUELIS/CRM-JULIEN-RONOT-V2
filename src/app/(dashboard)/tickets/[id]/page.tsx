@@ -41,6 +41,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { NotesSidebarCard } from "@/components/notes"
 
 interface TicketAttachment {
   id: string
@@ -1145,6 +1146,9 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
           </div>
+
+          {/* Notes Card */}
+          <NotesSidebarCard entityType="ticket" entityId={id} />
         </div>
       </div>
 

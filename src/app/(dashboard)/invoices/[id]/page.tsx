@@ -29,6 +29,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
+import { NotesSidebarCard } from "@/components/notes"
 
 const paymentMethodOptions: SelectOption[] = [
   { value: "virement", label: "Virement bancaire", color: "#28B95F" },
@@ -984,6 +985,9 @@ export default function InvoiceDetailPage({
               </Link>
             </div>
           </div>
+
+          {/* Notes Card */}
+          <NotesSidebarCard entityType="invoice" entityId={id} />
         </div>
       </div>
 
