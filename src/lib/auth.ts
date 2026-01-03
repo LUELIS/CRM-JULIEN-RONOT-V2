@@ -5,6 +5,7 @@ import { prisma } from "./prisma"
 // Types extended in @/types/index.ts
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
