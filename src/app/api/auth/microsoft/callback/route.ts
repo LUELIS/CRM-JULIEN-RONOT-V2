@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { cookies } from "next/headers"
-import { SignJWT } from "jose"
+import { encode } from "next-auth/jwt"
 
 // Get Microsoft OAuth settings from database
 async function getMicrosoftSettings() {
@@ -176,25 +176,29 @@ export async function GET(request: Request) {
       })
     }
 
-    // Create session token
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET)
-    const token = await new SignJWT({
-      id: String(dbUser.id),
-      email: dbUser.email,
-      name: dbUser.name,
-      type: dbUser.role,
-      provider: "microsoft",
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 8 * 60 * 60, // 8 hours
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .sign(secret)
-
-    // Set the session cookie (NextAuth v5 uses authjs.session-token)
+    // Set the session cookie (NextAuth v5 uses __Secure- prefix in production)
     const cookieStore = await cookies()
-    cookieStore.set("authjs.session-token", token, {
+    const isProduction = process.env.NODE_ENV === "production"
+    const cookieName = isProduction ? "__Secure-authjs.session-token" : "authjs.session-token"
+
+    // Create session token using NextAuth's encode function
+    const token = await encode({
+      token: {
+        id: String(dbUser.id),
+        email: dbUser.email,
+        name: dbUser.name,
+        type: dbUser.role,
+        provider: "microsoft",
+        sub: String(dbUser.id),
+      },
+      secret: process.env.NEXTAUTH_SECRET!,
+      maxAge: 8 * 60 * 60, // 8 hours
+      salt: cookieName, // Salt is based on the cookie name
+    })
+
+    cookieStore.set(cookieName, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isProduction,
       sameSite: "lax",
       maxAge: 8 * 60 * 60, // 8 hours
       path: "/",
