@@ -4,18 +4,48 @@ import { useState, useEffect, useCallback } from "react"
 import {
   Search,
   Plus,
-  Edit,
+  Eye,
+  Pencil,
   Trash2,
-  User,
-  Shield,
-  ShieldCheck,
-  Mail,
-  Phone,
-  Key,
+  MoreHorizontal,
+  UserCog,
   UserCheck,
   UserX,
+  ShieldCheck,
+  Shield,
+  Mail,
+  Phone,
   MessageSquare,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface UserType {
   id: string
@@ -30,16 +60,79 @@ interface UserType {
   createdAt: string
 }
 
+interface Stats {
+  total: number
+  active: number
+  inactive: number
+  admins: number
+}
+
+const roleConfig = {
+  admin: { label: "Admin", bg: "#F3E8FF", color: "#7C3AED", icon: ShieldCheck },
+  manager: { label: "Manager", bg: "#DBEAFE", color: "#2563EB", icon: Shield },
+  user: { label: "Utilisateur", bg: "#F5F5F7", color: "#666666", icon: Shield },
+}
+
+function getRoleBadge(role: string) {
+  const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.user
+  const Icon = config.icon
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+      style={{ background: config.bg, color: config.color }}
+    >
+      <Icon className="w-3 h-3" />
+      {config.label}
+    </span>
+  )
+}
+
+function getStatusBadge(isActive: boolean) {
+  if (isActive) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+        style={{ background: "#D4EDDA", color: "#28B95F" }}
+      >
+        <UserCheck className="w-3 h-3" />
+        Actif
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+      style={{ background: "#FEE2E2", color: "#DC2626" }}
+    >
+      <UserX className="w-3 h-3" />
+      Inactif
+    </span>
+  )
+}
+
+function formatDate(date: string | null) {
+  if (!date) return "-"
+  return new Date(date).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState<UserType[]>([])
+  const [stats, setStats] = useState<Stats>({ total: 0, active: 0, inactive: 0, admins: 0 })
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [roleFilter, setRoleFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
+
   const [showDialog, setShowDialog] = useState(false)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [editingUser, setEditingUser] = useState<UserType | null>(null)
-  const [deletingUser, setDeletingUser] = useState<UserType | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
   const [form, setForm] = useState({
     name: "",
@@ -56,18 +149,27 @@ export default function UsersPage() {
     try {
       const params = new URLSearchParams()
       if (search) params.set("search", search)
+      if (roleFilter !== "all") params.set("role", roleFilter)
+      if (statusFilter !== "all") params.set("status", statusFilter)
 
       const res = await fetch(`/api/users?${params}`)
       if (res.ok) {
         const data = await res.json()
         setUsers(data)
+
+        // Calculate stats
+        const total = data.length
+        const active = data.filter((u: UserType) => u.isActive).length
+        const inactive = total - active
+        const admins = data.filter((u: UserType) => u.role === "admin").length
+        setStats({ total, active, inactive, admins })
       }
     } catch (error) {
       console.error("Error fetching users:", error)
     } finally {
       setLoading(false)
     }
-  }, [search])
+  }, [search, roleFilter, statusFilter])
 
   useEffect(() => {
     fetchUsers()
@@ -139,374 +241,463 @@ export default function UsersPage() {
     }
   }
 
-  const confirmDelete = (user: UserType) => {
-    setDeletingUser(user)
-    setShowDeleteDialog(true)
-  }
-
   const handleDelete = async () => {
-    if (!deletingUser) return
-
-    setDeleting(true)
+    if (!deleteId) return
     try {
-      const res = await fetch(`/api/users/${deletingUser.id}`, {
-        method: "DELETE",
-      })
-
-      if (res.ok) {
-        setShowDeleteDialog(false)
-        setDeletingUser(null)
-        fetchUsers()
-      }
+      await fetch(`/api/users/${deleteId}`, { method: "DELETE" })
+      fetchUsers()
     } catch (error) {
       console.error("Error deleting user:", error)
-    } finally {
-      setDeleting(false)
     }
+    setDeleteId(null)
   }
 
-  const formatDate = (date: string | null) => {
-    if (!date) return "-"
-    return new Date(date).toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  }
-
-  const roleLabels: Record<string, { label: string; color: string }> = {
-    admin: { label: "Administrateur", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
-    manager: { label: "Manager", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-    user: { label: "Utilisateur", color: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300" },
+  const toggleUserStatus = async (user: UserType) => {
+    try {
+      await fetch(`/api/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !user.isActive }),
+      })
+      fetchUsers()
+    } catch (error) {
+      console.error("Error updating user:", error)
+    }
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-semibold" style={{ color: "#111111" }}>
             Utilisateurs
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm mt-1" style={{ color: "#666666" }}>
             Gérez les accès et permissions
           </p>
         </div>
         <button
           onClick={() => openDialog()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:shadow-lg"
+          style={{ background: "#0064FA" }}
         >
           <Plus className="h-4 w-4" />
           Nouvel utilisateur
         </button>
       </div>
 
-      {/* Search */}
-      <div className="flex gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Rechercher un utilisateur..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-          />
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total */}
+        <div
+          className="rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md"
+          style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+          onClick={() => { setStatusFilter("all"); setRoleFilter("all") }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm" style={{ color: "#666666" }}>Total</p>
+              <p className="text-3xl font-semibold mt-1" style={{ color: "#111111" }}>{stats.total}</p>
+            </div>
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ background: "#E3F2FD" }}
+            >
+              <UserCog className="w-6 h-6" style={{ color: "#0064FA" }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Actifs */}
+        <div
+          className="rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md"
+          style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+          onClick={() => { setStatusFilter("active"); setRoleFilter("all") }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm" style={{ color: "#666666" }}>Actifs</p>
+              <p className="text-3xl font-semibold mt-1" style={{ color: "#28B95F" }}>{stats.active}</p>
+            </div>
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ background: "#D4EDDA" }}
+            >
+              <UserCheck className="w-6 h-6" style={{ color: "#28B95F" }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Inactifs */}
+        <div
+          className="rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md"
+          style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+          onClick={() => { setStatusFilter("inactive"); setRoleFilter("all") }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm" style={{ color: "#666666" }}>Inactifs</p>
+              <p className="text-3xl font-semibold mt-1" style={{ color: "#DC2626" }}>{stats.inactive}</p>
+            </div>
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ background: "#FEE2E2" }}
+            >
+              <UserX className="w-6 h-6" style={{ color: "#DC2626" }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Admins */}
+        <div
+          className="rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md"
+          style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+          onClick={() => { setRoleFilter("admin"); setStatusFilter("all") }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm" style={{ color: "#666666" }}>Admins</p>
+              <p className="text-3xl font-semibold mt-1" style={{ color: "#7C3AED" }}>{stats.admins}</p>
+            </div>
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ background: "#F3E8FF" }}
+            >
+              <ShieldCheck className="w-6 h-6" style={{ color: "#7C3AED" }} />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Users List */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      {/* Table Container */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      >
+        {/* Filters */}
+        <div className="px-5 py-4 border-b" style={{ borderColor: "#EEEEEE" }}>
+          <div className="flex flex-col lg:flex-row gap-3">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "#999999" }} />
+              <input
+                type="text"
+                placeholder="Rechercher par nom, email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all"
+                style={{
+                  background: "#F5F5F7",
+                  border: "1px solid #EEEEEE",
+                  color: "#111111"
+                }}
+              />
+            </div>
+
+            {/* Role Filter */}
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="px-4 py-2.5 rounded-xl text-sm outline-none cursor-pointer"
+              style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#444444" }}
+            >
+              <option value="all">Tous les rôles</option>
+              <option value="admin">Administrateurs</option>
+              <option value="manager">Managers</option>
+              <option value="user">Utilisateurs</option>
+            </select>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2.5 rounded-xl text-sm outline-none cursor-pointer"
+              style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#444444" }}
+            >
+              <option value="all">Tous les statuts</option>
+              <option value="active">Actifs</option>
+              <option value="inactive">Inactifs</option>
+            </select>
+
+            {(search || roleFilter !== "all" || statusFilter !== "all") && (
+              <button
+                onClick={() => { setSearch(""); setRoleFilter("all"); setStatusFilter("all") }}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-[#EEEEEE]"
+                style={{ background: "#F5F5F7", color: "#666666" }}
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Table */}
         {loading ? (
-          <div className="p-8 text-center">
+          <div className="p-12 text-center">
             <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
-            <p className="mt-4 text-gray-500 dark:text-gray-400">Chargement...</p>
+            <p className="mt-4 text-sm" style={{ color: "#666666" }}>Chargement...</p>
           </div>
         ) : users.length === 0 ? (
-          <div className="p-8 text-center">
-            <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">Aucun utilisateur trouvé</p>
+          <div className="p-12 text-center">
+            <UserCog className="h-12 w-12 mx-auto mb-4" style={{ color: "#CCCCCC" }} />
+            <p className="text-sm" style={{ color: "#666666" }}>Aucun utilisateur trouvé</p>
             <button
               onClick={() => openDialog()}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="mt-4 px-4 py-2 rounded-xl text-sm font-medium text-white"
+              style={{ background: "#0064FA" }}
             >
               Créer un utilisateur
             </button>
           </div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700/50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Utilisateur
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Contact
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Rôle
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Statut
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Dernière connexion
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {user.name}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Créé le {formatDate(user.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                        <Mail className="h-4 w-4" />
-                        {user.email}
-                      </div>
-                      {user.phone && (
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                          <Phone className="h-4 w-4" />
-                          {user.phone}
-                        </div>
-                      )}
-                      {user.slackUserId && (
-                        <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
-                          <MessageSquare className="h-4 w-4" />
-                          Slack connecté
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${roleLabels[user.role]?.color || roleLabels.user.color}`}>
-                      {user.role === "admin" ? (
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                      ) : (
-                        <Shield className="h-3.5 w-3.5" />
-                      )}
-                      {roleLabels[user.role]?.label || user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {user.isActive ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                        <UserCheck className="h-3.5 w-3.5" />
-                        Actif
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                        <UserX className="h-3.5 w-3.5" />
-                        Inactif
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                    {formatDate(user.lastLoginAt)}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openDialog(user)}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => confirmDelete(user)}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr style={{ background: "#FAFAFA" }}>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase" style={{ color: "#666666" }}>
+                    Utilisateur
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase" style={{ color: "#666666" }}>
+                    Contact
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase" style={{ color: "#666666" }}>
+                    Rôle
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase" style={{ color: "#666666" }}>
+                    Statut
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase" style={{ color: "#666666" }}>
+                    Dernière connexion
+                  </th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase" style={{ color: "#666666" }}>
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {users.map((user, idx) => (
+                  <tr
+                    key={user.id}
+                    className="transition-colors hover:bg-[#FAFAFA]"
+                    style={{ borderTop: idx > 0 ? "1px solid #EEEEEE" : undefined }}
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-semibold text-sm"
+                          style={{
+                            background: user.role === "admin" ? "#7C3AED" : user.role === "manager" ? "#2563EB" : "#6B7280"
+                          }}
+                        >
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-medium" style={{ color: "#111111" }}>
+                            {user.name}
+                          </p>
+                          <p className="text-xs" style={{ color: "#999999" }}>
+                            Créé le {formatDate(user.createdAt).split(" ")[0]}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm" style={{ color: "#444444" }}>
+                          <Mail className="h-3.5 w-3.5" style={{ color: "#999999" }} />
+                          {user.email}
+                        </div>
+                        {user.phone && (
+                          <div className="flex items-center gap-2 text-sm" style={{ color: "#666666" }}>
+                            <Phone className="h-3.5 w-3.5" style={{ color: "#999999" }} />
+                            {user.phone}
+                          </div>
+                        )}
+                        {user.slackUserId && (
+                          <div className="flex items-center gap-2 text-xs" style={{ color: "#7C3AED" }}>
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Slack connecté
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      {getRoleBadge(user.role)}
+                    </td>
+                    <td className="px-5 py-4">
+                      {getStatusBadge(user.isActive)}
+                    </td>
+                    <td className="px-5 py-4 text-sm" style={{ color: "#666666" }}>
+                      {formatDate(user.lastLoginAt)}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="p-2 rounded-lg transition-colors hover:bg-[#F5F5F7]">
+                            <MoreHorizontal className="h-4 w-4" style={{ color: "#666666" }} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => openDialog(user)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Modifier
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => toggleUserStatus(user)}>
+                            {user.isActive ? (
+                              <>
+                                <UserX className="h-4 w-4 mr-2" />
+                                Désactiver
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck className="h-4 w-4 mr-2" />
+                                Activer
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setDeleteId(user.id)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Supprimer
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* User Dialog */}
-      {showDialog && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setShowDialog(false)} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                {editingUser ? "Modifier l'utilisateur" : "Nouvel utilisateur"}
-              </h3>
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingUser ? "Modifier l'utilisateur" : "Nouvel utilisateur"}
+            </DialogTitle>
+          </DialogHeader>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Nom complet *
-                  </label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nom complet *</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Jean Dupont"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label>Email *</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="jean@exemple.com"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {editingUser ? "Nouveau mot de passe (optionnel)" : "Mot de passe *"}
-                  </label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      placeholder={editingUser ? "Laisser vide pour ne pas modifier" : ""}
-                    />
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label>{editingUser ? "Nouveau mot de passe (optionnel)" : "Mot de passe *"}</Label>
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder={editingUser ? "Laisser vide pour ne pas modifier" : "••••••••"}
+              />
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Téléphone
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label>Téléphone</Label>
+              <Input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="+33 6 12 34 56 78"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Slack User ID
-                  </label>
-                  <div className="relative">
-                    <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={form.slackUserId}
-                      onChange={(e) => setForm({ ...form, slackUserId: e.target.value })}
-                      placeholder="Ex: U01234ABCDE"
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Pour recevoir des notifications avec @mention.
-                  </p>
-                </div>
+            <div className="space-y-2">
+              <Label>Slack User ID</Label>
+              <Input
+                value={form.slackUserId}
+                onChange={(e) => setForm({ ...form, slackUserId: e.target.value })}
+                placeholder="U01234ABCDE"
+              />
+              <p className="text-xs" style={{ color: "#666666" }}>
+                Pour recevoir des notifications avec @mention
+              </p>
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Rôle
-                  </label>
-                  <select
-                    value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="user">Utilisateur</option>
-                    <option value="manager">Manager</option>
-                    <option value="admin">Administrateur</option>
-                  </select>
-                </div>
+            <div className="space-y-2">
+              <Label>Rôle</Label>
+              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Utilisateur</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="admin">Administrateur</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                    Utilisateur actif
-                  </span>
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => setShowDialog(false)}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={saveUser}
-                  disabled={saving || !form.name || !form.email || (!editingUser && !form.password)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {saving ? "Enregistrement..." : "Enregistrer"}
-                </button>
-              </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={form.isActive}
+                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                className="w-4 h-4 rounded border-gray-300"
+              />
+              <Label htmlFor="isActive" className="cursor-pointer">
+                Utilisateur actif
+              </Label>
             </div>
           </div>
-        </div>
-      )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={saveUser}
+              disabled={saving || !form.name || !form.email || (!editingUser && !form.password)}
+            >
+              {saving ? "Enregistrement..." : "Enregistrer"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Dialog */}
-      {showDeleteDialog && deletingUser && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setShowDeleteDialog(false)} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Supprimer l'utilisateur
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Êtes-vous sûr de vouloir supprimer <strong>{deletingUser.name}</strong> ?
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowDeleteDialog(false)}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-                >
-                  {deleting ? "Suppression..." : "Supprimer"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer l'utilisateur</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
