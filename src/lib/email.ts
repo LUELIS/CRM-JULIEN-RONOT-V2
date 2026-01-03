@@ -301,39 +301,53 @@ export async function sendSignatureRequestEmail(
     : null
 
   const customMessage = message
-    ? `<div style="padding: 16px 20px; background: #F0F4FF; border-radius: 10px; margin: 0 0 24px 0; border-left: 4px solid #0064FA;">
-        <p style="color: #1a1a1a; font-size: 14px; line-height: 1.6; margin: 0; font-style: italic;">"${message}"</p>
-      </div>`
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
+        <tr>
+          <td style="padding: 16px 20px; background-color: #F0F4FF; border-left: 4px solid #0064FA;">
+            <p style="color: #1a1a1a; font-size: 14px; line-height: 1.6; margin: 0; font-style: italic;">"${message}"</p>
+          </td>
+        </tr>
+      </table>`
     : ""
 
   const logoSection = logoUrl
-    ? `<img src="${logoUrl}" alt="${senderCompany}" style="max-height: 50px; max-width: 200px; margin-bottom: 16px;">`
-    : `<div style="width: 64px; height: 64px; background: rgba(255,255,255,0.2); border-radius: 16px; margin: 0 auto 16px auto; line-height: 64px; text-align: center;">
-        <span style="font-size: 32px;">✍️</span>
-      </div>`
+    ? `<img src="${logoUrl}" alt="${senderCompany}" style="max-height: 50px; max-width: 200px; margin-bottom: 16px;" />`
+    : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto 16px auto;">
+        <tr>
+          <td width="64" height="64" align="center" valign="middle" bgcolor="#7B2FD0" style="font-size: 32px;">
+            &#9997;&#65039;
+          </td>
+        </tr>
+      </table>`
 
   const html = `
-    <!DOCTYPE html>
-    <html lang="fr">
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="fr">
       <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Document à signer - ${contractTitle}</title>
+        <!--[if mso]>
+        <style type="text/css">
+          body, table, td {font-family: Arial, Helvetica, sans-serif !important;}
+          .button-link {background-color: #0064FA !important; padding: 18px 56px !important;}
+        </style>
+        <![endif]-->
       </head>
-      <body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+      <body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f5f5">
           <tr>
             <td align="center" style="padding: 40px 20px;">
-              <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse; background: #FFFFFF; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+              <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width: 600px;">
 
-                <!-- Header with gradient -->
+                <!-- Header -->
                 <tr>
-                  <td align="center" style="padding: 48px 40px 32px 40px; background: linear-gradient(135deg, #5F00BA 0%, #0064FA 100%);">
+                  <td align="center" bgcolor="#5F00BA" style="padding: 48px 40px 32px 40px;">
                     ${logoSection}
-                    <h1 style="color: #ffffff; font-size: 26px; margin: 0 0 8px 0; font-weight: 700; letter-spacing: -0.5px;">
+                    <h1 style="color: #ffffff; font-size: 26px; margin: 0 0 8px 0; font-weight: bold;">
                       Document à signer
                     </h1>
-                    <p style="color: rgba(255,255,255,0.85); font-size: 15px; margin: 0;">
+                    <p style="color: #E8D5FF; font-size: 15px; margin: 0;">
                       ${senderCompany}
                     </p>
                   </td>
@@ -343,7 +357,7 @@ export async function sendSignatureRequestEmail(
                 <tr>
                   <td style="padding: 40px;">
                     <!-- Greeting -->
-                    <p style="color: #1a1a1a; font-size: 18px; line-height: 1.5; margin: 0 0 20px 0; font-weight: 600;">
+                    <p style="color: #1a1a1a; font-size: 18px; line-height: 1.5; margin: 0 0 20px 0; font-weight: bold;">
                       Bonjour ${signerName},
                     </p>
 
@@ -352,21 +366,25 @@ export async function sendSignatureRequestEmail(
                     </p>
 
                     <!-- Document Card -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 28px 0;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 28px;">
                       <tr>
-                        <td style="background: linear-gradient(135deg, #f8f9fc 0%, #f0f4ff 100%); border-radius: 14px; padding: 24px; border-left: 5px solid #0064FA;">
-                          <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                        <td bgcolor="#f0f4ff" style="padding: 24px; border-left: 5px solid #0064FA;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                             <tr>
-                              <td style="width: 56px; vertical-align: top;">
-                                <div style="width: 56px; height: 56px; background: #e8f0ff; border-radius: 12px; text-align: center; line-height: 56px;">
-                                  <span style="font-size: 28px;">📄</span>
-                                </div>
+                              <td width="56" valign="top">
+                                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                  <tr>
+                                    <td width="56" height="56" align="center" valign="middle" bgcolor="#e8f0ff" style="font-size: 28px;">
+                                      &#128196;
+                                    </td>
+                                  </tr>
+                                </table>
                               </td>
-                              <td style="padding-left: 20px; vertical-align: middle;">
-                                <p style="margin: 0 0 6px 0; color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                              <td style="padding-left: 20px;" valign="middle">
+                                <p style="margin: 0 0 6px 0; color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">
                                   Document
                                 </p>
-                                <p style="margin: 0; color: #1a1a1a; font-size: 18px; font-weight: 700;">
+                                <p style="margin: 0; color: #1a1a1a; font-size: 18px; font-weight: bold;">
                                   ${contractTitle}
                                 </p>
                               </td>
@@ -378,26 +396,40 @@ export async function sendSignatureRequestEmail(
 
                     ${customMessage}
 
-                    <!-- CTA Button -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 32px 0;">
+                    <!-- CTA Button - Outlook compatible -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0;">
                       <tr>
                         <td align="center">
-                          <a href="${signingUrl}" style="display: inline-block; background: linear-gradient(135deg, #0064FA 0%, #0052cc 100%); color: #ffffff; text-decoration: none; padding: 18px 56px; border-radius: 12px; font-size: 17px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 100, 250, 0.35); letter-spacing: 0.3px;">
-                            ✍️&nbsp;&nbsp;Signer le document
+                          <!--[if mso]>
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${signingUrl}" style="height:54px;v-text-anchor:middle;width:280px;" arcsize="22%" stroke="f" fillcolor="#0064FA">
+                            <w:anchorlock/>
+                            <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:17px;font-weight:bold;">&#9997; Signer le document</center>
+                          </v:roundrect>
+                          <![endif]-->
+                          <!--[if !mso]><!-->
+                          <a href="${signingUrl}" style="display: inline-block; background-color: #0064FA; color: #ffffff; text-decoration: none; padding: 18px 56px; font-size: 17px; font-weight: bold; border-radius: 12px; mso-hide: all;">
+                            &#9997;&#65039;&nbsp;&nbsp;Signer le document
                           </a>
+                          <!--<![endif]-->
                         </td>
                       </tr>
                     </table>
 
+                    <!-- Fallback link for older clients -->
+                    <p style="text-align: center; margin: 0 0 28px 0;">
+                      <span style="color: #6b7280; font-size: 12px;">Lien direct : </span>
+                      <a href="${signingUrl}" style="color: #0064FA; font-size: 12px; word-break: break-all;">${signingUrl}</a>
+                    </p>
+
                     ${expirationDate ? `
                     <!-- Expiration Notice -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 28px 0 0 0;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 28px;">
                       <tr>
-                        <td style="background-color: #fff8e6; border-radius: 12px; padding: 18px 22px;">
-                          <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                        <td bgcolor="#fff8e6" style="padding: 18px 22px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                             <tr>
-                              <td style="width: 28px; vertical-align: top;">
-                                <span style="font-size: 20px;">⏰</span>
+                              <td width="28" valign="top" style="font-size: 20px;">
+                                &#9200;
                               </td>
                               <td style="padding-left: 14px;">
                                 <p style="margin: 0; color: #92600e; font-size: 14px; line-height: 1.5;">
@@ -412,50 +444,50 @@ export async function sendSignatureRequestEmail(
                     ` : ''}
 
                     <!-- Instructions -->
-                    <div style="margin: 32px 0 0 0; padding: 24px; background: #fafafa; border-radius: 12px;">
-                      <p style="margin: 0 0 16px 0; color: #1a1a1a; font-size: 15px; font-weight: 600;">
-                        Comment signer :
-                      </p>
-                      <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                          <td style="padding: 8px 0; color: #4a4a4a; font-size: 14px;">
-                            <span style="display: inline-block; width: 24px; height: 24px; background: #0064FA; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 12px;">1</span>
-                            Cliquez sur le bouton "Signer le document"
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #4a4a4a; font-size: 14px;">
-                            <span style="display: inline-block; width: 24px; height: 24px; background: #0064FA; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 12px;">2</span>
-                            Vérifiez les informations du document
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #4a4a4a; font-size: 14px;">
-                            <span style="display: inline-block; width: 24px; height: 24px; background: #0064FA; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 12px;">3</span>
-                            Apposez votre signature électronique
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #4a4a4a; font-size: 14px;">
-                            <span style="display: inline-block; width: 24px; height: 24px; background: #10b981; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; margin-right: 12px;">✓</span>
-                            Validez pour finaliser
-                          </td>
-                        </tr>
-                      </table>
-                    </div>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 32px;">
+                      <tr>
+                        <td bgcolor="#fafafa" style="padding: 24px;">
+                          <p style="margin: 0 0 16px 0; color: #1a1a1a; font-size: 15px; font-weight: bold;">
+                            Comment signer :
+                          </p>
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td style="padding: 8px 0; color: #4a4a4a; font-size: 14px;">
+                                <strong style="color: #0064FA;">1.</strong> Cliquez sur le bouton "Signer le document"
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; color: #4a4a4a; font-size: 14px;">
+                                <strong style="color: #0064FA;">2.</strong> Vérifiez les informations du document
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; color: #4a4a4a; font-size: 14px;">
+                                <strong style="color: #0064FA;">3.</strong> Apposez votre signature électronique
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; color: #4a4a4a; font-size: 14px;">
+                                <strong style="color: #10b981;">&#10003;</strong> Validez pour finaliser
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
 
                     <!-- Security Badge -->
-                    <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 28px 0 0 0;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 28px;">
                       <tr>
-                        <td style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 18px 22px;">
-                          <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                        <td bgcolor="#f0fdf4" style="padding: 18px 22px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                             <tr>
-                              <td style="width: 28px; vertical-align: top;">
-                                <span style="font-size: 20px;">🔒</span>
+                              <td width="28" valign="top" style="font-size: 20px;">
+                                &#128274;
                               </td>
                               <td style="padding-left: 14px;">
                                 <p style="margin: 0; color: #166534; font-size: 14px; line-height: 1.5;">
-                                  <strong>Signature sécurisée</strong><br>
+                                  <strong>Signature sécurisée</strong><br />
                                   <span style="color: #15803d;">Ce document utilise la signature électronique conforme au règlement eIDAS.</span>
                                 </p>
                               </td>
@@ -469,7 +501,7 @@ export async function sendSignatureRequestEmail(
 
                 <!-- Footer -->
                 <tr>
-                  <td style="padding: 24px 40px; background: #f8f9fc; border-top: 1px solid #e5e7eb;">
+                  <td bgcolor="#f8f9fc" style="padding: 24px 40px; border-top: 1px solid #e5e7eb;">
                     <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0; text-align: center;">
                       Ce message a été envoyé par <strong>${senderCompany}</strong>
                     </p>
@@ -482,9 +514,15 @@ export async function sendSignatureRequestEmail(
               </table>
 
               <!-- Sub-footer -->
-              <p style="color: #9ca3af; font-size: 11px; margin: 24px 0 0 0; text-align: center;">
-                © ${new Date().getFullYear()} ${senderCompany} • Signature électronique sécurisée
-              </p>
+              <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px;">
+                <tr>
+                  <td style="padding: 24px 0;">
+                    <p style="color: #9ca3af; font-size: 11px; margin: 0; text-align: center;">
+                      © ${new Date().getFullYear()} ${senderCompany} - Signature électronique sécurisée
+                    </p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
@@ -494,7 +532,7 @@ export async function sendSignatureRequestEmail(
 
   return sendEmail({
     to: email,
-    subject: `📝 Document à signer : ${contractTitle}`,
+    subject: `Document à signer : ${contractTitle}`,
     html,
   })
 }
