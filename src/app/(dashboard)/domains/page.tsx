@@ -34,6 +34,10 @@ interface Domain {
   expirationDate: string | null
   autoRenew: boolean
   notes: string | null
+  purchasePrice: number | null
+  resalePrice: number | null
+  renewalCostPrice: number | null
+  renewalResalePrice: number | null
   lastSyncAt: string | null
   clientId: string | null
   client: {
@@ -69,6 +73,10 @@ export default function DomainsPage() {
   const [editDomain, setEditDomain] = useState<Domain | null>(null)
   const [editClientId, setEditClientId] = useState("")
   const [editNotes, setEditNotes] = useState("")
+  const [editPurchasePrice, setEditPurchasePrice] = useState("")
+  const [editResalePrice, setEditResalePrice] = useState("")
+  const [editRenewalCostPrice, setEditRenewalCostPrice] = useState("")
+  const [editRenewalResalePrice, setEditRenewalResalePrice] = useState("")
   const [saving, setSaving] = useState(false)
 
   const fetchDomains = useCallback(async () => {
@@ -180,6 +188,10 @@ export default function DomainsPage() {
     setEditDomain(domain)
     setEditClientId(domain.clientId || "none")
     setEditNotes(domain.notes || "")
+    setEditPurchasePrice(domain.purchasePrice?.toString() || "")
+    setEditResalePrice(domain.resalePrice?.toString() || "")
+    setEditRenewalCostPrice(domain.renewalCostPrice?.toString() || "")
+    setEditRenewalResalePrice(domain.renewalResalePrice?.toString() || "")
   }
 
   const handleSaveEdit = async () => {
@@ -193,15 +205,27 @@ export default function DomainsPage() {
         body: JSON.stringify({
           clientId: editClientId === "none" ? null : editClientId,
           notes: editNotes,
+          purchasePrice: editPurchasePrice ? editPurchasePrice : null,
+          resalePrice: editResalePrice ? editResalePrice : null,
+          renewalCostPrice: editRenewalCostPrice ? editRenewalCostPrice : null,
+          renewalResalePrice: editRenewalResalePrice ? editRenewalResalePrice : null,
         }),
       })
 
       if (res.ok) {
+        setSyncMessage({ type: "success", text: "Domaine mis à jour avec succès" })
         fetchDomains()
         setEditDomain(null)
+        setTimeout(() => setSyncMessage(null), 3000)
+      } else {
+        const data = await res.json()
+        setSyncMessage({ type: "error", text: data.error || "Erreur lors de la mise à jour" })
+        setTimeout(() => setSyncMessage(null), 5000)
       }
     } catch (error) {
       console.error("Error updating domain:", error)
+      setSyncMessage({ type: "error", text: "Erreur de connexion au serveur" })
+      setTimeout(() => setSyncMessage(null), 5000)
     } finally {
       setSaving(false)
     }
@@ -683,6 +707,61 @@ export default function DomainsPage() {
                   className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
                   style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
                 />
+              </div>
+
+              {/* Prix section */}
+              <div className="pt-4" style={{ borderTop: "1px solid #EEEEEE" }}>
+                <h4 className="text-sm font-semibold mb-3" style={{ color: "#111111" }}>Tarification</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "#666666" }}>Prix d&apos;achat (€ HT)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editPurchasePrice}
+                      onChange={(e) => setEditPurchasePrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "#666666" }}>Prix de revente (€ HT)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editResalePrice}
+                      onChange={(e) => setEditResalePrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "#666666" }}>Coût renouvellement (€ HT)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editRenewalCostPrice}
+                      onChange={(e) => setEditRenewalCostPrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "#666666" }}>Prix renouvellement (€ HT)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editRenewalResalePrice}
+                      onChange={(e) => setEditRenewalResalePrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

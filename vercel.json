@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/note-reminders",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/ticket-reminders",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

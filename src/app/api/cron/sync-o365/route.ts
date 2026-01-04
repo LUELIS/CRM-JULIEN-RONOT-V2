@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { notifyNewTicket, notifyClientReply, parseSlackConfig } from "@/lib/slack"
 
@@ -166,26 +166,8 @@ async function generateTicketNumber(): Promise<string> {
 }
 
 // GET: Cron job endpoint
-// Can be called:
-// - With Authorization header: Bearer {CRON_SECRET}
-// - With query param: ?secret={CRON_SECRET}
-// Configure a cron service (cron-job.org, EasyCron, etc.) to call this endpoint every 5 minutes
-export async function GET(request: NextRequest) {
-  // Verify cron secret for security
-  const authHeader = request.headers.get("authorization")
-  const { searchParams } = new URL(request.url)
-  const querySecret = searchParams.get("secret")
-  const cronSecret = process.env.CRON_SECRET
-
-  const isAuthorized =
-    (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
-    (cronSecret && querySecret === cronSecret)
-
-  if (!cronSecret || !isAuthorized) {
-    console.log("[Cron] Unauthorized request")
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
+// Configure a cron service to call this endpoint every 2-5 minutes
+export async function GET() {
   try {
     console.log("[Cron] Starting O365 email sync...")
 

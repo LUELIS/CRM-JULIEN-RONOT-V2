@@ -1181,6 +1181,13 @@ model Domain {
   offer          String?      @db.VarChar(100)
   expirationDate DateTime?    @map("expiration_date") @db.Date
   autoRenew      Boolean      @default(true) @map("auto_renew")
+
+  // Pricing fields
+  purchasePrice      Decimal?  @map("purchase_price") @db.Decimal(10, 2)      // Cost from registrar
+  resalePrice        Decimal?  @map("resale_price") @db.Decimal(10, 2)        // Price to client
+  renewalCostPrice   Decimal?  @map("renewal_cost_price") @db.Decimal(10, 2)  // Renewal cost
+  renewalResalePrice Decimal?  @map("renewal_resale_price") @db.Decimal(10, 2) // Renewal price to client
+
   notes          String?      @db.Text
   lastSyncAt     DateTime?    @map("last_sync_at") @db.Timestamp(0)
   createdAt      DateTime?    @default(now()) @map("created_at") @db.Timestamp(0)

@@ -39,6 +39,10 @@ export async function GET(
       expirationDate: domain.expirationDate?.toISOString() || null,
       autoRenew: domain.autoRenew,
       notes: domain.notes,
+      purchasePrice: domain.purchasePrice ? Number(domain.purchasePrice) : null,
+      resalePrice: domain.resalePrice ? Number(domain.resalePrice) : null,
+      renewalCostPrice: domain.renewalCostPrice ? Number(domain.renewalCostPrice) : null,
+      renewalResalePrice: domain.renewalResalePrice ? Number(domain.renewalResalePrice) : null,
       lastSyncAt: domain.lastSyncAt?.toISOString() || null,
       createdAt: domain.createdAt?.toISOString() || null,
       updatedAt: domain.updatedAt?.toISOString() || null,
@@ -75,6 +79,10 @@ export async function PUT(
         clientId: body.clientId ? BigInt(body.clientId) : null,
         notes: body.notes || null,
         autoRenew: body.autoRenew !== undefined ? body.autoRenew : undefined,
+        purchasePrice: body.purchasePrice !== undefined ? (body.purchasePrice ? parseFloat(body.purchasePrice) : null) : undefined,
+        resalePrice: body.resalePrice !== undefined ? (body.resalePrice ? parseFloat(body.resalePrice) : null) : undefined,
+        renewalCostPrice: body.renewalCostPrice !== undefined ? (body.renewalCostPrice ? parseFloat(body.renewalCostPrice) : null) : undefined,
+        renewalResalePrice: body.renewalResalePrice !== undefined ? (body.renewalResalePrice ? parseFloat(body.renewalResalePrice) : null) : undefined,
       },
       include: {
         client: {
@@ -100,6 +108,10 @@ export async function PUT(
         : null,
       notes: domain.notes,
       autoRenew: domain.autoRenew,
+      purchasePrice: domain.purchasePrice ? Number(domain.purchasePrice) : null,
+      resalePrice: domain.resalePrice ? Number(domain.resalePrice) : null,
+      renewalCostPrice: domain.renewalCostPrice ? Number(domain.renewalCostPrice) : null,
+      renewalResalePrice: domain.renewalResalePrice ? Number(domain.renewalResalePrice) : null,
     })
   } catch (error) {
     console.error("Error updating domain:", error)

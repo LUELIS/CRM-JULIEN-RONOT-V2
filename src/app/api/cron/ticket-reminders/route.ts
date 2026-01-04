@@ -28,55 +28,47 @@ async function getTenantSettings() {
   return tenant
 }
 
-// Send Slack notification for note reminder
+// Send Slack notification for ticket reminder
 async function sendSlackReminder(
   config: NonNullable<Awaited<ReturnType<typeof getSlackConfig>>>,
-  note: {
+  reminder: {
     id: bigint
-    content: string
-    type: string
-    author: { name: string; slackUserId: string | null }
+    note: string | null
+    ticket: { id: bigint; subject: string }
+    user: { name: string; slackUserId: string | null }
   },
-  noteUrl: string
+  ticketUrl: string
 ) {
   if (!config.slackEnabled) return { success: false }
 
-  // Create a preview of the note content
-  const preview = note.content.length > 200
-    ? note.content.substring(0, 200) + "..."
-    : note.content
-
-  const typeEmoji = note.type === "quick" ? ":zap:" : note.type === "todo" ? ":ballot_box_with_check:" : ":memo:"
-  const typeName = note.type === "quick" ? "Flash" : note.type === "todo" ? "Tache" : "Note"
-
   // Mention user if they have a Slack ID
-  const userMention = note.author.slackUserId
-    ? `<@${note.author.slackUserId}>`
-    : note.author.name
+  const userMention = reminder.user.slackUserId
+    ? `<@${reminder.user.slackUserId}>`
+    : reminder.user.name
 
   const blocks = [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `:bell: *Rappel de ${typeName}* ${typeEmoji}\n\n${userMention}, vous avez un rappel programme pour cette note :`,
+        text: `:bell: *Rappel de Ticket* :ticket:\n\n${userMention}, vous avez un rappel programme pour ce ticket :`,
       },
     },
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: preview,
+        text: `*${reminder.ticket.subject}*${reminder.note ? `\n\n_${reminder.note}_` : ""}`,
       },
       accessory: {
         type: "button",
         text: {
           type: "plain_text",
-          text: "Voir la note",
+          text: "Voir le ticket",
           emoji: true,
         },
-        url: noteUrl,
-        action_id: "view_note",
+        url: ticketUrl,
+        action_id: "view_ticket",
       },
     },
     {
@@ -84,7 +76,7 @@ async function sendSlackReminder(
       elements: [
         {
           type: "mrkdwn",
-          text: `Note #${note.id.toString()} | ${typeName}`,
+          text: `Ticket #${reminder.ticket.id.toString()}`,
         },
       ],
     },
@@ -92,7 +84,7 @@ async function sendSlackReminder(
 
   const payload = {
     blocks,
-    text: `Rappel: ${preview}`,
+    text: `Rappel ticket: ${reminder.ticket.subject}`,
   }
 
   try {
@@ -125,28 +117,22 @@ async function sendSlackReminder(
 
     return { success: false }
   } catch (error) {
-    console.error("[Note Reminder] Slack error:", error)
+    console.error("[Ticket Reminder] Slack error:", error)
     return { success: false }
   }
 }
 
 // Send email reminder
 async function sendEmailReminder(
-  note: {
+  reminder: {
     id: bigint
-    content: string
-    type: string
-    author: { name: string; email: string }
+    note: string | null
+    ticket: { id: bigint; subject: string }
+    user: { name: string; email: string }
   },
-  noteUrl: string,
+  ticketUrl: string,
   tenantName: string
 ) {
-  const preview = note.content.length > 500
-    ? note.content.substring(0, 500) + "..."
-    : note.content
-
-  const typeName = note.type === "quick" ? "Flash" : note.type === "todo" ? "Tache" : "Note"
-
   const html = `
     <!DOCTYPE html>
     <html>
@@ -158,30 +144,33 @@ async function sendEmailReminder(
       <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
         <div style="background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
           <!-- Header -->
-          <div style="background: linear-gradient(135deg, #0064FA 0%, #5F00BA 100%); padding: 30px; text-align: center;">
+          <div style="background: linear-gradient(135deg, #DCB40A 0%, #F0783C 100%); padding: 30px; text-align: center;">
             <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">
-              Rappel de ${typeName}
+              Rappel de Ticket
             </h1>
           </div>
 
           <!-- Content -->
           <div style="padding: 30px;">
             <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
-              Bonjour ${note.author.name},
+              Bonjour ${reminder.user.name},
             </p>
             <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px;">
-              Vous avez programme un rappel pour cette note :
+              Vous avez programme un rappel pour ce ticket :
             </p>
 
-            <!-- Note Preview -->
-            <div style="background: #F5F5F5; border-radius: 12px; padding: 20px; margin: 20px 0; border-left: 4px solid #0064FA;">
-              <div style="color: #333; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${preview}</div>
+            <!-- Ticket Preview -->
+            <div style="background: #F5F5F5; border-radius: 12px; padding: 20px; margin: 20px 0; border-left: 4px solid #DCB40A;">
+              <div style="color: #333; font-size: 16px; font-weight: 600; margin-bottom: 8px;">
+                ${reminder.ticket.subject}
+              </div>
+              ${reminder.note ? `<div style="color: #666; font-size: 14px; font-style: italic;">${reminder.note}</div>` : ""}
             </div>
 
             <!-- CTA Button -->
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${noteUrl}" style="display: inline-block; background: #0064FA; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
-                Voir la note
+              <a href="${ticketUrl}" style="display: inline-block; background: #DCB40A; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                Voir le ticket
               </a>
             </div>
           </div>
@@ -199,39 +188,37 @@ async function sendEmailReminder(
   `
 
   return sendEmail({
-    to: note.author.email,
-    subject: `Rappel: ${typeName} - ${note.content.substring(0, 50)}${note.content.length > 50 ? "..." : ""}`,
+    to: reminder.user.email,
+    subject: `Rappel Ticket: ${reminder.ticket.subject}`,
     html,
   })
 }
 
 // Create in-app notification
 async function createInAppNotification(
-  note: {
+  reminder: {
     id: bigint
-    content: string
-    type: string
-    author: { id: bigint }
+    note: string | null
+    ticket: { id: bigint; subject: string }
+    user: { id: bigint }
     tenant_id: bigint
   },
-  noteUrl: string
+  ticketUrl: string
 ) {
-  const typeName = note.type === "quick" ? "Flash" : note.type === "todo" ? "Tache" : "Note"
-  const preview = note.content.length > 100
-    ? note.content.substring(0, 100) + "..."
-    : note.content
-
   await prisma.notification.create({
     data: {
-      tenant_id: note.tenant_id,
-      userId: note.author.id,
-      type: "note_reminder",
-      title: `Rappel: ${typeName}`,
-      message: preview,
-      link: noteUrl,
-      entityType: "note",
-      entityId: note.id,
-      metadata: JSON.stringify({ noteId: note.id.toString(), noteType: note.type }),
+      tenant_id: reminder.tenant_id,
+      userId: reminder.user.id,
+      type: "ticket",
+      title: `Rappel: ${reminder.ticket.subject}`,
+      message: reminder.note || `Rappel programme pour le ticket #${reminder.ticket.id}`,
+      link: ticketUrl,
+      entityType: "ticket",
+      entityId: reminder.ticket.id,
+      metadata: JSON.stringify({
+        ticketId: reminder.ticket.id.toString(),
+        reminderId: reminder.id.toString(),
+      }),
     },
   })
 }
@@ -239,19 +226,24 @@ async function createInAppNotification(
 // GET: Cron job endpoint
 export async function GET() {
   try {
-    console.log("[Note Reminder] Starting reminder check...")
+    console.log("[Ticket Reminder] Starting reminder check...")
 
     const now = new Date()
 
-    // Find all notes with pending reminders
-    const pendingReminders = await prisma.note.findMany({
+    // Find all pending ticket reminders
+    const pendingReminders = await prisma.ticketReminder.findMany({
       where: {
         reminderAt: { lte: now },
-        reminderSent: false,
-        isRecycle: false,
+        status: "pending",
       },
       include: {
-        author: {
+        ticket: {
+          select: {
+            id: true,
+            subject: true,
+          },
+        },
+        users: {
           select: {
             id: true,
             name: true,
@@ -262,7 +254,7 @@ export async function GET() {
       },
     })
 
-    console.log(`[Note Reminder] Found ${pendingReminders.length} pending reminders`)
+    console.log(`[Ticket Reminder] Found ${pendingReminders.length} pending reminders`)
 
     if (pendingReminders.length === 0) {
       return NextResponse.json({
@@ -282,19 +274,27 @@ export async function GET() {
     let slacksSent = 0
     let notificationsCreated = 0
 
-    for (const note of pendingReminders) {
-      const noteUrl = `${baseUrl}/notes?highlight=${note.id}`
+    for (const reminder of pendingReminders) {
+      const ticketUrl = `${baseUrl}/tickets/${reminder.ticketId}`
 
       try {
+        const reminderData = {
+          id: reminder.id,
+          note: reminder.note,
+          ticket: reminder.ticket,
+          user: reminder.users,
+          tenant_id: reminder.tenant_id,
+        }
+
         // 1. Create in-app notification
-        await createInAppNotification(note, noteUrl)
+        await createInAppNotification(reminderData, ticketUrl)
         notificationsCreated++
 
         // 2. Send email
-        if (note.author.email) {
+        if (reminder.users.email) {
           const emailResult = await sendEmailReminder(
-            note,
-            noteUrl,
+            reminderData,
+            ticketUrl,
             tenant?.name || "CRM"
           )
           if (emailResult.success) emailsSent++
@@ -302,24 +302,27 @@ export async function GET() {
 
         // 3. Send Slack notification
         if (slackConfig && slackConfig.slackEnabled) {
-          const slackResult = await sendSlackReminder(slackConfig, note, noteUrl)
+          const slackResult = await sendSlackReminder(slackConfig, reminderData, ticketUrl)
           if (slackResult.success) slacksSent++
         }
 
         // Mark reminder as sent
-        await prisma.note.update({
-          where: { id: note.id },
-          data: { reminderSent: true },
+        await prisma.ticketReminder.update({
+          where: { id: reminder.id },
+          data: {
+            status: "sent",
+            sentAt: new Date(),
+          },
         })
 
         processed++
       } catch (error) {
-        console.error(`[Note Reminder] Error processing note ${note.id}:`, error)
-        // Continue with other notes even if one fails
+        console.error(`[Ticket Reminder] Error processing reminder ${reminder.id}:`, error)
+        // Continue with other reminders even if one fails
       }
     }
 
-    console.log(`[Note Reminder] Complete: ${processed} processed, ${emailsSent} emails, ${slacksSent} slacks, ${notificationsCreated} notifications`)
+    console.log(`[Ticket Reminder] Complete: ${processed} processed, ${emailsSent} emails, ${slacksSent} slacks, ${notificationsCreated} notifications`)
 
     return NextResponse.json({
       success: true,
@@ -333,7 +336,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error("[Note Reminder] Error:", error)
+    console.error("[Ticket Reminder] Error:", error)
     return NextResponse.json(
       {
         success: false,

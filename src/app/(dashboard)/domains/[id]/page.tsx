@@ -21,6 +21,7 @@ import {
   Copy,
   Building2,
   X,
+  Euro,
 } from "lucide-react"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
 import { NotesSidebarCard } from "@/components/notes"
@@ -50,6 +51,10 @@ interface Domain {
   expirationDate: string | null
   autoRenew: boolean
   notes: string | null
+  purchasePrice: number | null
+  resalePrice: number | null
+  renewalCostPrice: number | null
+  renewalResalePrice: number | null
   lastSyncAt: string | null
   clientId: string | null
   client: {
@@ -513,6 +518,53 @@ export default function DomainPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
         </div>
+
+        {/* Pricing Card */}
+        {(domain.purchasePrice || domain.resalePrice || domain.renewalCostPrice || domain.renewalResalePrice) && (
+          <div className="rounded-2xl p-5 lg:col-span-2" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#D4EDDA" }}>
+                <Euro className="w-5 h-5" style={{ color: "#28B95F" }} />
+              </div>
+              <h3 className="font-semibold" style={{ color: "#111111" }}>Tarification</h3>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs" style={{ color: "#999999" }}>Prix d&apos;achat</p>
+                <p className="text-lg font-semibold" style={{ color: "#111111" }}>
+                  {domain.purchasePrice ? `${domain.purchasePrice.toFixed(2)} €` : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs" style={{ color: "#999999" }}>Prix de revente</p>
+                <p className="text-lg font-semibold" style={{ color: "#28B95F" }}>
+                  {domain.resalePrice ? `${domain.resalePrice.toFixed(2)} €` : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs" style={{ color: "#999999" }}>Coût renouvellement</p>
+                <p className="text-lg font-semibold" style={{ color: "#111111" }}>
+                  {domain.renewalCostPrice ? `${domain.renewalCostPrice.toFixed(2)} €` : "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs" style={{ color: "#999999" }}>Prix renouvellement</p>
+                <p className="text-lg font-semibold" style={{ color: "#28B95F" }}>
+                  {domain.renewalResalePrice ? `${domain.renewalResalePrice.toFixed(2)} €` : "-"}
+                </p>
+              </div>
+            </div>
+            {(domain.resalePrice && domain.purchasePrice) && (
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid #EEEEEE" }}>
+                <p className="text-xs" style={{ color: "#999999" }}>
+                  Marge initiale: <span className="font-medium" style={{ color: "#28B95F" }}>
+                    {(domain.resalePrice - domain.purchasePrice).toFixed(2)} € ({((domain.resalePrice - domain.purchasePrice) / domain.purchasePrice * 100).toFixed(0)}%)
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Notes Card */}
         <NotesSidebarCard entityType="domain" entityId={id} />
