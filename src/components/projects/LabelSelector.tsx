@@ -133,7 +133,7 @@ export default function LabelSelector({
       {/* Add label button */}
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-[#0064FA] transition-colors"
+        className="flex items-center gap-1 text-sm text-gray-500 hover:text-[#0064FA] transition-colors"
       >
         <Plus className="h-4 w-4" />
         Ajouter un label
@@ -141,9 +141,9 @@ export default function LabelSelector({
 
       {/* Dropdown */}
       {showDropdown && (
-        <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+          <div className="p-2 border-b border-gray-200">
+            <p className="text-xs font-medium text-gray-500 uppercase">
               Labels
             </p>
           </div>
@@ -151,14 +151,14 @@ export default function LabelSelector({
           {/* Available labels */}
           <div className="max-h-48 overflow-y-auto p-1">
             {availableLabels.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-2">
+              <p className="text-sm text-gray-400 text-center py-2">
                 Aucun label
               </p>
             ) : (
               availableLabels.map((label) => (
                 <div
                   key={label.id}
-                  className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md group"
+                  className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md group"
                 >
                   <button
                     onClick={() => toggleLabel(label.id)}
@@ -172,7 +172,7 @@ export default function LabelSelector({
                         <Check className="h-3 w-3 text-white" />
                       )}
                     </div>
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                    <span className="text-sm text-gray-700">
                       {label.name}
                     </span>
                   </button>
@@ -191,7 +191,7 @@ export default function LabelSelector({
           </div>
 
           {/* Create new label */}
-          <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+          <div className="border-t border-gray-200 p-2">
             {showCreateForm ? (
               <div className="space-y-2">
                 <input
@@ -199,7 +199,7 @@ export default function LabelSelector({
                   value={newLabelName}
                   onChange={(e) => setNewLabelName(e.target.value)}
                   placeholder="Nom du label..."
-                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-[#0064FA] focus:border-transparent outline-none"
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded bg-white text-gray-900 focus:ring-1 focus:ring-[#0064FA] focus:border-transparent outline-none"
                   autoFocus
                 />
                 <div className="flex flex-wrap gap-1">
@@ -227,7 +227,7 @@ export default function LabelSelector({
                       setShowCreateForm(false)
                       setNewLabelName("")
                     }}
-                    className="px-2 py-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-xs"
+                    className="px-2 py-1 text-gray-600 hover:bg-gray-100 rounded text-xs"
                   >
                     Annuler
                   </button>
@@ -236,7 +236,7 @@ export default function LabelSelector({
             ) : (
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="w-full flex items-center gap-2 p-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md"
+                className="w-full flex items-center gap-2 p-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md"
               >
                 <Plus className="h-4 w-4" />
                 Creer un label
@@ -245,10 +245,10 @@ export default function LabelSelector({
           </div>
 
           {/* Close button */}
-          <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+          <div className="border-t border-gray-200 p-2">
             <button
               onClick={() => setShowDropdown(false)}
-              className="w-full p-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md text-center"
+              className="w-full p-2 text-sm text-gray-500 hover:bg-gray-50 rounded-md text-center"
             >
               Fermer
             </button>

@@ -292,7 +292,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
   if (!project) {
     return (
       <div className="p-6 text-center">
-        <p className="text-gray-500 dark:text-gray-400">Projet non trouve</p>
+        <p className="text-gray-500">Projet non trouve</p>
         <button
           onClick={() => router.push("/projects")}
           className="mt-4 text-[#0064FA] hover:underline"
@@ -306,23 +306,23 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push("/projects")}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+            <ArrowLeft className="h-5 w-5 text-gray-600" />
           </button>
           <div className="flex items-center gap-3">
             <div
               className="w-4 h-4 rounded-full"
               style={{ backgroundColor: project.color }}
             />
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{project.name}</h1>
+            <h1 className="text-xl font-semibold text-gray-900">{project.name}</h1>
           </div>
           {project.client && (
-            <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+            <span className="flex items-center gap-1 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
               <Users className="h-3 w-3" />
               {project.client.companyName}
             </span>
@@ -331,12 +331,12 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Board */}
-      <div className="flex-1 overflow-x-auto p-6 bg-gray-50 dark:bg-gray-900">
+      <div className="flex-1 overflow-x-auto p-6 bg-gray-50">
         <div className="flex gap-4 h-full min-h-[500px]">
           {project.columns.map((column) => (
             <div
               key={column.id}
-              className="flex flex-col w-80 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded-xl"
+              className="flex flex-col w-80 flex-shrink-0 bg-gray-100 rounded-xl"
               onDragOver={(e) => handleDragOver(e, column.id, column.cards.length)}
               onDrop={(e) => handleDrop(e, column.id, column.cards.length)}
             >
@@ -347,14 +347,14 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                     className="w-2 h-2 rounded-full"
                     style={{ backgroundColor: column.color }}
                   />
-                  <h3 className="font-medium text-gray-700 dark:text-gray-300">{column.name}</h3>
-                  <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                  <h3 className="font-medium text-gray-700">{column.name}</h3>
+                  <span className="text-xs text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded">
                     {column.cards.length}
                   </span>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors">
+                    <button className="p-1 hover:bg-gray-200 rounded transition-colors">
                       <MoreHorizontal className="h-4 w-4 text-gray-400" />
                     </button>
                   </DropdownMenuTrigger>
@@ -381,7 +381,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                       onDragOver={(e) => handleDragOver(e, column.id, index)}
                       onDrop={(e) => handleDrop(e, column.id, index)}
                       onClick={() => setSelectedCardId(card.id)}
-                      className={`bg-white dark:bg-gray-700 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-600 cursor-pointer hover:shadow-md hover:border-[#0064FA]/50 transition-all group ${
+                      className={`bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-pointer hover:shadow-md hover:border-[#0064FA]/50 transition-all group ${
                         draggedCard?.id === card.id ? "opacity-50" : ""
                       } ${
                         dragOverColumn === column.id && dragOverPosition === index
@@ -409,12 +409,12 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
                       {/* Title */}
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <p className={`text-sm font-medium text-gray-900 dark:text-gray-100 ${card.isCompleted ? "line-through text-gray-400 dark:text-gray-500" : ""}`}>
+                        <p className={`text-sm font-medium text-gray-900 ${card.isCompleted ? "line-through text-gray-400" : ""}`}>
                           {card.title}
                         </p>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <button className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100">
+                            <button className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100">
                               <MoreHorizontal className="h-3 w-3 text-gray-400" />
                             </button>
                           </DropdownMenuTrigger>
@@ -458,7 +458,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                           <span className={`flex items-center gap-1 ${
                             isOverdue(card.dueDate) && !card.isCompleted
                               ? "text-red-500"
-                              : "text-gray-500 dark:text-gray-400"
+                              : "text-gray-500"
                           }`}>
                             <Calendar className="h-3 w-3" />
                             {new Date(card.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
@@ -467,7 +467,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
                         {/* Subtasks progress */}
                         {subtaskProgress && (
-                          <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                          <span className="flex items-center gap-1 text-gray-500">
                             <CheckSquare className="h-3 w-3" />
                             {subtaskProgress.completed}/{subtaskProgress.total}
                           </span>
@@ -475,7 +475,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
                         {/* Comments count */}
                         {card.comments && card.comments.length > 0 && (
-                          <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                          <span className="flex items-center gap-1 text-gray-500">
                             <MessageSquare className="h-3 w-3" />
                             {card.comments.length}
                           </span>
@@ -483,7 +483,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
                         {/* Attachments count */}
                         {card.attachments && card.attachments.length > 0 && (
-                          <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                          <span className="flex items-center gap-1 text-gray-500">
                             <Paperclip className="h-3 w-3" />
                             {card.attachments.length}
                           </span>
@@ -492,13 +492,13 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
                       {/* Bottom row: Assignee & Client */}
                       {(card.assignee || card.client) && (
-                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-600">
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
                           {card.assignee ? (
                             <div className="flex items-center gap-1">
                               <div className="w-5 h-5 rounded-full bg-[#0064FA] flex items-center justify-center text-white text-[8px] font-medium">
                                 {getInitials(card.assignee.name)}
                               </div>
-                              <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[80px]">
+                              <span className="text-[10px] text-gray-500 truncate max-w-[80px]">
                                 {card.assignee.name}
                               </span>
                             </div>
@@ -506,7 +506,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                             <div />
                           )}
                           {card.client && (
-                            <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                            <span className="flex items-center gap-1 text-[10px] text-gray-400">
                               <Users className="h-3 w-3" />
                               <span className="truncate max-w-[60px]">{card.client.companyName}</span>
                             </span>
@@ -524,13 +524,13 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
                 {/* Add card form */}
                 {addingCardToColumn === column.id ? (
-                  <div className="bg-white dark:bg-gray-700 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
                     <input
                       type="text"
                       value={newCardTitle}
                       onChange={(e) => setNewCardTitle(e.target.value)}
                       placeholder="Titre de la tache..."
-                      className="w-full text-sm border-none outline-none bg-transparent text-gray-900 dark:text-gray-100"
+                      className="w-full text-sm border-none outline-none bg-transparent text-gray-900"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter") createCard(column.id)
@@ -553,7 +553,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                           setAddingCardToColumn(null)
                           setNewCardTitle("")
                         }}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
+                        className="p-1 hover:bg-gray-100 rounded"
                       >
                         <X className="h-4 w-4 text-gray-400" />
                       </button>
@@ -562,7 +562,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                 ) : (
                   <button
                     onClick={() => setAddingCardToColumn(column.id)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:bg-gray-200 rounded-lg transition-colors"
                   >
                     <Plus className="h-4 w-4" />
                     Ajouter une tache
@@ -574,13 +574,13 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
           {/* Add column */}
           {addingColumn ? (
-            <div className="w-80 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded-xl p-3">
+            <div className="w-80 flex-shrink-0 bg-gray-100 rounded-xl p-3">
               <input
                 type="text"
                 value={newColumnName}
                 onChange={(e) => setNewColumnName(e.target.value)}
                 placeholder="Nom de la colonne..."
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-[#0064FA] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#0064FA] bg-white text-gray-900"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") createColumn()
@@ -603,7 +603,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                     setAddingColumn(false)
                     setNewColumnName("")
                   }}
-                  className="px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-sm"
+                  className="px-3 py-1.5 text-gray-600 hover:bg-gray-200 rounded-lg text-sm"
                 >
                   Annuler
                 </button>
@@ -612,7 +612,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
           ) : (
             <button
               onClick={() => setAddingColumn(true)}
-              className="w-80 flex-shrink-0 h-12 flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl text-gray-600 dark:text-gray-400 text-sm font-medium transition-colors"
+              className="w-80 flex-shrink-0 h-12 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 text-sm font-medium transition-colors"
             >
               <Plus className="h-4 w-4" />
               Ajouter une colonne

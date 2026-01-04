@@ -115,11 +115,11 @@ export default function SubtaskList({ cardId, subtasks, users, onUpdate }: Subta
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <CheckSquare className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-sm font-medium text-gray-700">
             Sous-taches
           </span>
           {totalCount > 0 && (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-gray-500">
               ({completedCount}/{totalCount})
             </span>
           )}
@@ -138,7 +138,7 @@ export default function SubtaskList({ cardId, subtasks, users, onUpdate }: Subta
       {/* Progress bar */}
       {totalCount > 0 && (
         <div className="mb-3">
-          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
             <div
               className="h-full bg-green-500 rounded-full transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
@@ -152,7 +152,7 @@ export default function SubtaskList({ cardId, subtasks, users, onUpdate }: Subta
         {subtasks.map((subtask) => (
           <div
             key={subtask.id}
-            className={`group flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+            className={`group flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors ${
               subtask.isCompleted ? "opacity-60" : ""
             }`}
           >
@@ -161,7 +161,7 @@ export default function SubtaskList({ cardId, subtasks, users, onUpdate }: Subta
               className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                 subtask.isCompleted
                   ? "bg-green-500 border-green-500 text-white"
-                  : "border-gray-300 dark:border-gray-600 hover:border-green-500"
+                  : "border-gray-300 hover:border-green-500"
               }`}
             >
               {subtask.isCompleted && (
@@ -185,15 +185,15 @@ export default function SubtaskList({ cardId, subtasks, users, onUpdate }: Subta
                       setEditingTitle("")
                     }
                   }}
-                  className="w-full px-1 py-0.5 text-sm border-b border-[#0064FA] bg-transparent outline-none text-gray-900 dark:text-gray-100"
+                  className="w-full px-1 py-0.5 text-sm border-b border-[#0064FA] bg-transparent outline-none text-gray-900"
                   autoFocus
                 />
               ) : (
                 <span
                   className={`text-sm cursor-pointer ${
                     subtask.isCompleted
-                      ? "line-through text-gray-400 dark:text-gray-500"
-                      : "text-gray-700 dark:text-gray-300"
+                      ? "line-through text-gray-400"
+                      : "text-gray-700"
                   }`}
                   onClick={() => {
                     setEditingId(subtask.id)
@@ -253,7 +253,7 @@ export default function SubtaskList({ cardId, subtasks, users, onUpdate }: Subta
               }
             }}
             placeholder="Nouvelle sous-tache..."
-            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none"
+            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none"
             autoFocus
           />
           <button
@@ -268,7 +268,7 @@ export default function SubtaskList({ cardId, subtasks, users, onUpdate }: Subta
               setShowAddForm(false)
               setNewSubtaskTitle("")
             }}
-            className="px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm"
+            className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
           >
             Annuler
           </button>

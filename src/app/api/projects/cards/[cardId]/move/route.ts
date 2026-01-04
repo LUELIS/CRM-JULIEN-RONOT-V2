@@ -19,7 +19,7 @@ function serializeCard(card: any) {
 // PUT: Move a card to a different column or position
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ cardId: string }> }
 ) {
   try {
     const session = await auth()
@@ -27,7 +27,7 @@ export async function PUT(
       return NextResponse.json({ error: "Non autorise" }, { status: 401 })
     }
 
-    const { id } = await params
+    const { cardId } = await params
     const body = await request.json()
     const { columnId, position } = body
 
@@ -40,7 +40,7 @@ export async function PUT(
 
     // Get the current card
     const currentCard = await prisma.projectCard.findUnique({
-      where: { id: BigInt(id) },
+      where: { id: BigInt(cardId) },
     })
 
     if (!currentCard) {
@@ -98,7 +98,7 @@ export async function PUT(
 
     // Update the card itself
     const card = await prisma.projectCard.update({
-      where: { id: BigInt(id) },
+      where: { id: BigInt(cardId) },
       data: {
         columnId: newColumnId,
         position: newPosition,

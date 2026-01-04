@@ -116,11 +116,11 @@ export default function CommentSection({ cardId, comments, onUpdate }: CommentSe
     <div>
       <div className="flex items-center gap-2 mb-3">
         <MessageSquare className="h-4 w-4 text-gray-400" />
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="text-sm font-medium text-gray-700">
           Commentaires
         </span>
         {comments.length > 0 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500">
             ({comments.length})
           </span>
         )}
@@ -135,14 +135,14 @@ export default function CommentSection({ cardId, comments, onUpdate }: CommentSe
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <span className="text-sm font-medium text-gray-900">
                   {comment.user?.name || "Utilisateur"}
                 </span>
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-gray-400">
                   {formatDate(comment.createdAt)}
                 </span>
                 {comment.updatedAt !== comment.createdAt && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                  <span className="text-xs text-gray-400 italic">
                     (modifie)
                   </span>
                 )}
@@ -176,7 +176,7 @@ export default function CommentSection({ cardId, comments, onUpdate }: CommentSe
                   <textarea
                     value={editingContent}
                     onChange={(e) => setEditingContent(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none resize-none"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none resize-none"
                     rows={2}
                     autoFocus
                   />
@@ -192,14 +192,14 @@ export default function CommentSection({ cardId, comments, onUpdate }: CommentSe
                         setEditingId(null)
                         setEditingContent("")
                       }}
-                      className="px-3 py-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-xs"
+                      className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded-lg text-xs"
                     >
                       Annuler
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap mt-1">
+                <p className="text-sm text-gray-600 whitespace-pre-wrap mt-1">
                   {comment.content}
                 </p>
               )}
@@ -210,7 +210,7 @@ export default function CommentSection({ cardId, comments, onUpdate }: CommentSe
 
       {/* Add comment form */}
       <div className="flex gap-3">
-        <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-400 text-xs font-medium shrink-0">
+        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-500 text-xs font-medium shrink-0">
           +
         </div>
         <div className="flex-1">
@@ -224,7 +224,7 @@ export default function CommentSection({ cardId, comments, onUpdate }: CommentSe
               }
             }}
             placeholder="Ecrire un commentaire..."
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none resize-none"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none resize-none"
             rows={2}
           />
           <div className="flex justify-end mt-2">

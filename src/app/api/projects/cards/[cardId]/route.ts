@@ -68,7 +68,7 @@ function serializeCard(card: any) {
 // GET: Get a single card
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ cardId: string }> }
 ) {
   try {
     const session = await auth()
@@ -76,10 +76,10 @@ export async function GET(
       return NextResponse.json({ error: "Non autorise" }, { status: 401 })
     }
 
-    const { id } = await params
+    const { cardId } = await params
 
     const card = await prisma.projectCard.findUnique({
-      where: { id: BigInt(id) },
+      where: { id: BigInt(cardId) },
       include: {
         client: {
           select: { id: true, companyName: true },
@@ -140,7 +140,7 @@ export async function GET(
 // PUT: Update a card
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ cardId: string }> }
 ) {
   try {
     const session = await auth()
@@ -148,7 +148,7 @@ export async function PUT(
       return NextResponse.json({ error: "Non autorise" }, { status: 401 })
     }
 
-    const { id } = await params
+    const { cardId } = await params
     const body = await request.json()
     const {
       title,
@@ -182,7 +182,7 @@ export async function PUT(
     }
 
     const card = await prisma.projectCard.update({
-      where: { id: BigInt(id) },
+      where: { id: BigInt(cardId) },
       data: updateData,
       include: {
         client: {
@@ -217,7 +217,7 @@ export async function PUT(
 // DELETE: Delete a card
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ cardId: string }> }
 ) {
   try {
     const session = await auth()
@@ -225,10 +225,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Non autorise" }, { status: 401 })
     }
 
-    const { id } = await params
+    const { cardId } = await params
 
     await prisma.projectCard.delete({
-      where: { id: BigInt(id) },
+      where: { id: BigInt(cardId) },
     })
 
     return NextResponse.json({ success: true })

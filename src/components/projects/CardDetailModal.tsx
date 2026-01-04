@@ -186,10 +186,10 @@ export default function CardDetailModal({
   }
 
   const priorityColors: Record<string, string> = {
-    low: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
-    medium: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
-    high: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400",
-    urgent: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
+    low: "bg-gray-100 text-gray-600",
+    medium: "bg-blue-100 text-blue-600",
+    high: "bg-orange-100 text-orange-600",
+    urgent: "bg-red-100 text-red-600",
   }
 
   if (loading) {
@@ -208,11 +208,11 @@ export default function CardDetailModal({
       <>
         <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
         <div className="fixed inset-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:top-[5%] md:max-w-4xl md:w-full z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400">Carte non trouvee</p>
+          <div className="bg-white rounded-xl p-8 text-center">
+            <p className="text-gray-500">Carte non trouvee</p>
             <button
               onClick={onClose}
-              className="mt-4 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm"
+              className="mt-4 px-4 py-2 bg-gray-100 rounded-lg text-sm"
             >
               Fermer
             </button>
@@ -226,9 +226,9 @@ export default function CardDetailModal({
     <>
       <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
       <div className="fixed inset-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:top-[5%] md:max-w-4xl md:w-full z-50 max-h-[90vh] overflow-hidden">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl flex flex-col h-full max-h-[90vh]">
+        <div className="bg-white rounded-xl shadow-2xl flex flex-col h-full max-h-[90vh]">
           {/* Header */}
-          <div className="flex items-start justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-start justify-between p-4 border-b border-gray-200">
             <div className="flex-1 pr-4">
               {editingTitle ? (
                 <input
@@ -237,31 +237,31 @@ export default function CardDetailModal({
                   onChange={(e) => setTitle(e.target.value)}
                   onBlur={handleTitleSave}
                   onKeyDown={(e) => e.key === "Enter" && handleTitleSave()}
-                  className="w-full text-xl font-semibold bg-transparent border-b-2 border-[#0064FA] outline-none text-gray-900 dark:text-gray-100"
+                  className="w-full text-xl font-semibold bg-transparent border-b-2 border-[#0064FA] outline-none text-gray-900"
                   autoFocus
                 />
               ) : (
                 <h2
-                  className="text-xl font-semibold text-gray-900 dark:text-gray-100 cursor-pointer hover:text-[#0064FA] transition-colors"
+                  className="text-xl font-semibold text-gray-900 cursor-pointer hover:text-[#0064FA] transition-colors"
                   onClick={() => setEditingTitle(true)}
                 >
                   {card.title}
                 </h2>
               )}
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 dans {card.column.project.name} / {card.column.name}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDelete}
-                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
               >
                 <Trash2 className="h-5 w-5" />
               </button>
               <button
                 onClick={onClose}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -270,7 +270,7 @@ export default function CardDetailModal({
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-gray-700">
+            <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
               {/* Main content - Left side */}
               <div className="flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto">
                 {/* Labels */}
@@ -290,14 +290,14 @@ export default function CardDetailModal({
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Edit3 className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Description</span>
+                    <span className="text-sm font-medium text-gray-700">Description</span>
                   </div>
                   {editingDescription ? (
                     <div>
                       <textarea
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none resize-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none resize-none"
                         rows={4}
                         placeholder="Ajouter une description..."
                         autoFocus
@@ -314,7 +314,7 @@ export default function CardDetailModal({
                             setDescription(card.description || "")
                             setEditingDescription(false)
                           }}
-                          className="px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm"
+                          className="px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
                         >
                           Annuler
                         </button>
@@ -322,13 +322,13 @@ export default function CardDetailModal({
                     </div>
                   ) : (
                     <div
-                      className="min-h-[60px] p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="min-h-[60px] p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
                       onClick={() => setEditingDescription(true)}
                     >
                       {card.description ? (
-                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{card.description}</p>
+                        <p className="text-gray-700 whitespace-pre-wrap">{card.description}</p>
                       ) : (
-                        <p className="text-gray-400 dark:text-gray-500 italic">Cliquez pour ajouter une description...</p>
+                        <p className="text-gray-400 italic">Cliquez pour ajouter une description...</p>
                       )}
                     </div>
                   )}
@@ -358,10 +358,10 @@ export default function CardDetailModal({
               </div>
 
               {/* Sidebar - Right side */}
-              <div className="w-full lg:w-72 p-4 lg:p-6 space-y-4 bg-gray-50 dark:bg-gray-800/50">
+              <div className="w-full lg:w-72 p-4 lg:p-6 space-y-4 bg-gray-50">
                 {/* Assignee */}
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                     <User className="h-4 w-4" />
                     Assigne a
                   </label>
@@ -381,7 +381,7 @@ export default function CardDetailModal({
 
                 {/* Priority */}
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                     <Flag className="h-4 w-4" />
                     Priorite
                   </label>
@@ -402,7 +402,7 @@ export default function CardDetailModal({
 
                 {/* Labels */}
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                     <Tag className="h-4 w-4" />
                     Labels
                   </label>
@@ -420,7 +420,7 @@ export default function CardDetailModal({
 
                 {/* Dates */}
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                     <Calendar className="h-4 w-4" />
                     Date debut
                   </label>
@@ -431,12 +431,12 @@ export default function CardDetailModal({
                       setStartDate(e.target.value)
                       updateCard({ startDate: e.target.value || null })
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                     <Calendar className="h-4 w-4" />
                     Date limite
                   </label>
@@ -447,14 +447,14 @@ export default function CardDetailModal({
                       setDueDate(e.target.value)
                       updateCard({ dueDate: e.target.value || null })
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
                   />
                 </div>
 
                 {/* Time tracking */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
                       <Clock className="h-3 w-3" />
                       Estime (h)
                     </label>
@@ -467,11 +467,11 @@ export default function CardDetailModal({
                         setEstimatedHours(e.target.value)
                         updateCard({ estimatedHours: parseFloat(e.target.value) || null })
                       }}
-                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
                     />
                   </div>
                   <div>
-                    <label className="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
                       <Clock className="h-3 w-3" />
                       Reel (h)
                     </label>
@@ -484,7 +484,7 @@ export default function CardDetailModal({
                         setActualHours(e.target.value)
                         updateCard({ actualHours: parseFloat(e.target.value) || null })
                       }}
-                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
                     />
                   </div>
                 </div>
@@ -492,11 +492,11 @@ export default function CardDetailModal({
                 {/* Client */}
                 {card.client && (
                   <div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                       <Building2 className="h-4 w-4" />
                       Client
                     </label>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{card.client.companyName}</p>
+                    <p className="text-sm text-gray-600">{card.client.companyName}</p>
                   </div>
                 )}
               </div>
