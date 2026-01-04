@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   RefreshCw,
   Server,
@@ -22,6 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Bell,
+  BellOff,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -87,6 +89,50 @@ export default function DeploymentsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [selectedDeployment, setSelectedDeployment] = useState<Deployment | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default")
+  const previousDeploymentsRef = useRef<Map<string, string>>(new Map())
+
+  // Check notification permission on mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotificationPermission(Notification.permission)
+      if (Notification.permission === "granted") {
+        setNotificationsEnabled(true)
+      }
+    }
+  }, [])
+
+  // Request notification permission
+  const requestNotificationPermission = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      alert("Les notifications ne sont pas supportées par votre navigateur")
+      return
+    }
+
+    const permission = await Notification.requestPermission()
+    setNotificationPermission(permission)
+    if (permission === "granted") {
+      setNotificationsEnabled(true)
+      // Show test notification
+      new Notification("Notifications activées", {
+        body: "Vous recevrez une notification quand un déploiement se termine",
+        icon: "/favicon.ico",
+      })
+    }
+  }
+
+  // Send notification
+  const sendNotification = (title: string, body: string, isError: boolean = false) => {
+    if (!notificationsEnabled || Notification.permission !== "granted") return
+
+    new Notification(title, {
+      body,
+      icon: "/favicon.ico",
+      tag: `deployment-${Date.now()}`,
+      requireInteraction: isError, // Keep error notifications visible
+    })
+  }
 
   const fetchDeployments = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -100,6 +146,47 @@ export default function DeploymentsPage() {
       const res = await fetch(`/api/deployments?${params.toString()}`)
       if (res.ok) {
         const result = await res.json()
+
+        // Check for status changes and send notifications
+        if (isRefresh && notificationsEnabled && result.deployments) {
+          const previousStates = previousDeploymentsRef.current
+
+          for (const deployment of result.deployments as Deployment[]) {
+            const prevStatus = previousStates.get(deployment.id)
+
+            // Only notify if we knew about this deployment before and status changed
+            if (prevStatus && prevStatus !== deployment.status) {
+              if (deployment.status === "done") {
+                sendNotification(
+                  `✅ Déploiement terminé`,
+                  `${deployment.appName} sur ${deployment.server}`,
+                  false
+                )
+              } else if (deployment.status === "error") {
+                sendNotification(
+                  `❌ Échec du déploiement`,
+                  `${deployment.appName} sur ${deployment.server}`,
+                  true
+                )
+              }
+            }
+          }
+
+          // Update previous states
+          const newStates = new Map<string, string>()
+          for (const d of result.deployments as Deployment[]) {
+            newStates.set(d.id, d.status)
+          }
+          previousDeploymentsRef.current = newStates
+        } else if (result.deployments) {
+          // Initial load - just store states without notifying
+          const newStates = new Map<string, string>()
+          for (const d of result.deployments as Deployment[]) {
+            newStates.set(d.id, d.status)
+          }
+          previousDeploymentsRef.current = newStates
+        }
+
         setData(result)
         setLastRefresh(new Date())
       }
@@ -109,7 +196,7 @@ export default function DeploymentsPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [serverFilter, statusFilter])
+  }, [serverFilter, statusFilter, notificationsEnabled])
 
   useEffect(() => {
     fetchDeployments()
@@ -267,6 +354,40 @@ export default function DeploymentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Notification toggle */}
+            <button
+              onClick={() => {
+                if (notificationPermission === "granted") {
+                  setNotificationsEnabled(!notificationsEnabled)
+                } else if (notificationPermission === "denied") {
+                  alert("Les notifications sont bloquées. Modifiez les paramètres de votre navigateur.")
+                } else {
+                  requestNotificationPermission()
+                }
+              }}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                notificationsEnabled
+                  ? "bg-green-100 text-green-700"
+                  : notificationPermission === "denied"
+                  ? "bg-red-100 text-red-600"
+                  : "bg-gray-100 text-gray-600"
+              )}
+              title={
+                notificationPermission === "denied"
+                  ? "Notifications bloquées"
+                  : notificationsEnabled
+                  ? "Désactiver les notifications"
+                  : "Activer les notifications"
+              }
+            >
+              {notificationsEnabled ? (
+                <Bell className="h-4 w-4" />
+              ) : (
+                <BellOff className="h-4 w-4" />
+              )}
+              {notificationsEnabled ? "Notifs ON" : "Notifs OFF"}
+            </button>
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={cn(
