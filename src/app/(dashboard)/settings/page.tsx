@@ -153,6 +153,11 @@ interface SettingsData {
     sepaCreditorName?: string
     sepaCreditorIban?: string
     sepaCreditorBic?: string
+    // Telegram
+    telegramEnabled?: boolean
+    telegramBotToken?: string
+    telegramAllowedUsers?: string
+    telegramWebhookConfigured?: boolean
   }
 }
 
@@ -284,6 +289,15 @@ function SettingsContent() {
   const [sepaCreditorIban, setSepaCreditorIban] = useState("")
   const [sepaCreditorBic, setSepaCreditorBic] = useState("")
 
+  // Telegram
+  const [telegramEnabled, setTelegramEnabled] = useState(false)
+  const [telegramBotToken, setTelegramBotToken] = useState("")
+  const [telegramAllowedUsers, setTelegramAllowedUsers] = useState("")
+  const [telegramWebhookConfigured, setTelegramWebhookConfigured] = useState(false)
+  const [testingTelegram, setTestingTelegram] = useState(false)
+  const [configuringWebhook, setConfiguringWebhook] = useState(false)
+  const [telegramTestResult, setTelegramTestResult] = useState<{ type: "success" | "error"; message: string; botName?: string } | null>(null)
+
   const [showIntegrationSecrets, setShowIntegrationSecrets] = useState(false)
   const [integrationTestResult, setIntegrationTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [activeIntegrationTab, setActiveIntegrationTab] = useState("slack")
@@ -381,6 +395,12 @@ function SettingsContent() {
         setSepaCreditorName(data.settings?.sepaCreditorName || "")
         setSepaCreditorIban(data.settings?.sepaCreditorIban || "")
         setSepaCreditorBic(data.settings?.sepaCreditorBic || "")
+
+        // Telegram
+        setTelegramEnabled(data.settings?.telegramEnabled || false)
+        setTelegramBotToken(data.settings?.telegramBotToken || "")
+        setTelegramAllowedUsers(data.settings?.telegramAllowedUsers || "")
+        setTelegramWebhookConfigured(data.settings?.telegramWebhookConfigured || false)
       }
     } catch (error) {
       console.error("Error fetching settings:", error)
@@ -1489,6 +1509,10 @@ function SettingsContent() {
               <Landmark className="h-4 w-4" />
               <span className="hidden sm:inline">SEPA</span>
             </button>
+            <button onClick={() => setActiveIntegrationTab("telegram")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "telegram" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "telegram" ? "#0088CC" : "#666666", boxShadow: activeIntegrationTab === "telegram" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+              <Send className="h-4 w-4" />
+              <span className="hidden sm:inline">Telegram</span>
+            </button>
           </div>
 
           {/* Slack Settings */}
@@ -2254,6 +2278,185 @@ function SettingsContent() {
                   disabled={saving === "integrations"}
                   className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: "#0064FA", color: "#FFFFFF" }}
+                >
+                  {saving === "integrations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Enregistrer
+                </button>
+                {saved === "integrations" && <span className="flex items-center gap-1 text-sm" style={{ color: "#28B95F" }}><CheckCircle className="h-4 w-4" />Enregistré</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Telegram Settings */}
+          {activeIntegrationTab === "telegram" && (
+            <div className="rounded-2xl p-6 w-full space-y-6" style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#E3F2FD" }}>
+                    <Send className="h-5 w-5" style={{ color: "#0088CC" }} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold" style={{ color: "#111111" }}>Intégration Telegram</h2>
+                    <p className="text-sm" style={{ color: "#666666" }}>Gérez votre CRM via un bot Telegram</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={telegramEnabled}
+                    onChange={(e) => setTelegramEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#0088CC]/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0088CC]"></div>
+                </label>
+              </div>
+
+              {telegramEnabled && (
+                <>
+                  <div className="p-4 rounded-xl" style={{ background: "#E3F2FD" }}>
+                    <p className="text-sm" style={{ color: "#0088CC" }}>
+                      <strong>Configuration du bot:</strong>
+                      <br />1. Créez un bot via <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="underline">@BotFather</a> sur Telegram
+                      <br />2. Copiez le token du bot ci-dessous
+                      <br />3. Ajoutez votre ID Telegram pour l'autorisation
+                      <br />4. Configurez le webhook
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5" style={{ color: "#111111" }}>Token du Bot</label>
+                      <div className="relative">
+                        <input
+                          type={showIntegrationSecrets ? "text" : "password"}
+                          value={telegramBotToken}
+                          onChange={(e) => setTelegramBotToken(e.target.value)}
+                          placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                          className="w-full px-4 py-2.5 pr-10 rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-[#0088CC]/20"
+                          style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowIntegrationSecrets(!showIntegrationSecrets)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2"
+                          style={{ color: "#666666" }}
+                        >
+                          {showIntegrationSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5" style={{ color: "#111111" }}>IDs Telegram autorisés</label>
+                      <input
+                        type="text"
+                        value={telegramAllowedUsers}
+                        onChange={(e) => setTelegramAllowedUsers(e.target.value)}
+                        placeholder="123456789, 987654321"
+                        className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#0088CC]/20"
+                        style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                      />
+                      <p className="text-xs mt-1" style={{ color: "#999999" }}>Séparez les IDs par des virgules. Utilisez @userinfobot pour obtenir votre ID.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    <button
+                      onClick={async () => {
+                        if (!telegramBotToken) {
+                          setTelegramTestResult({ type: "error", message: "Token du bot requis" })
+                          return
+                        }
+                        setTestingTelegram(true)
+                        setTelegramTestResult(null)
+                        try {
+                          const res = await fetch(`https://api.telegram.org/bot${telegramBotToken}/getMe`)
+                          const data = await res.json()
+                          if (data.ok) {
+                            setTelegramTestResult({ type: "success", message: `Bot connecté: @${data.result.username}`, botName: data.result.username })
+                          } else {
+                            setTelegramTestResult({ type: "error", message: data.description || "Erreur de connexion" })
+                          }
+                        } catch {
+                          setTelegramTestResult({ type: "error", message: "Erreur de connexion à l'API Telegram" })
+                        } finally {
+                          setTestingTelegram(false)
+                        }
+                      }}
+                      disabled={testingTelegram || !telegramBotToken}
+                      className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-opacity disabled:opacity-50"
+                      style={{ background: "#E3F2FD", color: "#0088CC" }}
+                    >
+                      {testingTelegram ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
+                      Tester la connexion
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (!telegramBotToken) {
+                          setTelegramTestResult({ type: "error", message: "Token du bot requis" })
+                          return
+                        }
+                        setConfiguringWebhook(true)
+                        setTelegramTestResult(null)
+                        try {
+                          const webhookUrl = `${window.location.origin}/api/telegram/webhook`
+                          const res = await fetch(`https://api.telegram.org/bot${telegramBotToken}/setWebhook`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ url: webhookUrl, allowed_updates: ["message", "callback_query"] })
+                          })
+                          const data = await res.json()
+                          if (data.ok) {
+                            setTelegramWebhookConfigured(true)
+                            setTelegramTestResult({ type: "success", message: "Webhook configuré avec succès!" })
+                          } else {
+                            setTelegramTestResult({ type: "error", message: data.description || "Erreur de configuration" })
+                          }
+                        } catch {
+                          setTelegramTestResult({ type: "error", message: "Erreur de configuration du webhook" })
+                        } finally {
+                          setConfiguringWebhook(false)
+                        }
+                      }}
+                      disabled={configuringWebhook || !telegramBotToken}
+                      className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-opacity disabled:opacity-50"
+                      style={{ background: telegramWebhookConfigured ? "#E8F5E9" : "#FFF3E0", color: telegramWebhookConfigured ? "#28B95F" : "#F57C00" }}
+                    >
+                      {configuringWebhook ? <Loader2 className="h-4 w-4 animate-spin" /> : <Webhook className="h-4 w-4" />}
+                      {telegramWebhookConfigured ? "Webhook configuré" : "Configurer le webhook"}
+                    </button>
+                  </div>
+
+                  {telegramTestResult && (
+                    <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${telegramTestResult.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      {telegramTestResult.type === "success" ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                      {telegramTestResult.message}
+                    </div>
+                  )}
+
+                  <div className="p-4 rounded-xl" style={{ background: "#F5F5F7" }}>
+                    <h4 className="font-medium mb-2" style={{ color: "#111111" }}>Commandes disponibles:</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm" style={{ color: "#666666" }}>
+                      <div><code>/client</code> - Créer un client</div>
+                      <div><code>/clients</code> - Lister les clients</div>
+                      <div><code>/note</code> - Créer une note</div>
+                      <div><code>/notes</code> - Lister les notes</div>
+                      <div><code>/tache</code> - Créer une tâche</div>
+                      <div><code>/taches</code> - Lister les tâches</div>
+                      <div><code>/stats</code> - Statistiques</div>
+                      <div><code>/help</code> - Aide</div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 pt-4" style={{ borderTop: "1px solid #EEEEEE" }}>
+                <button
+                  onClick={() => handleSave("integrations", { telegramEnabled, telegramBotToken, telegramAllowedUsers, telegramWebhookConfigured })}
+                  disabled={saving === "integrations"}
+                  className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ background: "#0088CC", color: "#FFFFFF" }}
                 >
                   {saving === "integrations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Enregistrer

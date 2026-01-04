@@ -117,6 +117,12 @@ export async function GET() {
       sepaCreditorName: rawSettings.sepaCreditorName || "",
       sepaCreditorIban: rawSettings.sepaCreditorIban || "",
       sepaCreditorBic: rawSettings.sepaCreditorBic || "",
+
+      // Telegram
+      telegramEnabled: rawSettings.telegramEnabled || false,
+      telegramBotToken: rawSettings.telegramBotToken || "",
+      telegramAllowedUsers: rawSettings.telegramAllowedUsers || "",
+      telegramWebhookConfigured: rawSettings.telegramWebhookConfigured || false,
     }
 
     return NextResponse.json({
@@ -401,6 +407,12 @@ export async function PUT(request: NextRequest) {
       if (body.sepaCreditorName !== undefined) updatedSettings.sepaCreditorName = body.sepaCreditorName
       if (body.sepaCreditorIban !== undefined) updatedSettings.sepaCreditorIban = body.sepaCreditorIban
       if (body.sepaCreditorBic !== undefined) updatedSettings.sepaCreditorBic = body.sepaCreditorBic
+
+      // Telegram settings
+      if (body.telegramEnabled !== undefined) updatedSettings.telegramEnabled = body.telegramEnabled
+      if (body.telegramBotToken !== undefined) updatedSettings.telegramBotToken = body.telegramBotToken
+      if (body.telegramAllowedUsers !== undefined) updatedSettings.telegramAllowedUsers = body.telegramAllowedUsers
+      if (body.telegramWebhookConfigured !== undefined) updatedSettings.telegramWebhookConfigured = body.telegramWebhookConfigured
 
       await prisma.tenants.update({
         where: { id: BigInt(1) },
