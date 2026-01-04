@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, X, Users, FileText, FileCheck, Loader2, Command } from "lucide-react"
+import { Search, X, Users, FileText, FileCheck, Loader2, Command, StickyNote, Headphones, FileSignature, Globe, RefreshCw, Package } from "lucide-react"
 
 interface SearchResult {
-  type: "client" | "invoice" | "quote"
+  type: "client" | "invoice" | "quote" | "note" | "ticket" | "contract" | "domain" | "subscription" | "service"
   id: string
   title: string
   subtitle: string
@@ -29,6 +29,42 @@ const typeConfig = {
     bg: '#FEF3CD',
     color: '#F0783C',
     label: "Devis"
+  },
+  note: {
+    icon: StickyNote,
+    bg: '#FFF9C4',
+    color: '#F9A825',
+    label: "Note"
+  },
+  ticket: {
+    icon: Headphones,
+    bg: '#E8F5E9',
+    color: '#2E7D32',
+    label: "Ticket"
+  },
+  contract: {
+    icon: FileSignature,
+    bg: '#FCE4EC',
+    color: '#C2185B',
+    label: "Contrat"
+  },
+  domain: {
+    icon: Globe,
+    bg: '#E0F7FA',
+    color: '#00838F',
+    label: "Domaine"
+  },
+  subscription: {
+    icon: RefreshCw,
+    bg: '#EDE7F6',
+    color: '#7B1FA2',
+    label: "Abonnement"
+  },
+  service: {
+    icon: Package,
+    bg: '#EFEBE9',
+    color: '#5D4037',
+    label: "Service"
   },
 }
 
@@ -81,12 +117,18 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   }, [isOpen])
 
   const handleSelect = (result: SearchResult) => {
-    const paths = {
+    const paths: Record<string, string> = {
       client: `/clients/${result.id}`,
       invoice: `/invoices/${result.id}`,
       quote: `/quotes/${result.id}`,
+      note: `/notes/${result.id}`,
+      ticket: `/tickets/${result.id}`,
+      contract: `/contracts/${result.id}`,
+      domain: `/domains`,
+      subscription: `/subscriptions`,
+      service: `/services`,
     }
-    router.push(paths[result.type])
+    router.push(paths[result.type] || "/")
     onClose()
   }
 
@@ -136,7 +178,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Rechercher clients, factures, devis..."
+              placeholder="Rechercher partout..."
               className="flex-1 bg-transparent outline-none text-[15px]"
               style={{ color: '#111111' }}
               autoFocus

@@ -96,6 +96,8 @@ model Client {
   users                        User[]
   domains                      Domain[]
   contracts                    Contract[]
+  projects                     Project[]
+  projectCards                 ProjectCard[]
 
   @@index([tenant_id, externalId], map: "clients_tenant_id_external_id_index")
   @@index([tenant_id], map: "clients_tenant_id_index")
@@ -1130,6 +1132,7 @@ model tenants {
   emailCampaigns         EmailCampaign[]
   emailTemplates         EmailTemplate[]
   pushSubscriptions      PushSubscription[]
+  projects               Project[]
 }
 
 model user_tenants {
@@ -1866,4 +1869,82 @@ model PushSubscription {
   @@index([tenant_id, userId], map: "push_subscriptions_tenant_user_index")
   @@index([isActive], map: "push_subscriptions_active_index")
   @@map("push_subscriptions")
+}
+
+// ==========================================
+// KANBAN PROJECTS
+// ==========================================
+
+model Project {
+  id          BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id   BigInt          @db.UnsignedBigInt
+  name        String          @db.VarChar(255)
+  description String?         @db.Text
+  color       String          @default("#0064FA") @db.VarChar(20)
+  clientId    BigInt?         @map("client_id") @db.UnsignedBigInt
+  isArchived  Boolean         @default(false) @map("is_archived")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  tenants  tenants         @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "projects_tenant_id_foreign")
+  client   Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "projects_client_id_foreign")
+  columns  ProjectColumn[]
+
+  @@index([tenant_id], map: "projects_tenant_id_index")
+  @@index([clientId], map: "projects_client_id_index")
+  @@map("projects")
+}
+
+model ProjectColumn {
+  id        BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  projectId BigInt        @map("project_id") @db.UnsignedBigInt
+  name      String        @db.VarChar(255)
+  color     String        @default("#E5E7EB") @db.VarChar(20)
+  position  Int           @default(0)
+  limit     Int?          // WIP limit (optional)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "project_columns_project_id_foreign")
+  cards   ProjectCard[]
+
+  @@index([projectId], map: "project_columns_project_id_index")
+  @@index([position], map: "project_columns_position_index")
+  @@map("project_columns")
+}
+
+model ProjectCard {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  columnId    BigInt    @map("column_id") @db.UnsignedBigInt
+  title       String    @db.VarChar(500)
+  description String?   @db.Text
+  position    Int       @default(0)
+  priority    project_card_priority @default(medium)
+  labels      String?   @db.Text // JSON array of labels
+  clientId    BigInt?   @map("client_id") @db.UnsignedBigInt
+  assigneeId  BigInt?   @map("assignee_id") @db.UnsignedBigInt
+  dueDate     DateTime? @map("due_date") @db.Date
+  startDate   DateTime? @map("start_date") @db.Date
+  estimatedHours Float?  @map("estimated_hours")
+  actualHours Float?    @map("actual_hours")
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at") @db.Timestamp(0)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  column   ProjectColumn @relation(fields: [columnId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "project_cards_column_id_foreign")
+  client   Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "project_cards_client_id_foreign")
+
+  @@index([columnId], map: "project_cards_column_id_index")
+  @@index([clientId], map: "project_cards_client_id_index")
+  @@index([position], map: "project_cards_position_index")
+  @@index([dueDate], map: "project_cards_due_date_index")
+  @@map("project_cards")
+}
+
+enum project_card_priority {
+  low
+  medium
+  high
+  urgent
 }

@@ -23,6 +23,7 @@ import {
   Landmark,
   Mail,
   StickyNote,
+  FolderKanban,
 } from "lucide-react"
 import { signOut, useSession } from "next-auth/react"
 import { useTenant } from "@/contexts/tenant-context"
@@ -66,6 +67,7 @@ const baseNavItems: Omit<NavItem, "badge">[] = [
   { id: "campaigns", label: "Campagnes", href: "/campaigns", icon: Mail },
   { id: "tickets", label: "Tickets", href: "/tickets", icon: Ticket },
   { id: "notes", label: "Notes", href: "/notes", icon: StickyNote },
+  { id: "projects", label: "Projets", href: "/projects", icon: FolderKanban },
   { id: "users", label: "Utilisateurs", href: "/users", icon: UserCog },
 ]
 
