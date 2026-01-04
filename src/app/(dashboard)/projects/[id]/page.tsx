@@ -11,9 +11,13 @@ import {
   Calendar,
   Users,
   Clock,
-  GripVertical,
   X,
   Check,
+  CheckSquare,
+  MessageSquare,
+  Paperclip,
+  User,
+  Flag,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -21,6 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import CardDetailModal from "@/components/projects/CardDetailModal"
 
 interface Card {
   id: string
@@ -31,7 +36,12 @@ interface Card {
   labels: string | null
   dueDate: string | null
   client: { id: string; companyName: string } | null
+  assignee: { id: string; name: string } | null
   isCompleted: boolean
+  subtasks?: { id: string; isCompleted: boolean }[]
+  comments?: { id: string }[]
+  attachments?: { id: string }[]
+  cardLabels?: { id: string; name: string; color: string }[]
 }
 
 interface Column {
@@ -53,9 +63,16 @@ interface Project {
 
 const priorityColors = {
   low: { bg: "#F3F4F6", text: "#6B7280" },
-  medium: { bg: "#FEF3C7", text: "#D97706" },
-  high: { bg: "#FEE2E2", text: "#DC2626" },
-  urgent: { bg: "#FEE2E2", text: "#991B1B", border: "#DC2626" },
+  medium: { bg: "#DBEAFE", text: "#2563EB" },
+  high: { bg: "#FED7AA", text: "#EA580C" },
+  urgent: { bg: "#FECACA", text: "#DC2626" },
+}
+
+const priorityLabels = {
+  low: "Basse",
+  medium: "Moyenne",
+  high: "Haute",
+  urgent: "Urgente",
 }
 
 export default function ProjectBoardPage({ params }: { params: Promise<{ id: string }> }) {
@@ -76,8 +93,8 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
   const [addingColumn, setAddingColumn] = useState(false)
   const [newColumnName, setNewColumnName] = useState("")
 
-  // Edit card modal
-  const [editingCard, setEditingCard] = useState<Card | null>(null)
+  // Card detail modal
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProject()
@@ -99,6 +116,9 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
               id: String(card.id),
               client: card.client
                 ? { ...card.client, id: String(card.client.id) }
+                : null,
+              assignee: card.assignee
+                ? { ...card.assignee, id: String(card.assignee.id) }
                 : null,
             })),
           })),
@@ -225,10 +245,6 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
     setDragOverPosition(position)
   }
 
-  const handleDragLeave = () => {
-    // Don't clear immediately to prevent flickering
-  }
-
   const handleDrop = async (e: React.DragEvent, columnId: string, position: number) => {
     e.preventDefault()
     if (!draggedCard) return
@@ -245,6 +261,26 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
     setDragOverPosition(null)
   }
 
+  const isOverdue = (dueDate: string | null) => {
+    if (!dueDate) return false
+    return new Date(dueDate) < new Date()
+  }
+
+  const getSubtaskProgress = (card: Card) => {
+    if (!card.subtasks || card.subtasks.length === 0) return null
+    const completed = card.subtasks.filter(s => s.isCompleted).length
+    return { completed, total: card.subtasks.length }
+  }
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map(n => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -256,7 +292,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
   if (!project) {
     return (
       <div className="p-6 text-center">
-        <p className="text-gray-500">Projet non trouve</p>
+        <p className="text-gray-500 dark:text-gray-400">Projet non trouve</p>
         <button
           onClick={() => router.push("/projects")}
           className="mt-4 text-[#0064FA] hover:underline"
@@ -270,23 +306,23 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push("/projects")}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
-            <ArrowLeft className="h-5 w-5 text-gray-600" />
+            <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
           </button>
           <div className="flex items-center gap-3">
             <div
               className="w-4 h-4 rounded-full"
               style={{ backgroundColor: project.color }}
             />
-            <h1 className="text-xl font-semibold text-gray-900">{project.name}</h1>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{project.name}</h1>
           </div>
           {project.client && (
-            <span className="flex items-center gap-1 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+            <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
               <Users className="h-3 w-3" />
               {project.client.companyName}
             </span>
@@ -295,12 +331,12 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Board */}
-      <div className="flex-1 overflow-x-auto p-6 bg-gray-50">
+      <div className="flex-1 overflow-x-auto p-6 bg-gray-50 dark:bg-gray-900">
         <div className="flex gap-4 h-full min-h-[500px]">
           {project.columns.map((column) => (
             <div
               key={column.id}
-              className="flex flex-col w-80 flex-shrink-0 bg-gray-100 rounded-xl"
+              className="flex flex-col w-80 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded-xl"
               onDragOver={(e) => handleDragOver(e, column.id, column.cards.length)}
               onDrop={(e) => handleDrop(e, column.id, column.cards.length)}
             >
@@ -311,14 +347,14 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                     className="w-2 h-2 rounded-full"
                     style={{ backgroundColor: column.color }}
                   />
-                  <h3 className="font-medium text-gray-700">{column.name}</h3>
-                  <span className="text-xs text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded">
+                  <h3 className="font-medium text-gray-700 dark:text-gray-300">{column.name}</h3>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
                     {column.cards.length}
                   </span>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="p-1 hover:bg-gray-200 rounded transition-colors">
+                    <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors">
                       <MoreHorizontal className="h-4 w-4 text-gray-400" />
                     </button>
                   </DropdownMenuTrigger>
@@ -333,87 +369,153 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
               {/* Cards */}
               <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-2">
-                {column.cards.map((card, index) => (
-                  <div
-                    key={card.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, card)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => handleDragOver(e, column.id, index)}
-                    onDrop={(e) => handleDrop(e, column.id, index)}
-                    className={`bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow ${
-                      draggedCard?.id === card.id ? "opacity-50" : ""
-                    } ${
-                      dragOverColumn === column.id && dragOverPosition === index
-                        ? "border-t-2 border-t-[#0064FA]"
-                        : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <p className={`text-sm font-medium text-gray-900 ${card.isCompleted ? "line-through text-gray-400" : ""}`}>
-                        {card.title}
-                      </p>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0">
-                            <MoreHorizontal className="h-3 w-3 text-gray-400" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setEditingCard(card)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Modifier
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => updateCard(card.id, { isCompleted: !card.isCompleted })}
-                          >
-                            <Check className="h-4 w-4 mr-2" />
-                            {card.isCompleted ? "Non termine" : "Termine"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={() => deleteCard(card.id)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Supprimer
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                {column.cards.map((card, index) => {
+                  const subtaskProgress = getSubtaskProgress(card)
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Priority badge */}
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                        style={{
-                          backgroundColor: priorityColors[card.priority].bg,
-                          color: priorityColors[card.priority].text,
-                        }}
-                      >
-                        {card.priority === "low" && "Basse"}
-                        {card.priority === "medium" && "Moyenne"}
-                        {card.priority === "high" && "Haute"}
-                        {card.priority === "urgent" && "Urgente"}
-                      </span>
-
-                      {/* Due date */}
-                      {card.dueDate && (
-                        <span className="flex items-center gap-1 text-[10px] text-gray-500">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(card.dueDate).toLocaleDateString("fr-FR")}
-                        </span>
+                  return (
+                    <div
+                      key={card.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, card)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => handleDragOver(e, column.id, index)}
+                      onDrop={(e) => handleDrop(e, column.id, index)}
+                      onClick={() => setSelectedCardId(card.id)}
+                      className={`bg-white dark:bg-gray-700 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-600 cursor-pointer hover:shadow-md hover:border-[#0064FA]/50 transition-all group ${
+                        draggedCard?.id === card.id ? "opacity-50" : ""
+                      } ${
+                        dragOverColumn === column.id && dragOverPosition === index
+                          ? "border-t-2 border-t-[#0064FA]"
+                          : ""
+                      }`}
+                    >
+                      {/* Labels */}
+                      {card.cardLabels && card.cardLabels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {card.cardLabels.slice(0, 3).map((label) => (
+                            <span
+                              key={label.id}
+                              className="h-1.5 w-8 rounded-full"
+                              style={{ backgroundColor: label.color }}
+                            />
+                          ))}
+                          {card.cardLabels.length > 3 && (
+                            <span className="text-[10px] text-gray-400">
+                              +{card.cardLabels.length - 3}
+                            </span>
+                          )}
+                        </div>
                       )}
 
-                      {/* Client */}
-                      {card.client && (
-                        <span className="flex items-center gap-1 text-[10px] text-gray-400">
-                          <Users className="h-3 w-3" />
-                          {card.client.companyName}
+                      {/* Title */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className={`text-sm font-medium text-gray-900 dark:text-gray-100 ${card.isCompleted ? "line-through text-gray-400 dark:text-gray-500" : ""}`}>
+                          {card.title}
+                        </p>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <button className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100">
+                              <MoreHorizontal className="h-3 w-3 text-gray-400" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={() => setSelectedCardId(card.id)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Ouvrir
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => updateCard(card.id, { isCompleted: !card.isCompleted })}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              {card.isCompleted ? "Non termine" : "Termine"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => deleteCard(card.id)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
+                      {/* Meta row */}
+                      <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                        {/* Priority */}
+                        <span
+                          className="px-1.5 py-0.5 rounded font-medium"
+                          style={{
+                            backgroundColor: priorityColors[card.priority].bg,
+                            color: priorityColors[card.priority].text,
+                          }}
+                        >
+                          {priorityLabels[card.priority]}
                         </span>
+
+                        {/* Due date */}
+                        {card.dueDate && (
+                          <span className={`flex items-center gap-1 ${
+                            isOverdue(card.dueDate) && !card.isCompleted
+                              ? "text-red-500"
+                              : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            <Calendar className="h-3 w-3" />
+                            {new Date(card.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+
+                        {/* Subtasks progress */}
+                        {subtaskProgress && (
+                          <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                            <CheckSquare className="h-3 w-3" />
+                            {subtaskProgress.completed}/{subtaskProgress.total}
+                          </span>
+                        )}
+
+                        {/* Comments count */}
+                        {card.comments && card.comments.length > 0 && (
+                          <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                            <MessageSquare className="h-3 w-3" />
+                            {card.comments.length}
+                          </span>
+                        )}
+
+                        {/* Attachments count */}
+                        {card.attachments && card.attachments.length > 0 && (
+                          <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                            <Paperclip className="h-3 w-3" />
+                            {card.attachments.length}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Bottom row: Assignee & Client */}
+                      {(card.assignee || card.client) && (
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-600">
+                          {card.assignee ? (
+                            <div className="flex items-center gap-1">
+                              <div className="w-5 h-5 rounded-full bg-[#0064FA] flex items-center justify-center text-white text-[8px] font-medium">
+                                {getInitials(card.assignee.name)}
+                              </div>
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[80px]">
+                                {card.assignee.name}
+                              </span>
+                            </div>
+                          ) : (
+                            <div />
+                          )}
+                          {card.client && (
+                            <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                              <Users className="h-3 w-3" />
+                              <span className="truncate max-w-[60px]">{card.client.companyName}</span>
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
 
                 {/* Drop zone indicator */}
                 {dragOverColumn === column.id && dragOverPosition === column.cards.length && (
@@ -422,13 +524,13 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
                 {/* Add card form */}
                 {addingCardToColumn === column.id ? (
-                  <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                  <div className="bg-white dark:bg-gray-700 rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-600">
                     <input
                       type="text"
                       value={newCardTitle}
                       onChange={(e) => setNewCardTitle(e.target.value)}
                       placeholder="Titre de la tache..."
-                      className="w-full text-sm border-none outline-none bg-transparent"
+                      className="w-full text-sm border-none outline-none bg-transparent text-gray-900 dark:text-gray-100"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter") createCard(column.id)
@@ -451,7 +553,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                           setAddingCardToColumn(null)
                           setNewCardTitle("")
                         }}
-                        className="p-1 hover:bg-gray-100 rounded"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
                       >
                         <X className="h-4 w-4 text-gray-400" />
                       </button>
@@ -460,7 +562,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                 ) : (
                   <button
                     onClick={() => setAddingCardToColumn(column.id)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
                     <Plus className="h-4 w-4" />
                     Ajouter une tache
@@ -472,13 +574,13 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
           {/* Add column */}
           {addingColumn ? (
-            <div className="w-80 flex-shrink-0 bg-gray-100 rounded-xl p-3">
+            <div className="w-80 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded-xl p-3">
               <input
                 type="text"
                 value={newColumnName}
                 onChange={(e) => setNewColumnName(e.target.value)}
                 placeholder="Nom de la colonne..."
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#0064FA]"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-[#0064FA] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") createColumn()
@@ -501,7 +603,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                     setAddingColumn(false)
                     setNewColumnName("")
                   }}
-                  className="px-3 py-1.5 text-gray-600 hover:bg-gray-200 rounded-lg text-sm"
+                  className="px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-sm"
                 >
                   Annuler
                 </button>
@@ -510,7 +612,7 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
           ) : (
             <button
               onClick={() => setAddingColumn(true)}
-              className="w-80 flex-shrink-0 h-12 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 text-sm font-medium transition-colors"
+              className="w-80 flex-shrink-0 h-12 flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl text-gray-600 dark:text-gray-400 text-sm font-medium transition-colors"
             >
               <Plus className="h-4 w-4" />
               Ajouter une colonne
@@ -519,122 +621,18 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {/* Edit card modal */}
-      {editingCard && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/40 z-50"
-            onClick={() => setEditingCard(null)}
-          />
-          <div className="fixed inset-x-4 top-[10%] z-50 mx-auto max-w-lg max-h-[80vh] overflow-y-auto">
-            <div className="bg-white rounded-xl p-6 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Modifier la tache
-                </h2>
-                <button
-                  onClick={() => setEditingCard(null)}
-                  className="p-1 hover:bg-gray-100 rounded"
-                >
-                  <X className="h-5 w-5 text-gray-400" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Titre
-                  </label>
-                  <input
-                    type="text"
-                    value={editingCard.title}
-                    onChange={(e) =>
-                      setEditingCard({ ...editingCard, title: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#0064FA]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={editingCard.description || ""}
-                    onChange={(e) =>
-                      setEditingCard({ ...editingCard, description: e.target.value })
-                    }
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#0064FA] resize-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Priorite
-                    </label>
-                    <select
-                      value={editingCard.priority}
-                      onChange={(e) =>
-                        setEditingCard({
-                          ...editingCard,
-                          priority: e.target.value as Card["priority"],
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#0064FA]"
-                    >
-                      <option value="low">Basse</option>
-                      <option value="medium">Moyenne</option>
-                      <option value="high">Haute</option>
-                      <option value="urgent">Urgente</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Echeance
-                    </label>
-                    <input
-                      type="date"
-                      value={editingCard.dueDate?.split("T")[0] || ""}
-                      onChange={(e) =>
-                        setEditingCard({
-                          ...editingCard,
-                          dueDate: e.target.value || null,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-[#0064FA]"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setEditingCard(null)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={() => {
-                    updateCard(editingCard.id, {
-                      title: editingCard.title,
-                      description: editingCard.description,
-                      priority: editingCard.priority,
-                      dueDate: editingCard.dueDate,
-                    })
-                    setEditingCard(null)
-                  }}
-                  className="px-4 py-2 bg-[#0064FA] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC]"
-                >
-                  Enregistrer
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+      {/* Card detail modal */}
+      {selectedCardId && (
+        <CardDetailModal
+          cardId={selectedCardId}
+          projectId={resolvedParams.id}
+          onClose={() => setSelectedCardId(null)}
+          onUpdate={fetchProject}
+          onDelete={() => {
+            fetchProject()
+            setSelectedCardId(null)
+          }}
+        />
       )}
     </div>
   )
