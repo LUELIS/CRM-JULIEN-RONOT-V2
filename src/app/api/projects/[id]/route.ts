@@ -22,10 +22,30 @@ function serializeProject(project: any) {
         id: card.id.toString(),
         columnId: card.columnId.toString(),
         clientId: card.clientId?.toString() || null,
+        assigneeId: card.assigneeId?.toString() || null,
         client: card.client ? {
           ...card.client,
           id: card.client.id.toString(),
         } : null,
+        assignee: card.assignee ? {
+          id: card.assignee.id.toString(),
+          name: card.assignee.name,
+        } : null,
+        subtasks: card.subtasks?.map((st: any) => ({
+          id: st.id.toString(),
+          isCompleted: st.isCompleted,
+        })) || [],
+        comments: card.comments?.map((c: any) => ({
+          id: c.id.toString(),
+        })) || [],
+        attachments: card.attachments?.map((a: any) => ({
+          id: a.id.toString(),
+        })) || [],
+        cardLabels: card.cardLabels?.map((cl: any) => ({
+          id: cl.label.id.toString(),
+          name: cl.label.name,
+          color: cl.label.color,
+        })) || [],
       })) || [],
     })) || [],
   }
@@ -58,6 +78,23 @@ export async function GET(
               include: {
                 client: {
                   select: { id: true, companyName: true },
+                },
+                assignee: {
+                  select: { id: true, name: true },
+                },
+                subtasks: {
+                  select: { id: true, isCompleted: true },
+                },
+                comments: {
+                  select: { id: true },
+                },
+                attachments: {
+                  select: { id: true },
+                },
+                cardLabels: {
+                  include: {
+                    label: true,
+                  },
                 },
               },
             },
