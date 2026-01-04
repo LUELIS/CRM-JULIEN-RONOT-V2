@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { sendEmail } from "@/lib/email"
 import { parseSlackConfig } from "@/lib/slack"
+import { sendPushNotification, isPushConfigured } from "@/lib/push-notifications"
 
 // Vercel Cron Job - runs every 5 minutes
 // Configured in vercel.json
@@ -280,10 +281,15 @@ export async function GET() {
     let processed = 0
     let emailsSent = 0
     let slacksSent = 0
+    let pushSent = 0
     let notificationsCreated = 0
 
     for (const note of pendingReminders) {
       const noteUrl = `${baseUrl}/notes?highlight=${note.id}`
+      const typeName = note.type === "quick" ? "Flash" : note.type === "todo" ? "Tache" : "Note"
+      const preview = note.content.length > 100
+        ? note.content.substring(0, 100) + "..."
+        : note.content
 
       try {
         // 1. Create in-app notification
@@ -306,6 +312,18 @@ export async function GET() {
           if (slackResult.success) slacksSent++
         }
 
+        // 4. Send push notification
+        if (isPushConfigured()) {
+          const pushResult = await sendPushNotification(note.author.id, {
+            title: `Rappel: ${typeName}`,
+            body: preview,
+            url: `/notes?highlight=${note.id}`,
+            tag: `note-reminder-${note.id}`,
+            icon: "/icons/icon-192x192.png",
+          })
+          if (pushResult.success > 0) pushSent++
+        }
+
         // Mark reminder as sent
         await prisma.note.update({
           where: { id: note.id },
@@ -319,7 +337,7 @@ export async function GET() {
       }
     }
 
-    console.log(`[Note Reminder] Complete: ${processed} processed, ${emailsSent} emails, ${slacksSent} slacks, ${notificationsCreated} notifications`)
+    console.log(`[Note Reminder] Complete: ${processed} processed, ${emailsSent} emails, ${slacksSent} slacks, ${pushSent} push, ${notificationsCreated} notifications`)
 
     return NextResponse.json({
       success: true,
@@ -328,6 +346,7 @@ export async function GET() {
         processed,
         emailsSent,
         slacksSent,
+        pushSent,
         notificationsCreated,
         total: pendingReminders.length,
       },

@@ -38,6 +38,7 @@ model User {
   tenants                        tenants?         @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "users_tenant_id_foreign")
   notes                          Note[]
   noteComments                   NoteComment[]
+  pushSubscriptions              PushSubscription[]
 
   @@unique([tenant_id, email, role], map: "users_tenant_email_role_unique")
   @@index([clientId], map: "users_client_id_foreign")
@@ -1128,6 +1129,7 @@ model tenants {
   domains                Domain[]
   emailCampaigns         EmailCampaign[]
   emailTemplates         EmailTemplate[]
+  pushSubscriptions      PushSubscription[]
 }
 
 model user_tenants {
@@ -1839,4 +1841,29 @@ model NoteEmbedding {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@map("note_embeddings")
+}
+
+// PWA Push Notifications
+model PushSubscription {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id    BigInt    @db.UnsignedBigInt
+  userId       BigInt    @map("user_id") @db.UnsignedBigInt
+  endpoint     String    @db.Text
+  endpointHash String    @map("endpoint_hash") @db.VarChar(64) // SHA256 hash for unique constraint
+  p256dh       String    @db.VarChar(255)
+  auth         String    @db.VarChar(255)
+  userAgent    String?   @map("user_agent") @db.VarChar(500)
+  deviceName   String?   @map("device_name") @db.VarChar(255)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamp(0)
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  tenants tenants @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "push_subscriptions_tenant_id_foreign")
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "push_subscriptions_user_id_foreign")
+
+  @@unique([userId, endpointHash], map: "push_subscriptions_user_endpoint_unique")
+  @@index([tenant_id, userId], map: "push_subscriptions_tenant_user_index")
+  @@index([isActive], map: "push_subscriptions_active_index")
+  @@map("push_subscriptions")
 }

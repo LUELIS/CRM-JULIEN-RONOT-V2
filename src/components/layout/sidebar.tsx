@@ -121,7 +121,7 @@ export function Sidebar({ isOpen: mobileOpen, onClose }: SidebarProps) {
   const { data: session } = useSession()
   const { tenant } = useTenant()
   const [collapsed, setCollapsed] = useState(false)
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(["billing", "services"])
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([])
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [openTicketsCount, setOpenTicketsCount] = useState(0)
 

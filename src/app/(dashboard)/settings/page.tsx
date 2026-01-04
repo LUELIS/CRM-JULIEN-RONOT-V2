@@ -37,10 +37,12 @@ import {
   Webhook,
   Landmark,
   XCircle,
+  Bell,
 } from "lucide-react"
 import Image from "next/image"
 import { useTenant } from "@/contexts/tenant-context"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
+import { NotificationSettings } from "@/components/settings/NotificationSettings"
 
 const monthlyGoalModeOptions: SelectOption[] = [
   { value: "auto", label: "Automatique (basé sur l'historique)", color: "#28B95F" },
@@ -678,6 +680,7 @@ function SettingsContent() {
     { id: "payment", label: "Paiement", icon: CreditCard, color: "#28B95F" },
     { id: "invoice", label: "Facturation", icon: FileText, color: "#F0783C" },
     { id: "dns", label: "DNS", icon: Globe, color: "#14B4E6" },
+    { id: "notifications", label: "Notifications", icon: Bell, color: "#F04B69" },
     { id: "integrations", label: "Intégrations", icon: Puzzle, color: "#28B95F" },
   ]
 
@@ -1400,6 +1403,33 @@ function SettingsContent() {
               </button>
               {saved === "cloudflare" && <span className="flex items-center gap-1 text-sm" style={{ color: "#28B95F" }}><CheckCircle className="h-4 w-4" />Enregistré</span>}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === "notifications" && (
+        <div
+          className="rounded-2xl p-6 w-full space-y-6"
+          style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#FDEAEA" }}>
+              <Bell className="h-5 w-5" style={{ color: "#F04B69" }} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold" style={{ color: "#111111" }}>Notifications Push</h2>
+              <p className="text-sm" style={{ color: "#666666" }}>Recevez des alertes en temps reel sur vos appareils</p>
+            </div>
+          </div>
+
+          <NotificationSettings />
+
+          <div className="pt-4 border-t border-slate-100">
+            <p className="text-xs text-slate-500">
+              Les notifications push vous alertent pour les rappels de notes, tickets et factures.
+              Elles fonctionnent meme lorsque le navigateur est ferme.
+            </p>
           </div>
         </div>
       )}

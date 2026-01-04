@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { SessionProvider } from "next-auth/react"
 import { DashboardShell } from "@/components/layout/dashboard-shell"
 import { TenantProvider } from "@/contexts/tenant-context"
+import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration"
 
 export default async function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default async function DashboardLayout({
   return (
     <SessionProvider session={session}>
       <TenantProvider>
+        <ServiceWorkerRegistration />
         <DashboardShell>{children}</DashboardShell>
       </TenantProvider>
     </SessionProvider>

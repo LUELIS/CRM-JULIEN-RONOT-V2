@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { sendEmail } from "@/lib/email"
 import { parseSlackConfig } from "@/lib/slack"
+import { sendPushNotification, isPushConfigured } from "@/lib/push-notifications"
 
 // Vercel Cron Job - runs every 5 minutes
 // Configured in vercel.json
@@ -272,6 +273,7 @@ export async function GET() {
     let processed = 0
     let emailsSent = 0
     let slacksSent = 0
+    let pushSent = 0
     let notificationsCreated = 0
 
     for (const reminder of pendingReminders) {
@@ -306,6 +308,18 @@ export async function GET() {
           if (slackResult.success) slacksSent++
         }
 
+        // 4. Send push notification
+        if (isPushConfigured()) {
+          const pushResult = await sendPushNotification(reminder.users.id, {
+            title: `Rappel: ${reminder.ticket.subject}`,
+            body: reminder.note || `Ticket #${reminder.ticket.id}`,
+            url: `/tickets/${reminder.ticketId}`,
+            tag: `ticket-reminder-${reminder.id}`,
+            icon: "/icons/icon-192x192.png",
+          })
+          if (pushResult.success > 0) pushSent++
+        }
+
         // Mark reminder as sent
         await prisma.ticketReminder.update({
           where: { id: reminder.id },
@@ -322,7 +336,7 @@ export async function GET() {
       }
     }
 
-    console.log(`[Ticket Reminder] Complete: ${processed} processed, ${emailsSent} emails, ${slacksSent} slacks, ${notificationsCreated} notifications`)
+    console.log(`[Ticket Reminder] Complete: ${processed} processed, ${emailsSent} emails, ${slacksSent} slacks, ${pushSent} push, ${notificationsCreated} notifications`)
 
     return NextResponse.json({
       success: true,
@@ -331,6 +345,7 @@ export async function GET() {
         processed,
         emailsSent,
         slacksSent,
+        pushSent,
         notificationsCreated,
         total: pendingReminders.length,
       },
