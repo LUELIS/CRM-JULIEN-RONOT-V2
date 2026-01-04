@@ -1,68 +1,58 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import OpenAI from "openai"
 
-// Default configuration (fallback to env vars)
+// Default configuration
 const DEFAULT_TENANT_ID = BigInt(process.env.CRM_TENANT_ID || "1")
 const DEFAULT_USER_ID = BigInt(process.env.CRM_USER_ID || "1")
 
-// Cache for settings (refreshed every 5 minutes)
-let cachedSettings: { token: string; allowedUsers: number[]; lastFetch: number } | null = null
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+// Conversation memory (in-memory cache, resets on restart)
+const conversationHistory: Map<number, Array<{ role: "user" | "assistant"; content: string }>> = new Map()
+const MAX_HISTORY = 10
 
-async function getTelegramSettings() {
+// Cache for settings
+let cachedSettings: {
+  botToken: string
+  allowedUsers: number[]
+  openaiKey: string
+  openaiModel: string
+  lastFetch: number
+} | null = null
+const CACHE_TTL = 5 * 60 * 1000
+
+async function getSettings() {
   const now = Date.now()
   if (cachedSettings && now - cachedSettings.lastFetch < CACHE_TTL) {
     return cachedSettings
   }
 
   const tenant = await prisma.tenants.findFirst({ where: { id: DEFAULT_TENANT_ID } })
-  let token = process.env.TELEGRAM_BOT_TOKEN || ""
+  let botToken = process.env.TELEGRAM_BOT_TOKEN || ""
+  let openaiKey = process.env.OPENAI_API_KEY || ""
+  let openaiModel = "gpt-4o-mini"
   let allowedUsers: number[] = []
 
   if (tenant?.settings) {
     try {
       const settings = JSON.parse(tenant.settings)
-      if (settings.telegramBotToken) token = settings.telegramBotToken
+      if (settings.telegramBotToken) botToken = settings.telegramBotToken
+      if (settings.openaiApiKey) openaiKey = settings.openaiApiKey
+      if (settings.openaiModel) openaiModel = settings.openaiModel
       if (settings.telegramAllowedUsers) {
         allowedUsers = settings.telegramAllowedUsers
           .split(",")
           .map((id: string) => parseInt(id.trim()))
           .filter((id: number) => !isNaN(id) && id > 0)
       }
-    } catch { /* ignore parse errors */ }
+    } catch { /* ignore */ }
   }
 
-  // Fallback to env vars for allowed users
-  if (allowedUsers.length === 0 && process.env.TELEGRAM_ALLOWED_USERS) {
-    allowedUsers = process.env.TELEGRAM_ALLOWED_USERS
-      .split(",")
-      .map((id) => parseInt(id.trim()))
-      .filter((id) => !isNaN(id) && id > 0)
-  }
-
-  cachedSettings = { token, allowedUsers, lastFetch: now }
+  cachedSettings = { botToken, allowedUsers, openaiKey, openaiModel, lastFetch: now }
   return cachedSettings
 }
 
-interface TelegramUpdate {
-  update_id: number
-  message?: {
-    message_id: number
-    from: { id: number; first_name: string; username?: string }
-    chat: { id: number; type: string }
-    date: number
-    text?: string
-    entities?: Array<{ type: string; offset: number; length: number }>
-  }
-  callback_query?: {
-    id: string
-    from: { id: number }
-    message: { chat: { id: number }; message_id: number }
-    data: string
-  }
-}
-
-async function sendMessage(botToken: string, chatId: number, text: string, options: Record<string, unknown> = {}) {
+// Telegram API helpers
+async function sendMessage(botToken: string, chatId: number, text: string) {
   await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -70,254 +60,305 @@ async function sendMessage(botToken: string, chatId: number, text: string, optio
       chat_id: chatId,
       text,
       parse_mode: "Markdown",
-      ...options,
     }),
   })
 }
 
-async function answerCallback(botToken: string, callbackQueryId: string, text?: string) {
-  await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+async function sendTyping(botToken: string, chatId: number) {
+  await fetch(`https://api.telegram.org/bot${botToken}/sendChatAction`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      callback_query_id: callbackQueryId,
-      text,
-    }),
+    body: JSON.stringify({ chat_id: chatId, action: "typing" }),
   })
 }
 
-function parseDate(input: string): Date {
-  const now = new Date()
+// OpenAI Tools definitions
+const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "create_client",
+      description: "Créer un nouveau client/prospect dans le CRM",
+      parameters: {
+        type: "object",
+        properties: {
+          companyName: { type: "string", description: "Nom de la société" },
+          email: { type: "string", description: "Email du contact" },
+          phone: { type: "string", description: "Téléphone" },
+          contactFirstname: { type: "string", description: "Prénom du contact" },
+          contactLastname: { type: "string", description: "Nom du contact" },
+        },
+        required: ["companyName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_clients",
+      description: "Rechercher des clients par nom, email ou téléphone",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Terme de recherche" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_clients",
+      description: "Lister les derniers clients",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Nombre de clients à afficher (défaut: 10)" },
+          status: { type: "string", enum: ["prospect", "active", "inactive"], description: "Filtrer par statut" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_note",
+      description: "Créer une note, éventuellement liée à un client",
+      parameters: {
+        type: "object",
+        properties: {
+          content: { type: "string", description: "Contenu de la note" },
+          clientName: { type: "string", description: "Nom du client à lier (optionnel)" },
+          reminderDate: { type: "string", description: "Date de rappel au format YYYY-MM-DD (optionnel)" },
+        },
+        required: ["content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_notes",
+      description: "Lister les notes récentes",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Nombre de notes (défaut: 10)" },
+          clientName: { type: "string", description: "Filtrer par client" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_task",
+      description: "Créer une tâche/todo",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Titre de la tâche" },
+          clientName: { type: "string", description: "Client associé (optionnel)" },
+          dueDate: { type: "string", description: "Date d'échéance YYYY-MM-DD (optionnel)" },
+          priority: { type: "string", enum: ["low", "medium", "high", "urgent"], description: "Priorité" },
+        },
+        required: ["title"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_tasks",
+      description: "Lister les tâches en cours ou en retard",
+      parameters: {
+        type: "object",
+        properties: {
+          filter: { type: "string", enum: ["all", "overdue", "today", "week"], description: "Filtre temporel" },
+          limit: { type: "number", description: "Nombre max de tâches" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "complete_task",
+      description: "Marquer une tâche comme terminée",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "number", description: "ID de la tâche" },
+          taskTitle: { type: "string", description: "Ou titre partiel de la tâche" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_stats",
+      description: "Obtenir des statistiques (clients, factures, devis, CA)",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", enum: ["today", "week", "month", "year"], description: "Période" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_invoices",
+      description: "Rechercher des factures",
+      parameters: {
+        type: "object",
+        properties: {
+          clientName: { type: "string", description: "Nom du client" },
+          status: { type: "string", enum: ["draft", "sent", "paid", "overdue"], description: "Statut" },
+          limit: { type: "number", description: "Nombre max" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_reminders",
+      description: "Obtenir les rappels et notes avec date de rappel à venir",
+      parameters: {
+        type: "object",
+        properties: {
+          days: { type: "number", description: "Nombre de jours à venir (défaut: 7)" },
+        },
+      },
+    },
+  },
+]
 
-  if (input === "demain") {
-    const date = new Date(now)
-    date.setDate(date.getDate() + 1)
-    return date
-  }
-
-  const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"]
-  const dayIndex = days.indexOf(input.toLowerCase())
-  if (dayIndex !== -1) {
-    const date = new Date(now)
-    const currentDay = date.getDay()
-    const daysUntil = (dayIndex - currentDay + 7) % 7 || 7
-    date.setDate(date.getDate() + daysUntil)
-    return date
-  }
-
-  const dateParts = input.split("/")
-  if (dateParts.length >= 2) {
-    const day = parseInt(dateParts[0])
-    const month = parseInt(dateParts[1]) - 1
-    const year = dateParts[2] ? parseInt(dateParts[2]) : now.getFullYear()
-    return new Date(year < 100 ? 2000 + year : year, month, day)
-  }
-
-  return now
-}
-
-async function handleCommand(botToken: string, chatId: number, command: string, args: string) {
+// Tool execution functions
+async function executeToolCall(name: string, args: Record<string, unknown>): Promise<string> {
   try {
-    switch (command) {
-      case "start":
-      case "help":
-        await sendMessage(
-          botToken,
-          chatId,
-          `*CRM Bot*\n\n` +
-            `Commandes:\n` +
-            `/client <nom> - Créer un client\n` +
-            `/clients - Lister les clients\n` +
-            `/chercher <terme> - Rechercher\n` +
-            `/note <contenu> - Créer une note\n` +
-            `/notes - Lister les notes\n` +
-            `/tache <titre> - Créer une tâche\n` +
-            `/taches - Lister les tâches\n` +
-            `/fait <id> - Terminer une tâche\n` +
-            `/stats - Statistiques`
-        )
-        break
-
-      case "client":
-        if (!args) {
-          await sendMessage(botToken, chatId, "Usage: /client <nom de la société>")
-          return
-        }
-        const newClient = await prisma.client.create({
+    switch (name) {
+      case "create_client": {
+        const client = await prisma.client.create({
           data: {
             tenant_id: DEFAULT_TENANT_ID,
-            companyName: args,
+            companyName: args.companyName as string,
+            email: (args.email as string) || null,
+            phone: (args.phone as string) || null,
+            contactFirstname: (args.contactFirstname as string) || null,
+            contactLastname: (args.contactLastname as string) || null,
             status: "prospect",
           },
         })
-        await sendMessage(botToken, chatId, `Client créé!\n\n*${newClient.companyName}*\nID: ${newClient.id}`)
-        break
+        return JSON.stringify({ success: true, client: { id: Number(client.id), name: client.companyName } })
+      }
 
-      case "clients":
+      case "search_clients": {
+        const query = args.query as string
         const clients = await prisma.client.findMany({
-          where: { tenant_id: DEFAULT_TENANT_ID },
-          take: 15,
-          orderBy: { createdAt: "desc" },
-        })
-        if (clients.length === 0) {
-          await sendMessage(botToken, chatId, "Aucun client.")
-          return
-        }
-        const clientList = clients
-          .map((c, i) => `${i + 1}. *${c.companyName}* (${c.status})`)
-          .join("\n")
-        await sendMessage(botToken, chatId, `*Clients:*\n\n${clientList}`)
-        break
-
-      case "chercher":
-        if (!args) {
-          await sendMessage(botToken, chatId, "Usage: /chercher <terme>")
-          return
-        }
-        const found = await prisma.client.findMany({
           where: {
             tenant_id: DEFAULT_TENANT_ID,
             OR: [
-              { companyName: { contains: args } },
-              { email: { contains: args } },
-              { phone: { contains: args } },
+              { companyName: { contains: query } },
+              { email: { contains: query } },
+              { phone: { contains: query } },
+              { contactFirstname: { contains: query } },
+              { contactLastname: { contains: query } },
             ],
           },
           take: 10,
+          select: { id: true, companyName: true, email: true, phone: true, status: true },
         })
-        if (found.length === 0) {
-          await sendMessage(botToken, chatId, `Aucun résultat pour "${args}"`)
-          return
-        }
-        const foundList = found.map((c) => `*${c.companyName}*\n   ${c.email || c.phone || ""}`)
-          .join("\n\n")
-        await sendMessage(botToken, chatId, `*Résultats:*\n\n${foundList}`)
-        break
+        return JSON.stringify({ clients: clients.map(c => ({ ...c, id: Number(c.id) })) })
+      }
 
-      case "note":
-        if (!args) {
-          await sendMessage(botToken, chatId, "Usage: /note <contenu>\n\nPour lier: /note @Client contenu")
-          return
-        }
+      case "list_clients": {
+        const limit = (args.limit as number) || 10
+        const where: Record<string, unknown> = { tenant_id: DEFAULT_TENANT_ID }
+        if (args.status) where.status = args.status
+        const clients = await prisma.client.findMany({
+          where,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          select: { id: true, companyName: true, status: true, email: true },
+        })
+        return JSON.stringify({ clients: clients.map(c => ({ ...c, id: Number(c.id) })) })
+      }
 
-        let noteContent = args
-        let clientIdForNote: bigint | undefined
-
-        // Extract @client mention
-        const clientMention = noteContent.match(/@(\S+)/)
-        if (clientMention) {
-          const clientForNote = await prisma.client.findFirst({
-            where: {
-              tenant_id: DEFAULT_TENANT_ID,
-              companyName: { contains: clientMention[1] },
-            },
+      case "create_note": {
+        let clientId: bigint | undefined
+        if (args.clientName) {
+          const client = await prisma.client.findFirst({
+            where: { tenant_id: DEFAULT_TENANT_ID, companyName: { contains: args.clientName as string } },
           })
-          if (clientForNote) clientIdForNote = clientForNote.id
-          noteContent = noteContent.replace(/@\S+/, "").trim()
+          if (client) clientId = client.id
         }
 
-        // Extract reminder date
         let reminderAt: Date | undefined
-        const dateMatch = noteContent.match(/#(demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/)
-        if (dateMatch) {
-          reminderAt = parseDate(dateMatch[1])
-          noteContent = noteContent.replace(/#\S+/, "").trim()
+        if (args.reminderDate) {
+          reminderAt = new Date(args.reminderDate as string)
         }
 
         const note = await prisma.note.create({
           data: {
             tenant_id: DEFAULT_TENANT_ID,
             createdBy: DEFAULT_USER_ID,
-            content: noteContent,
+            content: args.content as string,
             type: "note",
             reminderAt,
           },
         })
 
-        if (clientIdForNote) {
+        if (clientId) {
           await prisma.noteEntityLink.create({
-            data: { noteId: note.id, entityType: "client", entityId: clientIdForNote },
+            data: { noteId: note.id, entityType: "client", entityId: clientId },
           })
         }
 
-        let noteMsg = "Note créée!"
-        if (clientIdForNote) noteMsg += "\nLiée au client"
-        if (reminderAt) noteMsg += `\nRappel: ${reminderAt.toLocaleDateString("fr-FR")}`
-        await sendMessage(botToken, chatId, noteMsg)
-        break
-
-      case "notes":
-        const notes = await prisma.note.findMany({
-          where: {
-            tenant_id: DEFAULT_TENANT_ID,
-            isArchived: false,
-            isRecycle: false,
-          },
-          take: 10,
-          orderBy: { createdAt: "desc" },
+        return JSON.stringify({
+          success: true,
+          note: { id: Number(note.id), linkedToClient: !!clientId, hasReminder: !!reminderAt },
         })
-        if (notes.length === 0) {
-          await sendMessage(botToken, chatId, "Aucune note.")
-          return
-        }
-        const noteList = notes
-          .map((n) => `[${n.type}] ${n.content.substring(0, 60)}...`)
-          .join("\n\n")
-        await sendMessage(botToken, chatId, `*Notes:*\n\n${noteList}`)
-        break
+      }
 
-      case "tache":
-        if (!args) {
-          await sendMessage(botToken, chatId, "Usage: /tache <titre>")
-          return
-        }
+      case "list_notes": {
+        const limit = (args.limit as number) || 10
+        const notes = await prisma.note.findMany({
+          where: { tenant_id: DEFAULT_TENANT_ID, isArchived: false, isRecycle: false },
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          select: { id: true, content: true, type: true, reminderAt: true, createdAt: true },
+        })
+        return JSON.stringify({
+          notes: notes.map(n => ({
+            id: Number(n.id),
+            content: n.content.substring(0, 100),
+            type: n.type,
+            reminderAt: n.reminderAt,
+          })),
+        })
+      }
 
-        let taskTitle = args
-        let taskClientId: bigint | undefined
-        let taskDueDate: Date | undefined
-        let taskPriority: "low" | "medium" | "high" | "urgent" = "medium"
-
-        // Extract @client
-        const taskClientMatch = taskTitle.match(/@(\S+)/)
-        if (taskClientMatch) {
-          const taskClient = await prisma.client.findFirst({
-            where: {
-              tenant_id: DEFAULT_TENANT_ID,
-              companyName: { contains: taskClientMatch[1] },
-            },
+      case "create_task": {
+        let clientId: bigint | undefined
+        if (args.clientName) {
+          const client = await prisma.client.findFirst({
+            where: { tenant_id: DEFAULT_TENANT_ID, companyName: { contains: args.clientName as string } },
           })
-          if (taskClient) taskClientId = taskClient.id
-          taskTitle = taskTitle.replace(/@\S+/, "").trim()
+          if (client) clientId = client.id
         }
 
-        // Extract date
-        const taskDateMatch = taskTitle.match(/#(demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/)
-        if (taskDateMatch) {
-          taskDueDate = parseDate(taskDateMatch[1])
-          taskTitle = taskTitle.replace(/#\S+/, "").trim()
-        }
-
-        // Extract priority
-        const priorityMatch = taskTitle.match(/!(urgent|high|low)/)
-        if (priorityMatch) {
-          taskPriority = priorityMatch[1] as typeof taskPriority
-          taskTitle = taskTitle.replace(/!\S+/, "").trim()
-        }
-
-        // Get or create project and column
+        // Get or create default project/column
         let project = await prisma.project.findFirst({ where: { name: "Général" } })
         if (!project) {
-          // Get the first tenant
           const tenant = await prisma.tenants.findFirst()
-          if (!tenant) {
-            await sendMessage(botToken, chatId, "Erreur: Aucun tenant configuré")
-            return
-          }
+          if (!tenant) throw new Error("No tenant")
           project = await prisma.project.create({
-            data: {
-              name: "Général",
-              tenants: { connect: { id: tenant.id } },
-            },
+            data: { name: "Général", tenants: { connect: { id: tenant.id } } },
           })
         }
 
@@ -333,56 +374,82 @@ async function handleCommand(botToken: string, chatId: number, command: string, 
         const task = await prisma.projectCard.create({
           data: {
             columnId: column.id,
-            title: taskTitle,
-            priority: taskPriority,
-            dueDate: taskDueDate,
-            clientId: taskClientId,
+            title: args.title as string,
+            priority: (args.priority as "low" | "medium" | "high" | "urgent") || "medium",
+            dueDate: args.dueDate ? new Date(args.dueDate as string) : null,
+            clientId,
             position: 0,
           },
         })
 
-        let taskMsg = `Tâche créée!\n\n*${task.title}*\nID: ${task.id}`
-        if (taskDueDate) taskMsg += `\nÉchéance: ${taskDueDate.toLocaleDateString("fr-FR")}`
-        if (taskPriority !== "medium") taskMsg += `\nPriorité: ${taskPriority}`
-        await sendMessage(botToken, chatId, taskMsg)
-        break
+        return JSON.stringify({
+          success: true,
+          task: { id: Number(task.id), title: task.title, dueDate: task.dueDate },
+        })
+      }
 
-      case "taches":
+      case "list_tasks": {
+        const filter = args.filter as string || "all"
+        const limit = (args.limit as number) || 15
+        const now = new Date()
+        const where: Record<string, unknown> = { isCompleted: false }
+
+        if (filter === "overdue") {
+          where.dueDate = { lt: now }
+        } else if (filter === "today") {
+          const tomorrow = new Date(now)
+          tomorrow.setDate(tomorrow.getDate() + 1)
+          tomorrow.setHours(0, 0, 0, 0)
+          const today = new Date(now)
+          today.setHours(0, 0, 0, 0)
+          where.dueDate = { gte: today, lt: tomorrow }
+        } else if (filter === "week") {
+          const nextWeek = new Date(now)
+          nextWeek.setDate(nextWeek.getDate() + 7)
+          where.dueDate = { lte: nextWeek }
+        }
+
         const tasks = await prisma.projectCard.findMany({
-          where: { isCompleted: false },
-          include: { client: true },
-          take: 15,
+          where,
+          take: limit,
           orderBy: [{ dueDate: "asc" }, { priority: "desc" }],
+          include: { client: { select: { companyName: true } } },
         })
-        if (tasks.length === 0) {
-          await sendMessage(botToken, chatId, "Aucune tâche en cours!")
-          return
-        }
-        const taskList = tasks
-          .map((t) => {
-            const due = t.dueDate ? ` (${t.dueDate.toLocaleDateString("fr-FR")})` : ""
-            const pri = t.priority !== "medium" ? ` [${t.priority}]` : ""
-            return `${t.id}. *${t.title}*${pri}${due}`
+
+        return JSON.stringify({
+          tasks: tasks.map(t => ({
+            id: Number(t.id),
+            title: t.title,
+            priority: t.priority,
+            dueDate: t.dueDate,
+            client: t.client?.companyName,
+            isOverdue: t.dueDate && t.dueDate < now,
+          })),
+        })
+      }
+
+      case "complete_task": {
+        let task
+        if (args.taskId) {
+          task = await prisma.projectCard.update({
+            where: { id: BigInt(args.taskId as number) },
+            data: { isCompleted: true, completedAt: new Date() },
           })
-          .join("\n")
-        await sendMessage(botToken, chatId, `*Tâches:*\n\n${taskList}`)
-        break
-
-      case "fait":
-        const taskIdToComplete = parseInt(args)
-        if (!taskIdToComplete) {
-          await sendMessage(botToken, chatId, "Usage: /fait <id>")
-          return
+        } else if (args.taskTitle) {
+          const found = await prisma.projectCard.findFirst({
+            where: { isCompleted: false, title: { contains: args.taskTitle as string } },
+          })
+          if (!found) return JSON.stringify({ success: false, error: "Tâche non trouvée" })
+          task = await prisma.projectCard.update({
+            where: { id: found.id },
+            data: { isCompleted: true, completedAt: new Date() },
+          })
         }
-        const completedTask = await prisma.projectCard.update({
-          where: { id: BigInt(taskIdToComplete) },
-          data: { isCompleted: true, completedAt: new Date() },
-        })
-        await sendMessage(botToken, chatId, `Tâche "${completedTask.title}" terminée!`)
-        break
+        return JSON.stringify({ success: true, task: task ? { id: Number(task.id), title: task.title } : null })
+      }
 
-      case "stats":
-        const period = args || "month"
+      case "get_stats": {
+        const period = (args.period as string) || "month"
         const now = new Date()
         let startDate: Date
 
@@ -401,10 +468,8 @@ async function handleCommand(botToken: string, chatId: number, command: string, 
             startDate = new Date(now.getFullYear(), now.getMonth(), 1)
         }
 
-        const [clientsCount, invoicesAgg, quotesAgg, tasksCount] = await Promise.all([
-          prisma.client.count({
-            where: { tenant_id: DEFAULT_TENANT_ID, createdAt: { gte: startDate } },
-          }),
+        const [clientsCount, invoicesAgg, quotesAgg, tasksCompleted, tasksPending] = await Promise.all([
+          prisma.client.count({ where: { tenant_id: DEFAULT_TENANT_ID, createdAt: { gte: startDate } } }),
           prisma.invoice.aggregate({
             where: { tenant_id: DEFAULT_TENANT_ID, createdAt: { gte: startDate } },
             _count: true,
@@ -415,36 +480,215 @@ async function handleCommand(botToken: string, chatId: number, command: string, 
             _count: true,
             _sum: { totalTtc: true },
           }),
-          prisma.projectCard.count({
-            where: { createdAt: { gte: startDate }, isCompleted: true },
-          }),
+          prisma.projectCard.count({ where: { isCompleted: true, completedAt: { gte: startDate } } }),
+          prisma.projectCard.count({ where: { isCompleted: false } }),
         ])
 
-        await sendMessage(
-          botToken,
-          chatId,
-          `*Stats ${period}*\n\n` +
-            `Nouveaux clients: ${clientsCount}\n` +
-            `Factures: ${invoicesAgg._count} (${Number(invoicesAgg._sum?.totalTtc || 0).toFixed(2)}€)\n` +
-            `Devis: ${quotesAgg._count} (${Number(quotesAgg._sum?.totalTtc || 0).toFixed(2)}€)\n` +
-            `Tâches terminées: ${tasksCount}`
-        )
-        break
+        return JSON.stringify({
+          period,
+          stats: {
+            newClients: clientsCount,
+            invoices: { count: invoicesAgg._count, total: Number(invoicesAgg._sum?.totalTtc || 0) },
+            quotes: { count: quotesAgg._count, total: Number(quotesAgg._sum?.totalTtc || 0) },
+            tasksCompleted,
+            tasksPending,
+          },
+        })
+      }
+
+      case "search_invoices": {
+        const where: Record<string, unknown> = { tenant_id: DEFAULT_TENANT_ID }
+        if (args.status) where.status = args.status
+        if (args.clientName) {
+          const client = await prisma.client.findFirst({
+            where: { tenant_id: DEFAULT_TENANT_ID, companyName: { contains: args.clientName as string } },
+          })
+          if (client) where.clientId = client.id
+        }
+
+        const invoices = await prisma.invoice.findMany({
+          where,
+          take: (args.limit as number) || 10,
+          orderBy: { createdAt: "desc" },
+          include: { client: { select: { companyName: true } } },
+        })
+
+        return JSON.stringify({
+          invoices: invoices.map(i => ({
+            id: Number(i.id),
+            number: i.invoiceNumber,
+            client: i.client?.companyName,
+            total: Number(i.totalTtc),
+            status: i.status,
+            date: i.issueDate,
+          })),
+        })
+      }
+
+      case "get_reminders": {
+        const days = (args.days as number) || 7
+        const now = new Date()
+        const future = new Date(now)
+        future.setDate(future.getDate() + days)
+
+        const notes = await prisma.note.findMany({
+          where: {
+            tenant_id: DEFAULT_TENANT_ID,
+            isArchived: false,
+            reminderAt: { gte: now, lte: future },
+          },
+          orderBy: { reminderAt: "asc" },
+          select: { id: true, content: true, reminderAt: true },
+        })
+
+        return JSON.stringify({
+          reminders: notes.map(n => ({
+            id: Number(n.id),
+            content: n.content.substring(0, 100),
+            date: n.reminderAt,
+          })),
+        })
+      }
 
       default:
-        await sendMessage(botToken, chatId, "Commande inconnue. Tapez /help pour voir les commandes.")
+        return JSON.stringify({ error: "Unknown tool" })
     }
   } catch (error) {
-    console.error("Command error:", error)
-    await sendMessage(botToken, chatId, `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`)
+    console.error(`Tool ${name} error:`, error)
+    return JSON.stringify({ error: error instanceof Error ? error.message : "Erreur inconnue" })
+  }
+}
+
+// System prompt for the AI
+const SYSTEM_PROMPT = `Tu es l'assistant CRM intelligent de l'utilisateur. Tu l'aides à gérer ses clients, notes, tâches, factures et devis via Telegram.
+
+PERSONNALITÉ:
+- Amical et professionnel, tutoiement
+- Concis mais informatif
+- Proactif (suggère des actions pertinentes)
+- Utilise des emojis avec modération
+
+CAPACITÉS:
+- Créer/rechercher des clients
+- Créer des notes (avec rappels et liens vers clients)
+- Gérer les tâches (créer, lister, terminer)
+- Consulter les statistiques (CA, factures, devis)
+- Rechercher des factures
+
+RÈGLES:
+- Utilise TOUJOURS les outils disponibles pour les actions CRM
+- Formate les réponses de façon lisible (listes, montants formatés)
+- Si une action échoue, explique clairement pourquoi
+- Pour les dates relatives (demain, lundi, etc.), convertis en YYYY-MM-DD
+- Les montants sont en euros
+
+EXEMPLES DE REQUÊTES:
+- "Crée un client Dupont SARL"
+- "Note pour rappeler Dupont demain : envoyer le devis"
+- "Mes tâches en retard"
+- "Stats du mois"
+- "Cherche les factures de Martin"
+`
+
+// Main AI processing
+async function processWithAI(
+  openai: OpenAI,
+  model: string,
+  chatId: number,
+  userMessage: string
+): Promise<string> {
+  // Get conversation history
+  const history = conversationHistory.get(chatId) || []
+
+  // Build messages
+  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...history.map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
+    { role: "user", content: userMessage },
+  ]
+
+  try {
+    // First call to get intent and tool calls
+    const response = await openai.chat.completions.create({
+      model,
+      messages,
+      tools,
+      tool_choice: "auto",
+      temperature: 0.7,
+      max_tokens: 1000,
+    })
+
+    const assistantMessage = response.choices[0].message
+
+    // If there are tool calls, execute them
+    if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
+
+      for (const toolCall of assistantMessage.tool_calls) {
+        if (toolCall.type !== "function") continue
+        const args = JSON.parse(toolCall.function.arguments)
+        const result = await executeToolCall(toolCall.function.name, args)
+        toolResults.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: result,
+        })
+      }
+
+      // Second call with tool results
+      const finalResponse = await openai.chat.completions.create({
+        model,
+        messages: [
+          ...messages,
+          assistantMessage,
+          ...toolResults,
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+      })
+
+      const finalContent = finalResponse.choices[0].message.content || "Action effectuée ✓"
+
+      // Update history
+      history.push({ role: "user", content: userMessage })
+      history.push({ role: "assistant", content: finalContent })
+      if (history.length > MAX_HISTORY * 2) history.splice(0, 2)
+      conversationHistory.set(chatId, history)
+
+      return finalContent
+    }
+
+    // No tool calls, just return the response
+    const content = assistantMessage.content || "Je ne suis pas sûr de comprendre. Peux-tu reformuler ?"
+
+    // Update history
+    history.push({ role: "user", content: userMessage })
+    history.push({ role: "assistant", content: content })
+    if (history.length > MAX_HISTORY * 2) history.splice(0, 2)
+    conversationHistory.set(chatId, history)
+
+    return content
+  } catch (error) {
+    console.error("OpenAI error:", error)
+    throw error
+  }
+}
+
+// Telegram webhook handler
+interface TelegramUpdate {
+  update_id: number
+  message?: {
+    message_id: number
+    from: { id: number; first_name: string; username?: string }
+    chat: { id: number; type: string }
+    text?: string
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Get settings from database
-    const settings = await getTelegramSettings()
-    const { token: botToken, allowedUsers } = settings
+    const settings = await getSettings()
+    const { botToken, allowedUsers, openaiKey, openaiModel } = settings
 
     if (!botToken) {
       console.error("Telegram bot token not configured")
@@ -453,7 +697,6 @@ export async function POST(request: NextRequest) {
 
     const update: TelegramUpdate = await request.json()
 
-    // Handle message
     if (update.message?.text) {
       const { from, chat, text } = update.message
       const userId = from.id
@@ -461,22 +704,53 @@ export async function POST(request: NextRequest) {
 
       // Auth check
       if (allowedUsers.length > 0 && !allowedUsers.includes(userId)) {
-        await sendMessage(botToken, chatId, "Accès non autorisé.")
+        await sendMessage(botToken, chatId, "⛔ Accès non autorisé.")
         return NextResponse.json({ ok: true })
       }
 
-      // Parse command
-      if (text.startsWith("/")) {
-        const [cmd, ...argParts] = text.slice(1).split(" ")
-        const command = cmd.split("@")[0].toLowerCase() // Handle /command@botname
-        const args = argParts.join(" ").trim()
-        await handleCommand(botToken, chatId, command, args)
+      // Handle /clear command to reset conversation
+      if (text.toLowerCase() === "/clear" || text.toLowerCase() === "/reset") {
+        conversationHistory.delete(chatId)
+        await sendMessage(botToken, chatId, "🔄 Conversation réinitialisée !")
+        return NextResponse.json({ ok: true })
       }
-    }
 
-    // Handle callback query
-    if (update.callback_query) {
-      await answerCallback(botToken, update.callback_query.id)
+      // Handle /help command
+      if (text.toLowerCase() === "/help" || text.toLowerCase() === "/start") {
+        await sendMessage(
+          botToken,
+          chatId,
+          `👋 *Salut ! Je suis ton assistant CRM.*\n\n` +
+          `Tu peux me parler naturellement, par exemple :\n\n` +
+          `📝 "Crée un client Dupont SARL"\n` +
+          `📋 "Ajoute une tâche : rappeler Martin demain"\n` +
+          `🔍 "Cherche le client Durand"\n` +
+          `📊 "Stats du mois"\n` +
+          `✅ "Mes tâches en retard"\n` +
+          `📄 "Factures impayées"\n\n` +
+          `_Tape /clear pour réinitialiser la conversation_`
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      // Check if OpenAI is configured
+      if (!openaiKey) {
+        await sendMessage(
+          botToken,
+          chatId,
+          "⚠️ L'IA n'est pas configurée. Configure ta clé OpenAI dans Settings > Intégrations > OpenAI."
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      // Show typing indicator
+      await sendTyping(botToken, chatId)
+
+      // Process with AI
+      const openai = new OpenAI({ apiKey: openaiKey })
+      const response = await processWithAI(openai, openaiModel, chatId, text)
+
+      await sendMessage(botToken, chatId, response)
     }
 
     return NextResponse.json({ ok: true })
@@ -486,7 +760,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET - Health check
+// Health check
 export async function GET() {
-  return NextResponse.json({ status: "ok", bot: "crm-telegram" })
+  return NextResponse.json({ status: "ok", bot: "crm-telegram-ai", version: "2.0" })
 }
