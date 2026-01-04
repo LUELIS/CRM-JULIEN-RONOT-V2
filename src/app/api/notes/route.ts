@@ -55,6 +55,13 @@ async function getEntityName(entityType: string, entityId: bigint): Promise<stri
         })
         return contract?.title || null
       }
+      case "project": {
+        const project = await prisma.project.findUnique({
+          where: { id: entityId },
+          select: { name: true },
+        })
+        return project?.name || null
+      }
       default:
         return null
     }

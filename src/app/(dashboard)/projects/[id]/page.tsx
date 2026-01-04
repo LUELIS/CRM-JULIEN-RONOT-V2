@@ -22,7 +22,9 @@ import {
   Star,
   Settings,
   Share2,
+  StickyNote,
 } from "lucide-react"
+import Link from "next/link"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,6 +99,15 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
   const [newColumnName, setNewColumnName] = useState("")
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
 
+  // Edit project modal
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editName, setEditName] = useState("")
+  const [editDescription, setEditDescription] = useState("")
+  const [editColor, setEditColor] = useState("")
+  const [editClientId, setEditClientId] = useState<string>("")
+  const [clients, setClients] = useState<{id: string; companyName: string}[]>([])
+  const [savingProject, setSavingProject] = useState(false)
+
   useEffect(() => {
     fetchProject()
   }, [resolvedParams.id])
@@ -125,6 +136,67 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
       console.error("Error fetching project:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchClients = async () => {
+    try {
+      const res = await fetch("/api/clients?limit=100")
+      if (res.ok) {
+        const data = await res.json()
+        setClients(data.clients?.map((c: any) => ({ id: String(c.id), companyName: c.companyName })) || [])
+      }
+    } catch (error) {
+      console.error("Error fetching clients:", error)
+    }
+  }
+
+  const openEditModal = () => {
+    if (!project) return
+    setEditName(project.name)
+    setEditDescription(project.description || "")
+    setEditColor(project.color)
+    setEditClientId(project.client?.id || "")
+    fetchClients()
+    setShowEditModal(true)
+  }
+
+  const saveProject = async () => {
+    if (!editName.trim()) return
+    setSavingProject(true)
+    try {
+      const res = await fetch(`/api/projects/${resolvedParams.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim(),
+          description: editDescription.trim() || null,
+          color: editColor,
+          clientId: editClientId || null,
+        }),
+      })
+      if (res.ok) {
+        fetchProject()
+        setShowEditModal(false)
+      }
+    } catch (error) {
+      console.error("Error saving project:", error)
+    } finally {
+      setSavingProject(false)
+    }
+  }
+
+  const deleteProject = async () => {
+    if (!confirm("Supprimer ce projet et toutes ses taches ?")) return
+    try {
+      const res = await fetch(`/api/projects/${resolvedParams.id}`, {
+        method: "DELETE",
+      })
+      if (res.ok) {
+        router.push("/projects")
+      }
+    } catch (error) {
+      console.error("Error deleting project:", error)
     }
   }
 
@@ -395,6 +467,13 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
               </div>
             )}
 
+            <Link
+              href={`/notes?entityType=project&entityId=${resolvedParams.id}`}
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+              title="Notes du projet"
+            >
+              <StickyNote className="h-5 w-5 text-gray-400" />
+            </Link>
             <button className="p-2 hover:bg-white/50 rounded-lg transition-colors" title="Favoris">
               <Star className="h-5 w-5 text-gray-400" />
             </button>
@@ -408,12 +487,12 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={openEditModal}>
                   <Edit className="h-4 w-4 mr-2" />
                   Modifier le projet
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">
+                <DropdownMenuItem onClick={deleteProject} className="text-red-600">
                   <Trash2 className="h-4 w-4 mr-2" />
                   Supprimer
                 </DropdownMenuItem>
@@ -527,20 +606,20 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
 
       {/* Board / List content */}
       {viewMode === "board" ? (
-        <div className="flex-1 overflow-x-auto p-6 bg-gray-100">
-          <div className="flex gap-4 h-full">
+        <div className="flex-1 overflow-x-auto px-4 py-3">
+          <div className="flex gap-3 h-full">
             {project.columns.map((column) => {
               const filteredCards = filterCards(column.cards)
 
               return (
                 <div
                   key={column.id}
-                  className="flex flex-col w-72 flex-shrink-0 bg-gray-50 rounded-xl shadow-sm"
+                  className="flex flex-col w-72 flex-shrink-0 bg-slate-100 rounded-lg"
                   onDragOver={(e) => handleDragOver(e, column.id, filteredCards.length)}
                   onDrop={(e) => handleDrop(e, column.id, filteredCards.length)}
                 >
                   {/* Column header */}
-                  <div className="flex items-center justify-between px-3 py-3 border-b border-gray-200">
+                  <div className="flex items-center justify-between px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: column.color }} />
                       <h3 className="font-semibold text-gray-800">{column.name}</h3>
@@ -578,12 +657,12 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                           onDragOver={(e) => handleDragOver(e, column.id, index)}
                           onDrop={(e) => handleDrop(e, column.id, index)}
                           onClick={() => setSelectedCardId(card.id)}
-                          className={`bg-white rounded-lg p-3 shadow-sm border-2 cursor-pointer hover:shadow-md transition-all group ${
+                          className={`bg-white rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md transition-all group ${
                             draggedCard?.id === card.id ? "opacity-50 rotate-2" : ""
                           } ${
                             dragOverColumn === column.id && dragOverPosition === index
-                              ? "border-[#0064FA] border-dashed"
-                              : overdue ? "border-red-200" : "border-transparent hover:border-[#0064FA]/30"
+                              ? "ring-2 ring-[#0064FA] ring-dashed"
+                              : overdue ? "ring-1 ring-red-300" : ""
                           }`}
                         >
                           {/* Labels */}
@@ -937,6 +1016,93 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
           onUpdate={fetchProject}
           onDelete={() => { fetchProject(); setSelectedCardId(null) }}
         />
+      )}
+
+      {/* Edit project modal */}
+      {showEditModal && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowEditModal(false)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-xl z-50 w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Modifier le projet</h2>
+              <button onClick={() => setShowEditModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom du projet</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none"
+                  placeholder="Nom du projet"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none resize-none"
+                  rows={3}
+                  placeholder="Description du projet..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
+                <select
+                  value={editClientId}
+                  onChange={(e) => setEditClientId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none"
+                >
+                  <option value="">Aucun client</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.companyName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Couleur</label>
+                <div className="flex gap-2">
+                  {["#0064FA", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16"].map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setEditColor(color)}
+                      className={`w-8 h-8 rounded-lg transition-transform ${
+                        editColor === color ? "ring-2 ring-offset-2 ring-gray-400 scale-110" : "hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={saveProject}
+                disabled={savingProject || !editName.trim()}
+                className="px-4 py-2 bg-[#0064FA] text-white rounded-lg font-medium hover:bg-[#0052CC] disabled:opacity-50"
+              >
+                {savingProject ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

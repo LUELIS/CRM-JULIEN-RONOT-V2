@@ -9,9 +9,14 @@ function serializeCard(card: any) {
     id: card.id.toString(),
     columnId: card.columnId.toString(),
     clientId: card.clientId?.toString() || null,
+    assigneeId: card.assigneeId?.toString() || null,
     client: card.client ? {
       ...card.client,
       id: card.client.id.toString(),
+    } : null,
+    assignee: card.assignee ? {
+      id: card.assignee.id.toString(),
+      name: card.assignee.name,
     } : null,
   }
 }
@@ -106,6 +111,9 @@ export async function PUT(
       include: {
         client: {
           select: { id: true, companyName: true },
+        },
+        assignee: {
+          select: { id: true, name: true },
         },
       },
     })
