@@ -56,66 +56,94 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create payment link via Revolut API
+    // Create order via Revolut Merchant API (returns checkout_url)
     const baseUrl = settings.environment === "production"
-      ? "https://b2b.revolut.com/api/1.0"
-      : "https://sandbox-b2b.revolut.com/api/1.0"
+      ? "https://merchant.revolut.com/api/1.0"
+      : "https://sandbox-merchant.revolut.com/api/1.0"
 
-    const paymentLinkData = {
-      amount: Math.round(amount * 100), // Revolut uses cents
+    // Build customer name
+    const customerName = invoice.client.companyName ||
+      `${invoice.client.contactFirstname || ""} ${invoice.client.contactLastname || ""}`.trim() ||
+      "Client"
+
+    // Revolut Merchant API order format
+    const orderData = {
+      amount: Math.round(amount * 100), // Revolut uses minor units (cents)
       currency: currency,
       description: description || `Facture ${invoice.invoiceNumber}`,
-      reference: invoice.invoiceNumber,
-      customer: {
-        email: invoice.client.email || undefined,
-        name: invoice.client.companyName || `${invoice.client.contactFirstname} ${invoice.client.contactLastname}`.trim() || undefined,
+      merchant_order_ext_ref: invoice.invoiceNumber, // Reference for merchant
+      customer_email: invoice.client.email || undefined,
+      metadata: {
+        invoice_id: invoiceId.toString(),
+        invoice_number: invoice.invoiceNumber,
+        customer_name: customerName,
       },
-      // Payment will expire in 30 days
-      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     }
 
-    console.log("[Revolut] Creating payment link:", {
+    console.log("[Revolut] Creating order:", {
       invoiceNumber: invoice.invoiceNumber,
-      amount: paymentLinkData.amount,
-      currency: paymentLinkData.currency,
+      amount: orderData.amount,
+      currency: orderData.currency,
       environment: settings.environment,
+      baseUrl,
     })
 
-    const response = await fetch(`${baseUrl}/payment-links`, {
+    const response = await fetch(`${baseUrl}/orders`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${settings.apiKey}`,
         "Content-Type": "application/json",
+        "Revolut-Api-Version": "2024-09-01",
       },
-      body: JSON.stringify(paymentLinkData),
+      body: JSON.stringify(orderData),
     })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error("[Revolut] API error:", response.status, errorData)
+
+      // Provide helpful error messages
+      let errorMessage = errorData.message || errorData.error_description || `Erreur Revolut: ${response.status}`
+      if (response.status === 401) {
+        errorMessage = "Clé API Revolut invalide. Vérifiez la clé SECRÈTE dans Settings > Intégrations > Revolut"
+      } else if (response.status === 403) {
+        errorMessage = "Accès refusé. Vérifiez les permissions de l'API Revolut"
+      }
+
       return NextResponse.json(
-        { error: errorData.message || `Erreur Revolut: ${response.status}` },
+        { error: errorMessage, details: errorData },
         { status: response.status }
       )
     }
 
-    const paymentLink = await response.json()
-    console.log("[Revolut] Payment link created:", paymentLink.id)
+    const order = await response.json()
+    console.log("[Revolut] Order created:", order.id, "checkout_url:", order.checkout_url)
+
+    // The checkout_url is the payment link to share with customer
+    const checkoutUrl = order.checkout_url
+
+    if (!checkoutUrl) {
+      console.error("[Revolut] No checkout_url in response:", order)
+      return NextResponse.json(
+        { error: "Revolut n'a pas retourné de lien de paiement" },
+        { status: 500 }
+      )
+    }
 
     // Update invoice with payment link info
     await prisma.invoice.update({
       where: { id: BigInt(invoiceId) },
       data: {
-        payment_link: paymentLink.checkout_url || paymentLink.url,
+        payment_link: checkoutUrl,
         updatedAt: new Date(),
       },
     })
 
     return NextResponse.json({
       success: true,
-      paymentLink: paymentLink.checkout_url || paymentLink.url,
-      paymentLinkId: paymentLink.id,
-      expiresAt: paymentLink.expires_at,
+      paymentLink: checkoutUrl,
+      orderId: order.id,
+      orderState: order.state,
     })
   } catch (error) {
     console.error("[Revolut] Error creating payment link:", error)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// POST: Test Revolut connection with provided credentials
+// POST: Test Revolut Merchant API connection with provided credentials
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -8,43 +8,53 @@ export async function POST(request: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "API Key requis" },
+        { error: "API Key (clé secrète) requis" },
         { status: 400 }
       )
     }
 
-    // Build API URL based on environment
+    // Build Merchant API URL based on environment
+    // Merchant API uses different URLs than Business API
     const baseUrl = environment === "production"
-      ? "https://b2b.revolut.com/api/1.0"
-      : "https://sandbox-b2b.revolut.com/api/1.0"
+      ? "https://merchant.revolut.com/api/1.0"
+      : "https://sandbox-merchant.revolut.com/api/1.0"
 
-    // Test connection by fetching accounts
-    const response = await fetch(`${baseUrl}/accounts`, {
+    // Test connection by listing orders (Merchant API endpoint)
+    const response = await fetch(`${baseUrl}/orders?limit=1`, {
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "Revolut-Api-Version": "2024-09-01",
       },
     })
 
     if (response.ok) {
-      const data = await response.json()
-      const accountCount = Array.isArray(data) ? data.length : 0
       return NextResponse.json({
         success: true,
-        message: `Connexion réussie! ${accountCount} compte(s) trouvé(s).`,
-        accountCount,
+        message: `Connexion Merchant API réussie! Environnement: ${environment}`,
       })
     } else {
       const errorData = await response.json().catch(() => ({}))
+      console.error("[Revolut Test] API Response:", response.status, errorData)
+
+      // Provide helpful error messages
+      let errorMessage = errorData.message || errorData.error || `Erreur ${response.status}`
+      if (response.status === 401) {
+        errorMessage = "Clé API invalide. Utilisez la clé SECRÈTE (pas la publique) depuis Revolut Business > APIs > Merchant API"
+      } else if (response.status === 403) {
+        errorMessage = "Accès refusé. Vérifiez que les permissions API sont activées dans Revolut Business"
+      }
+
       return NextResponse.json({
         success: false,
-        error: errorData.message || `Erreur ${response.status}: ${response.statusText}`,
+        error: errorMessage,
+        details: errorData,
       })
     }
   } catch (error) {
     console.error("[Revolut Test] Error:", error)
     return NextResponse.json(
-      { success: false, error: "Erreur de connexion à l'API Revolut" },
+      { success: false, error: "Erreur de connexion à l'API Revolut Merchant" },
       { status: 500 }
     )
   }
