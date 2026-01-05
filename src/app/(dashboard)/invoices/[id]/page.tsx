@@ -64,6 +64,9 @@ interface Invoice {
   totalTtc: number
   createdAt: string
   updatedAt: string
+  paymentMethod: string | null
+  debitDate: string | null
+  payment_link: string | null
   client: {
     id: string
     companyName: string
@@ -579,6 +582,68 @@ export default function InvoiceDetailPage({
                     )}
                   </div>
                 </div>
+
+                {/* Payment Method Info */}
+                {invoice.paymentMethod && (
+                  <div className="p-4 rounded-xl" style={{ background: "#FAFAFA", border: "1px solid #EEEEEE" }}>
+                    <h4
+                      className="text-xs font-semibold uppercase tracking-wider mb-3"
+                      style={{ color: "#999999" }}
+                    >
+                      Mode de paiement
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        {invoice.paymentMethod === "debit" && (
+                          <>
+                            <div className="p-2 rounded-lg" style={{ background: "#E3F2FD" }}>
+                              <Banknote className="h-4 w-4" style={{ color: "#0064FA" }} />
+                            </div>
+                            <span className="font-semibold" style={{ color: "#0064FA" }}>Prélèvement SEPA</span>
+                          </>
+                        )}
+                        {invoice.paymentMethod === "transfer" && (
+                          <>
+                            <div className="p-2 rounded-lg" style={{ background: "#D4EDDA" }}>
+                              <Euro className="h-4 w-4" style={{ color: "#28B95F" }} />
+                            </div>
+                            <span className="font-semibold" style={{ color: "#28B95F" }}>Virement bancaire</span>
+                          </>
+                        )}
+                        {invoice.paymentMethod === "card" && (
+                          <>
+                            <div className="p-2 rounded-lg" style={{ background: "#F3E8FF" }}>
+                              <CreditCard className="h-4 w-4" style={{ color: "#5F00BA" }} />
+                            </div>
+                            <span className="font-semibold" style={{ color: "#5F00BA" }}>Carte bancaire (Revolut)</span>
+                          </>
+                        )}
+                      </div>
+                      {invoice.paymentMethod === "debit" && invoice.debitDate && (
+                        <div className="flex justify-between text-sm">
+                          <span style={{ color: "#666666" }}>Date de prélèvement</span>
+                          <span className="font-medium" style={{ color: "#0064FA" }}>
+                            {formatShortDate(invoice.debitDate)}
+                          </span>
+                        </div>
+                      )}
+                      {invoice.paymentMethod === "card" && invoice.payment_link && (
+                        <div className="mt-2">
+                          <a
+                            href={invoice.payment_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-80"
+                            style={{ background: "#5F00BA", color: "#FFFFFF" }}
+                          >
+                            <CreditCard className="h-4 w-4" />
+                            Voir le lien de paiement
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Items Table */}
