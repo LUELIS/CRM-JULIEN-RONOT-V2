@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { Bell, Search, FileText, UserPlus, CreditCard, AlertCircle, X, Menu, Ticket, RefreshCw, Package, Globe, Clock, Command, StickyNote } from "lucide-react"
+import { Bell, Search, FileText, UserPlus, CreditCard, AlertCircle, X, Menu, Ticket, RefreshCw, Package, Globe, Clock, Command, StickyNote, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -77,6 +77,12 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [nextEvent, setNextEvent] = useState<{
+    subject: string
+    startTime: string
+    startsIn: number
+    location: string | null
+  } | null>(null)
 
   // Keyboard shortcut for search (Cmd+K or Ctrl+K)
   useEffect(() => {
@@ -103,14 +109,33 @@ export function Header({ onMenuClick }: HeaderProps) {
     }
   }, [])
 
+  const fetchNextEvent = useCallback(async () => {
+    try {
+      const res = await fetch("/api/users/next-event")
+      if (res.ok) {
+        const data = await res.json()
+        setNextEvent(data.nextEvent)
+      }
+    } catch (error) {
+      console.error("Error fetching next event:", error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchNotifications()
-  }, [fetchNotifications])
+    fetchNextEvent()
+  }, [fetchNotifications, fetchNextEvent])
 
   useEffect(() => {
     const interval = setInterval(fetchNotifications, 30000)
     return () => clearInterval(interval)
   }, [fetchNotifications])
+
+  // Refresh next event every 2 minutes
+  useEffect(() => {
+    const interval = setInterval(fetchNextEvent, 120000)
+    return () => clearInterval(interval)
+  }, [fetchNextEvent])
 
   useEffect(() => {
     if (isOpen) fetchNotifications()
@@ -201,7 +226,37 @@ export function Header({ onMenuClick }: HeaderProps) {
       </div>
 
       {/* Right - Actions */}
-      <div className="flex items-center justify-end gap-2 w-10 lg:w-[100px]">
+      <div className="flex items-center justify-end gap-2 w-auto lg:w-auto">
+
+        {/* Next Calendar Event */}
+        {nextEvent && (
+          <div
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-[10px] max-w-[200px]"
+            style={{
+              background: nextEvent.startsIn <= 15 ? '#FEF3CD' : '#E3F2FD',
+              border: `1px solid ${nextEvent.startsIn <= 15 ? '#F0783C' : '#0064FA'}20`,
+            }}
+          >
+            <Calendar
+              className="h-4 w-4 flex-shrink-0"
+              style={{ color: nextEvent.startsIn <= 15 ? '#F0783C' : '#0064FA' }}
+            />
+            <div className="flex flex-col min-w-0">
+              <span
+                className="text-[11px] font-medium truncate"
+                style={{ color: nextEvent.startsIn <= 15 ? '#F0783C' : '#0064FA' }}
+              >
+                {nextEvent.startsIn <= 0 ? 'Maintenant' : `Dans ${nextEvent.startsIn} min`}
+              </span>
+              <span
+                className="text-[10px] truncate"
+                style={{ color: '#666666' }}
+              >
+                {nextEvent.subject.length > 20 ? nextEvent.subject.substring(0, 20) + '...' : nextEvent.subject}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Notifications */}
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>

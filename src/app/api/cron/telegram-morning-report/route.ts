@@ -6,6 +6,27 @@ import { prisma } from "@/lib/prisma"
 
 const DEFAULT_TENANT_ID = BigInt(1)
 
+// O365 Calendar types
+interface CalendarEvent {
+  subject: string
+  start: { dateTime: string; timeZone: string }
+  end: { dateTime: string; timeZone: string }
+  location?: { displayName?: string }
+  isAllDay: boolean
+  organizer?: { emailAddress?: { name?: string } }
+  attendees?: Array<{ emailAddress?: { name?: string; address?: string } }>
+}
+
+// User with O365 tokens
+interface UserWithO365 {
+  id: bigint
+  name: string
+  telegramChatId: bigint | null
+  o365AccessToken: string | null
+  o365RefreshToken: string | null
+  o365TokenExpiresAt: Date | null
+}
+
 // Format currency
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount)
@@ -14,6 +35,127 @@ function formatCurrency(amount: number): string {
 // Format date
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit" }).format(date)
+}
+
+// Format time (HH:MM)
+function formatTime(date: Date): string {
+  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(date)
+}
+
+// Get O365 tenant settings (for client_id, client_secret, tenant_id)
+async function getO365TenantSettings() {
+  const tenant = await prisma.tenants.findFirst({ where: { id: DEFAULT_TENANT_ID } })
+  if (!tenant?.settings) return null
+
+  try {
+    const settings = JSON.parse(tenant.settings)
+    return {
+      enabled: settings.o365Enabled,
+      clientId: settings.o365ClientId,
+      clientSecret: settings.o365ClientSecret,
+      tenantId: settings.o365TenantId,
+    }
+  } catch {
+    return null
+  }
+}
+
+// Refresh O365 access token for a specific user
+async function refreshUserO365Token(
+  user: UserWithO365,
+  tenantSettings: { clientId: string; clientSecret: string; tenantId: string }
+): Promise<string | null> {
+  if (!user.o365RefreshToken) return null
+
+  try {
+    const tokenUrl = `https://login.microsoftonline.com/${tenantSettings.tenantId}/oauth2/v2.0/token`
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: tenantSettings.clientId,
+        client_secret: tenantSettings.clientSecret,
+        refresh_token: user.o365RefreshToken,
+        grant_type: "refresh_token",
+        scope: "https://graph.microsoft.com/Calendars.Read offline_access",
+      }),
+    })
+
+    if (!response.ok) {
+      console.error(`[Morning Report] Token refresh failed for user ${user.id}`)
+      return null
+    }
+
+    const data = await response.json()
+
+    // Update user tokens in database
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        o365AccessToken: data.access_token,
+        o365RefreshToken: data.refresh_token || user.o365RefreshToken,
+        o365TokenExpiresAt: new Date(Date.now() + data.expires_in * 1000),
+      },
+    })
+
+    return data.access_token
+  } catch (error) {
+    console.error(`[Morning Report] Token refresh error for user ${user.id}:`, error)
+    return null
+  }
+}
+
+// Get valid O365 access token for a user
+async function getValidUserO365Token(
+  user: UserWithO365,
+  tenantSettings: { clientId: string; clientSecret: string; tenantId: string }
+): Promise<string | null> {
+  if (!user.o365RefreshToken) return null
+
+  // Check if current token is valid (with 5 min buffer)
+  if (user.o365AccessToken && user.o365TokenExpiresAt) {
+    if (user.o365TokenExpiresAt > new Date(Date.now() + 5 * 60 * 1000)) {
+      return user.o365AccessToken
+    }
+  }
+
+  // Refresh token
+  return refreshUserO365Token(user, tenantSettings)
+}
+
+// Get today's calendar events for a specific user
+async function getCalendarEventsForUser(
+  user: UserWithO365,
+  tenantSettings: { clientId: string; clientSecret: string; tenantId: string }
+): Promise<CalendarEvent[]> {
+  const accessToken = await getValidUserO365Token(user, tenantSettings)
+  if (!accessToken) return []
+
+  try {
+    const now = new Date()
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+
+    const calendarUrl = `https://graph.microsoft.com/v1.0/me/calendarview?startDateTime=${startOfDay.toISOString()}&endDateTime=${endOfDay.toISOString()}&$orderby=start/dateTime&$top=20&$select=subject,start,end,location,isAllDay,organizer,attendees`
+
+    const response = await fetch(calendarUrl, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Prefer: 'outlook.timezone="Europe/Paris"',
+      },
+    })
+
+    if (!response.ok) {
+      console.error(`[Morning Report] Calendar API error for user ${user.id}:`, response.status)
+      return []
+    }
+
+    const data = await response.json()
+    return data.value || []
+  } catch (error) {
+    console.error(`[Morning Report] Calendar fetch error for user ${user.id}:`, error)
+    return []
+  }
 }
 
 // Get Telegram settings from tenant
@@ -36,20 +178,20 @@ async function getTelegramSettings() {
 }
 
 // Send message to Telegram
-async function sendTelegramMessage(botToken: string, chatId: number, text: string) {
+async function sendTelegramMessage(botToken: string, chatId: number | bigint, text: string) {
   await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      chat_id: chatId,
+      chat_id: Number(chatId),
       text,
       parse_mode: "Markdown",
     }),
   })
 }
 
-// Generate morning report
-async function generateMorningReport(): Promise<string> {
+// Generate morning report with optional calendar events
+async function generateMorningReport(calendarEvents: CalendarEvent[] = []): Promise<string> {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const weekAgo = new Date(today)
@@ -60,37 +202,25 @@ async function generateMorningReport(): Promise<string> {
 
   // Fetch all data in parallel
   const [
-    // Treasury
     bankAccounts,
-    // Today's tasks
     todayTasks,
     overdueTasks,
-    // Invoices
     overdueInvoices,
     sentInvoices,
     monthPaidInvoices,
-    // Quotes
     pendingQuotes,
     expiringQuotes,
-    // Domains
     expiringDomains,
-    // Subscriptions
     upcomingRenewals,
-    // Tickets
     openTickets,
-    // Notes with reminders today
     todayReminders,
-    // Recent activity
     recentInvoicesPaid,
-    // Contracts expiring
     expiringContracts,
   ] = await Promise.all([
-    // Treasury
     prisma.bankAccount.aggregate({
       where: { tenant_id: DEFAULT_TENANT_ID, status: "active" },
       _sum: { currentBalance: true },
     }),
-    // Today's tasks
     prisma.projectCard.count({
       where: {
         column: { project: { tenant_id: DEFAULT_TENANT_ID } },
@@ -98,7 +228,6 @@ async function generateMorningReport(): Promise<string> {
         isCompleted: false,
       },
     }),
-    // Overdue tasks
     prisma.projectCard.findMany({
       where: {
         column: { project: { tenant_id: DEFAULT_TENANT_ID } },
@@ -108,7 +237,6 @@ async function generateMorningReport(): Promise<string> {
       select: { title: true, dueDate: true },
       take: 5,
     }),
-    // Overdue invoices
     prisma.invoice.findMany({
       where: {
         tenant_id: DEFAULT_TENANT_ID,
@@ -119,13 +247,11 @@ async function generateMorningReport(): Promise<string> {
       orderBy: { dueDate: "asc" },
       take: 5,
     }),
-    // Sent but not paid invoices
     prisma.invoice.aggregate({
       where: { tenant_id: DEFAULT_TENANT_ID, status: { in: ["sent", "overdue"] } },
       _sum: { totalTtc: true },
       _count: true,
     }),
-    // Month paid invoices
     prisma.invoice.aggregate({
       where: {
         tenant_id: DEFAULT_TENANT_ID,
@@ -135,13 +261,11 @@ async function generateMorningReport(): Promise<string> {
       _sum: { totalTtc: true },
       _count: true,
     }),
-    // Pending quotes
     prisma.quote.aggregate({
       where: { tenant_id: DEFAULT_TENANT_ID, status: "sent" },
       _sum: { totalTtc: true },
       _count: true,
     }),
-    // Expiring quotes (within 7 days)
     prisma.quote.findMany({
       where: {
         tenant_id: DEFAULT_TENANT_ID,
@@ -151,7 +275,6 @@ async function generateMorningReport(): Promise<string> {
       include: { client: { select: { companyName: true } } },
       take: 5,
     }),
-    // Expiring domains (within 30 days)
     prisma.domain.findMany({
       where: {
         tenant_id: DEFAULT_TENANT_ID,
@@ -161,7 +284,6 @@ async function generateMorningReport(): Promise<string> {
       orderBy: { expirationDate: "asc" },
       take: 5,
     }),
-    // Upcoming subscription renewals (within 7 days)
     prisma.subscription.findMany({
       where: {
         tenant_id: DEFAULT_TENANT_ID,
@@ -171,11 +293,9 @@ async function generateMorningReport(): Promise<string> {
       include: { client: { select: { companyName: true } } },
       take: 5,
     }),
-    // Open tickets
     prisma.ticket.count({
       where: { tenant_id: DEFAULT_TENANT_ID, status: { in: ["new", "open", "pending"] } },
     }),
-    // Today's reminders
     prisma.note.findMany({
       where: {
         tenant_id: DEFAULT_TENANT_ID,
@@ -185,7 +305,6 @@ async function generateMorningReport(): Promise<string> {
       select: { content: true },
       take: 5,
     }),
-    // Recent invoices paid (last 7 days)
     prisma.invoice.findMany({
       where: {
         tenant_id: DEFAULT_TENANT_ID,
@@ -196,7 +315,6 @@ async function generateMorningReport(): Promise<string> {
       orderBy: { paymentDate: "desc" },
       take: 3,
     }),
-    // Contracts awaiting signature (sent status)
     prisma.contract.findMany({
       where: {
         tenant_id: DEFAULT_TENANT_ID,
@@ -256,6 +374,26 @@ async function generateMorningReport(): Promise<string> {
   // Today's agenda
   report += `*Aujourd'hui:*\n`
 
+  // Calendar events from user's O365
+  if (calendarEvents.length > 0) {
+    report += `\n*Agenda:*\n`
+    calendarEvents.forEach(event => {
+      const startTime = new Date(event.start.dateTime)
+      const endTime = new Date(event.end.dateTime)
+
+      if (event.isAllDay) {
+        report += `  - Journée: ${event.subject}\n`
+      } else {
+        report += `  - ${formatTime(startTime)} - ${formatTime(endTime)}: ${event.subject}\n`
+      }
+
+      if (event.location?.displayName) {
+        report += `    _${event.location.displayName}_\n`
+      }
+    })
+    report += `\n`
+  }
+
   if (todayTasks > 0) {
     report += `  - ${todayTasks} tâche(s) à faire\n`
   }
@@ -268,7 +406,7 @@ async function generateMorningReport(): Promise<string> {
     })
   }
 
-  if (todayTasks === 0 && todayReminders.length === 0) {
+  if (todayTasks === 0 && todayReminders.length === 0 && calendarEvents.length === 0) {
     report += `  - Rien de prévu\n`
   }
   report += `\n`
@@ -333,33 +471,75 @@ export async function GET() {
   try {
     console.log("[Morning Report] Starting...")
 
-    const settings = await getTelegramSettings()
-    if (!settings?.botToken || settings.allowedUsers.length === 0) {
+    const telegramSettings = await getTelegramSettings()
+    if (!telegramSettings?.botToken || telegramSettings.allowedUsers.length === 0) {
       return NextResponse.json({
         success: false,
         message: "Telegram not configured",
       })
     }
 
-    const report = await generateMorningReport()
+    const o365Settings = await getO365TenantSettings()
 
-    // Send to all allowed users
+    // Get users with their O365 tokens and telegramChatId
+    const usersWithO365 = await prisma.user.findMany({
+      where: {
+        tenant_id: DEFAULT_TENANT_ID,
+        isActive: true,
+        OR: [
+          { telegramChatId: { not: null } },
+          { id: { in: telegramSettings.allowedUsers.map((id: number) => BigInt(id)) } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        telegramChatId: true,
+        o365AccessToken: true,
+        o365RefreshToken: true,
+        o365TokenExpiresAt: true,
+      },
+    })
+
+    // Create a map of telegram chat ID to user for quick lookup
+    const chatIdToUser = new Map<number, UserWithO365>()
+    usersWithO365.forEach(user => {
+      if (user.telegramChatId) {
+        chatIdToUser.set(Number(user.telegramChatId), user as UserWithO365)
+      }
+    })
+
     let sent = 0
-    for (const chatId of settings.allowedUsers) {
+
+    // Send personalized report to each allowed user
+    for (const chatId of telegramSettings.allowedUsers) {
       try {
-        await sendTelegramMessage(settings.botToken, chatId, report)
+        // Find the user associated with this chat ID
+        const user = chatIdToUser.get(chatId)
+
+        // Get calendar events for this specific user (if they have O365 connected)
+        let calendarEvents: CalendarEvent[] = []
+        if (user && o365Settings?.enabled && user.o365RefreshToken) {
+          calendarEvents = await getCalendarEventsForUser(user, o365Settings)
+          console.log(`[Morning Report] Found ${calendarEvents.length} events for user ${user.name}`)
+        }
+
+        // Generate personalized report with user's calendar
+        const report = await generateMorningReport(calendarEvents)
+
+        await sendTelegramMessage(telegramSettings.botToken, chatId, report)
         sent++
       } catch (error) {
         console.error(`[Morning Report] Failed to send to ${chatId}:`, error)
       }
     }
 
-    console.log(`[Morning Report] Sent to ${sent}/${settings.allowedUsers.length} users`)
+    console.log(`[Morning Report] Sent to ${sent}/${telegramSettings.allowedUsers.length} users`)
 
     return NextResponse.json({
       success: true,
       message: `Morning report sent to ${sent} users`,
-      stats: { sent, total: settings.allowedUsers.length },
+      stats: { sent, total: telegramSettings.allowedUsers.length },
     })
   } catch (error) {
     console.error("[Morning Report] Error:", error)

@@ -77,7 +77,7 @@ async function refreshAccessToken(settings: {
       client_secret: settings.clientSecret,
       refresh_token: settings.refreshToken,
       grant_type: "refresh_token",
-      scope: "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send offline_access",
+      scope: "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.Read offline_access",
     }),
   })
 

@@ -49,11 +49,12 @@ export async function GET(request: NextRequest) {
       `https://login.microsoftonline.com/${settings.tenantId}/oauth2/v2.0/authorize`
     )
 
-    // Request Mail permissions with offline_access for refresh token
+    // Request Mail and Calendar permissions with offline_access for refresh token
     const scope = [
       "https://graph.microsoft.com/Mail.Read",
       "https://graph.microsoft.com/Mail.ReadWrite",
       "https://graph.microsoft.com/Mail.Send",
+      "https://graph.microsoft.com/Calendars.Read",
       "offline_access",
     ].join(" ")
 

@@ -44,6 +44,16 @@ model User {
   cardComments                   ProjectCardComment[]    @relation("CardComments")
   cardAttachments                ProjectCardAttachment[] @relation("CardAttachments")
 
+  // O365 Calendar integration per user
+  o365AccessToken                String?          @map("o365_access_token") @db.Text
+  o365RefreshToken               String?          @map("o365_refresh_token") @db.Text
+  o365TokenExpiresAt             DateTime?        @map("o365_token_expires_at") @db.Timestamp(0)
+  o365ConnectedEmail             String?          @map("o365_connected_email") @db.VarChar(255)
+  o365ConnectedAt                DateTime?        @map("o365_connected_at") @db.Timestamp(0)
+
+  // Telegram chat ID for direct messages
+  telegramChatId                 BigInt?          @map("telegram_chat_id")
+
   @@unique([tenant_id, email, role], map: "users_tenant_email_role_unique")
   @@index([clientId], map: "users_client_id_foreign")
   @@map("users")
