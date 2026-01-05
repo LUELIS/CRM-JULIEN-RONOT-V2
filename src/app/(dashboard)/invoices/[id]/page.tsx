@@ -27,6 +27,7 @@ import {
   History,
   X,
   Loader2,
+  RefreshCw,
 } from "lucide-react"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
 import { NotesSidebarCard } from "@/components/notes"
@@ -105,6 +106,8 @@ export default function InvoiceDetailPage({
   const [paymentMethod, setPaymentMethod] = useState<string>("")
   const [debitDate, setDebitDate] = useState("")
   const [paymentLink, setPaymentLink] = useState("")
+  const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false)
+  const [paymentLinkError, setPaymentLinkError] = useState<string | null>(null)
 
   // Mark as paid modal states
   const [markPaidDialogOpen, setMarkPaidDialogOpen] = useState(false)
@@ -1199,14 +1202,65 @@ export default function InvoiceDetailPage({
                   <label className="text-sm font-semibold" style={{ color: "#444444" }}>
                     Lien de paiement Revolut
                   </label>
-                  <input
-                    type="url"
-                    value={paymentLink}
-                    onChange={(e) => setPaymentLink(e.target.value)}
-                    placeholder="https://revolut.me/..."
-                    className="w-full mt-2 px-4 py-2.5 rounded-xl text-sm outline-none"
-                    style={inputStyle}
-                  />
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      type="url"
+                      value={paymentLink}
+                      onChange={(e) => {
+                        setPaymentLink(e.target.value)
+                        setPaymentLinkError(null)
+                      }}
+                      placeholder="https://revolut.me/..."
+                      className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
+                      style={inputStyle}
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!invoice) return
+                        setGeneratingPaymentLink(true)
+                        setPaymentLinkError(null)
+                        try {
+                          const res = await fetch("/api/revolut/payment-link", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              invoiceId: invoice.id,
+                              amount: invoice.totalTtc,
+                              currency: "EUR",
+                              description: `Facture ${invoice.invoiceNumber}`,
+                            }),
+                          })
+                          const data = await res.json()
+                          if (res.ok && data.paymentLink) {
+                            setPaymentLink(data.paymentLink)
+                          } else {
+                            setPaymentLinkError(data.error || "Erreur lors de la génération")
+                          }
+                        } catch (err) {
+                          setPaymentLinkError("Erreur de connexion")
+                        } finally {
+                          setGeneratingPaymentLink(false)
+                        }
+                      }}
+                      disabled={generatingPaymentLink}
+                      className="px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ background: "#191C1F", color: "#FFFFFF" }}
+                    >
+                      {generatingPaymentLink ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Générer
+                    </button>
+                  </div>
+                  {paymentLinkError && (
+                    <p className="text-sm mt-2" style={{ color: "#DC2626" }}>{paymentLinkError}</p>
+                  )}
+                  <p className="text-xs mt-2" style={{ color: "#999999" }}>
+                    Cliquez sur &quot;Générer&quot; pour créer automatiquement un lien de paiement Revolut
+                  </p>
                 </div>
               )}
             </div>
