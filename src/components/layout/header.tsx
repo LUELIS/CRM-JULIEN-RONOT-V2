@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { Bell, Search, FileText, UserPlus, CreditCard, AlertCircle, X, Menu, Ticket, RefreshCw, Package, Globe, Clock, Command, StickyNote, Calendar, Video, MapPin, ExternalLink } from "lucide-react"
+import { Bell, Search, FileText, UserPlus, CreditCard, AlertCircle, X, Menu, Ticket, RefreshCw, Package, Globe, Clock, Command, StickyNote, Calendar, Video, MapPin, ExternalLink, Rocket, CheckCircle2, XCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -20,6 +20,16 @@ interface Notification {
   link: string | null
   isRead: boolean
   createdAt: string
+}
+
+interface Deployment {
+  id: string
+  appName: string
+  projectName: string
+  serverName: string
+  status: "running" | "done" | "error"
+  startedAt: string
+  duration?: number
 }
 
 const notificationIcons = {
@@ -88,6 +98,8 @@ export function Header({ onMenuClick }: HeaderProps) {
     webLink: string | null
     bodyPreview: string | null
   } | null>(null)
+  const [activeDeployments, setActiveDeployments] = useState<Deployment[]>([])
+  const [deploymentsOpen, setDeploymentsOpen] = useState(false)
 
   // Keyboard shortcut for search (Cmd+K or Ctrl+K)
   useEffect(() => {
@@ -126,10 +138,23 @@ export function Header({ onMenuClick }: HeaderProps) {
     }
   }, [])
 
+  const fetchDeployments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/deployments/status")
+      if (res.ok) {
+        const data = await res.json()
+        setActiveDeployments(data.deployments || [])
+      }
+    } catch (error) {
+      console.error("Error fetching deployments:", error)
+    }
+  }, [])
+
   useEffect(() => {
     fetchNotifications()
     fetchNextEvent()
-  }, [fetchNotifications, fetchNextEvent])
+    fetchDeployments()
+  }, [fetchNotifications, fetchNextEvent, fetchDeployments])
 
   useEffect(() => {
     const interval = setInterval(fetchNotifications, 30000)
@@ -141,6 +166,12 @@ export function Header({ onMenuClick }: HeaderProps) {
     const interval = setInterval(fetchNextEvent, 120000)
     return () => clearInterval(interval)
   }, [fetchNextEvent])
+
+  // Refresh deployments every 10s if active, 30s otherwise
+  useEffect(() => {
+    const interval = setInterval(fetchDeployments, activeDeployments.length > 0 ? 10000 : 30000)
+    return () => clearInterval(interval)
+  }, [fetchDeployments, activeDeployments.length])
 
   useEffect(() => {
     if (isOpen) fetchNotifications()
@@ -232,6 +263,63 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       {/* Right - Actions */}
       <div className="flex items-center justify-end gap-2 w-auto lg:w-auto">
+
+        {/* Active Deployments */}
+        {activeDeployments.length > 0 && (
+          <DropdownMenu open={deploymentsOpen} onOpenChange={setDeploymentsOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-[10px] cursor-pointer transition-all hover:shadow-md"
+                style={{
+                  background: '#E8F5E9',
+                  border: '1px solid #28B95F20',
+                }}
+              >
+                <Rocket className="h-4 w-4 animate-pulse" style={{ color: '#28B95F' }} />
+                <span className="text-[11px] font-medium" style={{ color: '#28B95F' }}>
+                  {activeDeployments.length} déploiement{activeDeployments.length > 1 ? 's' : ''}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-80 p-0 rounded-[16px] overflow-hidden border-0"
+              style={{ background: '#FFFFFF', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)' }}
+            >
+              <div className="px-4 py-3 border-b" style={{ borderColor: '#EEEEEE' }}>
+                <h3 className="text-[15px] font-medium" style={{ color: '#111111' }}>
+                  Déploiements en cours
+                </h3>
+              </div>
+              <div className="max-h-60 overflow-y-auto">
+                {activeDeployments.map((dep) => (
+                  <div
+                    key={dep.id}
+                    className="flex items-center gap-3 px-4 py-3 border-b last:border-0"
+                    style={{ borderColor: '#EEEEEE' }}
+                  >
+                    <div className="p-2 rounded-[10px]" style={{ background: '#E8F5E9' }}>
+                      <Loader2 className="h-4 w-4 animate-spin" style={{ color: '#28B95F' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: '#111111' }}>
+                        {dep.appName}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: '#666666' }}>
+                        {dep.projectName} • {dep.serverName}
+                      </p>
+                      {dep.duration && (
+                        <p className="text-[10px] mt-0.5" style={{ color: '#999999' }}>
+                          {Math.floor(dep.duration / 60)}:{(dep.duration % 60).toString().padStart(2, '0')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {/* Next Calendar Event */}
         {nextEvent && (
