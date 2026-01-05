@@ -642,3 +642,277 @@ export function parseSlackConfig(settings: Record<string, unknown>): SlackConfig
     slackNotifyOnReply: settings.slackNotifyOnReply !== false,
   }
 }
+
+// ============================================
+// DEPLOYMENT NOTIFICATIONS
+// ============================================
+
+interface DeploymentInfo {
+  appName: string
+  projectName: string
+  serverName: string
+  status: "done" | "error" | "running"
+  duration?: number | null
+  errorMessage?: string | null
+  serverUrl: string
+  repository?: string | null
+  branch?: string | null
+}
+
+interface AppStatusInfo {
+  appName: string
+  projectName: string
+  serverName: string
+  status: string
+  serverUrl: string
+}
+
+/**
+ * Build Slack payload for deployment success
+ */
+function buildDeploymentSuccessPayload(deployment: DeploymentInfo): object {
+  const durationText = deployment.duration
+    ? deployment.duration < 60
+      ? `${deployment.duration}s`
+      : `${Math.floor(deployment.duration / 60)}m ${deployment.duration % 60}s`
+    : "N/A"
+
+  return {
+    text: `✅ Déploiement réussi: ${deployment.appName} sur ${deployment.serverName}`,
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "✅ Déploiement réussi",
+          emoji: true,
+        },
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: `*Application:*\n${deployment.appName}`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Serveur:*\n${deployment.serverName}`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Projet:*\n${deployment.projectName}`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Durée:*\n${durationText}`,
+          },
+        ],
+      },
+      ...(deployment.repository
+        ? [
+            {
+              type: "context",
+              elements: [
+                {
+                  type: "mrkdwn",
+                  text: `📦 ${deployment.repository}${deployment.branch ? `:${deployment.branch}` : ""}`,
+                },
+              ],
+            },
+          ]
+        : []),
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "🚀 Voir sur Dokploy",
+              emoji: true,
+            },
+            url: deployment.serverUrl,
+          },
+        ],
+      },
+    ],
+  }
+}
+
+/**
+ * Build Slack payload for deployment failure
+ */
+function buildDeploymentFailurePayload(deployment: DeploymentInfo): object {
+  return {
+    text: `❌ Échec déploiement: ${deployment.appName} sur ${deployment.serverName}`,
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "❌ Échec du déploiement",
+          emoji: true,
+        },
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: `*Application:*\n${deployment.appName}`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Serveur:*\n${deployment.serverName}`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Projet:*\n${deployment.projectName}`,
+          },
+        ],
+      },
+      ...(deployment.errorMessage
+        ? [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: `*Erreur:*\n\`\`\`${truncateMessage(deployment.errorMessage, 500)}\`\`\``,
+              },
+            },
+          ]
+        : []),
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "🔍 Voir les logs",
+              emoji: true,
+            },
+            url: deployment.serverUrl,
+            style: "danger",
+          },
+        ],
+      },
+    ],
+  }
+}
+
+/**
+ * Build Slack payload for app error detection
+ */
+function buildAppErrorPayload(app: AppStatusInfo): object {
+  return {
+    text: `🚨 Application en erreur: ${app.appName} sur ${app.serverName}`,
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "🚨 Application en erreur",
+          emoji: true,
+        },
+      },
+      {
+        type: "section",
+        fields: [
+          {
+            type: "mrkdwn",
+            text: `*Application:*\n${app.appName}`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Serveur:*\n${app.serverName}`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Projet:*\n${app.projectName}`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Statut:*\n🔴 ${app.status}`,
+          },
+        ],
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "🔧 Voir sur Dokploy",
+              emoji: true,
+            },
+            url: app.serverUrl,
+            style: "danger",
+          },
+        ],
+      },
+    ],
+  }
+}
+
+/**
+ * Notify about deployment success
+ */
+export async function notifyDeploymentSuccess(
+  config: SlackConfig,
+  deployment: DeploymentInfo
+): Promise<{ success: boolean; error?: string }> {
+  if (!shouldNotify(config)) {
+    return { success: false, error: "Notifications disabled" }
+  }
+
+  const payload = buildDeploymentSuccessPayload(deployment)
+
+  if (config.slackBotToken && config.slackChannelId) {
+    return await sendViaApi(config.slackBotToken, config.slackChannelId, payload)
+  } else {
+    return await sendViaWebhook(config.slackWebhookUrl, payload)
+  }
+}
+
+/**
+ * Notify about deployment failure
+ */
+export async function notifyDeploymentFailure(
+  config: SlackConfig,
+  deployment: DeploymentInfo
+): Promise<{ success: boolean; error?: string }> {
+  if (!shouldNotify(config)) {
+    return { success: false, error: "Notifications disabled" }
+  }
+
+  const payload = buildDeploymentFailurePayload(deployment)
+
+  if (config.slackBotToken && config.slackChannelId) {
+    return await sendViaApi(config.slackBotToken, config.slackChannelId, payload)
+  } else {
+    return await sendViaWebhook(config.slackWebhookUrl, payload)
+  }
+}
+
+/**
+ * Notify about app in error state
+ */
+export async function notifyAppError(
+  config: SlackConfig,
+  app: AppStatusInfo
+): Promise<{ success: boolean; error?: string }> {
+  if (!shouldNotify(config)) {
+    return { success: false, error: "Notifications disabled" }
+  }
+
+  const payload = buildAppErrorPayload(app)
+
+  if (config.slackBotToken && config.slackChannelId) {
+    return await sendViaApi(config.slackBotToken, config.slackChannelId, payload)
+  } else {
+    return await sendViaWebhook(config.slackWebhookUrl, payload)
+  }
+}

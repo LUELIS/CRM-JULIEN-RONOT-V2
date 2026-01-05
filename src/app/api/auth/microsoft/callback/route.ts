@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { cookies } from "next/headers"
 import { encode } from "next-auth/jwt"
 
 // Get Microsoft OAuth settings from database
@@ -177,7 +176,6 @@ export async function GET(request: Request) {
     }
 
     // Set the session cookie (NextAuth v5 uses __Secure- prefix in production)
-    const cookieStore = await cookies()
     const isProduction = process.env.NODE_ENV === "production"
     const cookieName = isProduction ? "__Secure-authjs.session-token" : "authjs.session-token"
 
@@ -196,7 +194,12 @@ export async function GET(request: Request) {
       salt: cookieName, // Salt is based on the cookie name
     })
 
-    cookieStore.set(cookieName, token, {
+    // Create redirect response and set cookie on it directly
+    // This ensures the cookie is sent with the redirect response
+    const redirectUrl = `${baseUrl}${callbackUrl}`
+    const response = NextResponse.redirect(redirectUrl)
+
+    response.cookies.set(cookieName, token, {
       httpOnly: true,
       secure: isProduction,
       sameSite: "lax",
@@ -204,8 +207,7 @@ export async function GET(request: Request) {
       path: "/",
     })
 
-    // Redirect to callback URL
-    return NextResponse.redirect(`${baseUrl}${callbackUrl}`)
+    return response
   } catch (error) {
     console.error("Microsoft SSO callback error:", error)
     return NextResponse.redirect(

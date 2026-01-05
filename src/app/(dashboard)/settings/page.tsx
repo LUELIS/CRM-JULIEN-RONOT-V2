@@ -38,6 +38,7 @@ import {
   Landmark,
   XCircle,
   Bell,
+  Server,
 } from "lucide-react"
 import Image from "next/image"
 import { useTenant } from "@/contexts/tenant-context"
@@ -124,6 +125,11 @@ interface SettingsData {
     slackChannelId?: string
     slackNotifyOnNew?: boolean
     slackNotifyOnReply?: boolean
+    // Deployment notifications
+    deploymentNotificationsEnabled?: boolean
+    deploymentNotifyOnSuccess?: boolean
+    deploymentNotifyOnFailure?: boolean
+    deploymentNotifyOnAppError?: boolean
     // OpenAI
     openaiEnabled?: boolean
     openaiApiKey?: string
@@ -247,6 +253,11 @@ function SettingsContent() {
   const [slackChannelId, setSlackChannelId] = useState("")
   const [slackNotifyOnNew, setSlackNotifyOnNew] = useState(true)
   const [slackNotifyOnReply, setSlackNotifyOnReply] = useState(true)
+  // Deployment notifications
+  const [deploymentNotificationsEnabled, setDeploymentNotificationsEnabled] = useState(true)
+  const [deploymentNotifyOnSuccess, setDeploymentNotifyOnSuccess] = useState(false)
+  const [deploymentNotifyOnFailure, setDeploymentNotifyOnFailure] = useState(true)
+  const [deploymentNotifyOnAppError, setDeploymentNotifyOnAppError] = useState(true)
 
   // OpenAI
   const [openaiEnabled, setOpenaiEnabled] = useState(false)
@@ -353,6 +364,10 @@ function SettingsContent() {
         setSlackChannelId(data.settings?.slackChannelId || "")
         setSlackNotifyOnNew(data.settings?.slackNotifyOnNew ?? true)
         setSlackNotifyOnReply(data.settings?.slackNotifyOnReply ?? true)
+        setDeploymentNotificationsEnabled(data.settings?.deploymentNotificationsEnabled ?? true)
+        setDeploymentNotifyOnSuccess(data.settings?.deploymentNotifyOnSuccess ?? false)
+        setDeploymentNotifyOnFailure(data.settings?.deploymentNotifyOnFailure ?? true)
+        setDeploymentNotifyOnAppError(data.settings?.deploymentNotifyOnAppError ?? true)
         setOpenaiEnabled(data.settings?.openaiEnabled || false)
         setOpenaiApiKey(data.settings?.openaiApiKey || "")
         setOpenaiModel(data.settings?.openaiModel || "gpt-4o-mini")
@@ -1589,6 +1604,62 @@ function SettingsContent() {
                       </label>
                     </div>
                   </div>
+
+                  {/* Deployment Notifications */}
+                  <div className="pt-6 mt-6" style={{ borderTop: "1px solid #EEEEEE" }}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#F0FDF4" }}>
+                          <Server className="h-4 w-4" style={{ color: "#22C55E" }} />
+                        </div>
+                        <div>
+                          <h3 className="font-medium" style={{ color: "#111111" }}>Notifications Déploiements</h3>
+                          <p className="text-sm" style={{ color: "#666666" }}>Alertes Dokploy (Orion, Andromeda, Cassiopeia)</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" checked={deploymentNotificationsEnabled} onChange={(e) => setDeploymentNotificationsEnabled(e.target.checked)} className="sr-only peer" />
+                        <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: deploymentNotificationsEnabled ? "#22C55E" : "#CCCCCC" }} />
+                      </label>
+                    </div>
+
+                    {deploymentNotificationsEnabled && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#F5F5F7" }}>
+                          <div>
+                            <p className="font-medium" style={{ color: "#111111" }}>Déploiement réussi</p>
+                            <p className="text-sm" style={{ color: "#666666" }}>Notifier quand un déploiement se termine avec succès</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={deploymentNotifyOnSuccess} onChange={(e) => setDeploymentNotifyOnSuccess(e.target.checked)} className="sr-only peer" />
+                            <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: deploymentNotifyOnSuccess ? "#22C55E" : "#CCCCCC" }} />
+                          </label>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#FEF2F2" }}>
+                          <div>
+                            <p className="font-medium" style={{ color: "#111111" }}>Échec de déploiement</p>
+                            <p className="text-sm" style={{ color: "#666666" }}>Alerte quand un déploiement échoue</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={deploymentNotifyOnFailure} onChange={(e) => setDeploymentNotifyOnFailure(e.target.checked)} className="sr-only peer" />
+                            <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: deploymentNotifyOnFailure ? "#EF4444" : "#CCCCCC" }} />
+                          </label>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#FEF3C7" }}>
+                          <div>
+                            <p className="font-medium" style={{ color: "#111111" }}>Application en erreur</p>
+                            <p className="text-sm" style={{ color: "#666666" }}>Alerte quand une app est détectée en erreur sur Dokploy</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={deploymentNotifyOnAppError} onChange={(e) => setDeploymentNotifyOnAppError(e.target.checked)} className="sr-only peer" />
+                            <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: deploymentNotifyOnAppError ? "#F59E0B" : "#CCCCCC" }} />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -1599,7 +1670,7 @@ function SettingsContent() {
                     Tester
                   </button>
                 )}
-                <button onClick={() => handleSave("integrations", { slackEnabled, slackWebhookUrl, slackBotToken, slackChannelId, slackNotifyOnNew, slackNotifyOnReply })} disabled={saving === "integrations"} className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background: "#5F00BA", color: "#FFFFFF" }}>
+                <button onClick={() => handleSave("integrations", { slackEnabled, slackWebhookUrl, slackBotToken, slackChannelId, slackNotifyOnNew, slackNotifyOnReply, deploymentNotificationsEnabled, deploymentNotifyOnSuccess, deploymentNotifyOnFailure, deploymentNotifyOnAppError })} disabled={saving === "integrations"} className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background: "#5F00BA", color: "#FFFFFF" }}>
                   {saving === "integrations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Enregistrer
                 </button>

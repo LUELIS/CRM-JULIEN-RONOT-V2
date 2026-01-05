@@ -24,6 +24,8 @@ import {
   X,
   Bell,
   BellOff,
+  Layers,
+  Minus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -66,9 +68,32 @@ interface Deployment {
   logPath: string | null
 }
 
+interface CatalogApp {
+  name: string
+  projectName: string
+  type: "application" | "compose"
+  repository: string | null
+  owner: string | null
+  branch: string | null
+  servers: {
+    serverId: number
+    serverName: string
+    serverUrl: string
+    appId: string
+    status: string
+    lastDeployment: {
+      id: string
+      status: string
+      createdAt: string
+      duration: number | null
+    } | null
+  }[]
+}
+
 interface DeploymentData {
   servers: ServerStatus[]
   deployments: Deployment[]
+  catalog: CatalogApp[]
   stats: {
     total: number
     running: number
@@ -89,6 +114,8 @@ export default function DeploymentsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [selectedDeployment, setSelectedDeployment] = useState<Deployment | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [showCatalog, setShowCatalog] = useState(true)
+  const [catalogSearch, setCatalogSearch] = useState("")
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default")
   const previousDeploymentsRef = useRef<Map<string, string>>(new Map())
@@ -533,6 +560,82 @@ export default function DeploymentsPage() {
           )}
         </div>
       </div>
+
+      {/* Applications Catalog */}
+      {data?.catalog && data.catalog.length > 0 && (
+        <div className="mb-6">
+          <button
+            onClick={() => setShowCatalog(!showCatalog)}
+            className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-3 hover:text-[#0064FA] transition-colors"
+          >
+            {showCatalog ? (
+              <ChevronUp className="h-5 w-5" />
+            ) : (
+              <ChevronDown className="h-5 w-5" />
+            )}
+            <Layers className="h-5 w-5 text-[#0064FA]" />
+            Catalogue des Applications
+            <span className="text-sm font-normal text-gray-500">
+              ({data.catalog.length} apps)
+            </span>
+          </button>
+
+          {showCatalog && (
+            <>
+              {/* Search in catalog */}
+              <div className="relative mb-4 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                  placeholder="Rechercher une application..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-[#0064FA] focus:border-transparent outline-none text-sm"
+                />
+              </div>
+
+              {/* Server columns header */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="grid grid-cols-[1fr_repeat(3,120px)] gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  <div>Application</div>
+                  {data.servers.map((server) => (
+                    <div key={server.id} className="text-center">
+                      {server.name.replace(" NEW", "")}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Apps list */}
+                <div className="divide-y divide-gray-100">
+                  {data.catalog
+                    .filter((app) =>
+                      catalogSearch
+                        ? app.name.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+                          app.projectName.toLowerCase().includes(catalogSearch.toLowerCase())
+                        : true
+                    )
+                    .map((app) => (
+                      <CatalogAppRow
+                        key={`${app.name}-${app.projectName}`}
+                        app={app}
+                        allServers={data.servers}
+                        onRedeploy={(serverId, appId, appType) => {
+                          handleAction("redeploy", {
+                            id: appId,
+                            serverId,
+                            appId,
+                            appType,
+                          } as Deployment)
+                        }}
+                        actionLoading={actionLoading}
+                      />
+                    ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Running Deployments - Priority Section */}
       {runningDeployments && runningDeployments.length > 0 && (
@@ -1151,6 +1254,127 @@ function DeploymentDetailModal({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function CatalogAppRow({
+  app,
+  allServers,
+  onRedeploy,
+  actionLoading,
+}: {
+  app: CatalogApp
+  allServers: ServerStatus[]
+  onRedeploy: (serverId: number, appId: string, appType: "application" | "compose") => void
+  actionLoading: string | null
+}) {
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+
+    if (diffMins < 1) return "À l'instant"
+    if (diffMins < 60) return `${diffMins}min`
+    const diffHours = Math.floor(diffMins / 60)
+    if (diffHours < 24) return `${diffHours}h`
+    const diffDays = Math.floor(diffHours / 24)
+    return `${diffDays}j`
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "running":
+        return { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" }
+      case "done":
+        return { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" }
+      case "error":
+        return { bg: "bg-red-100", text: "text-red-700", dot: "bg-red-500" }
+      case "idle":
+        return { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" }
+      default:
+        return { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" }
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-[1fr_repeat(3,120px)] gap-2 px-4 py-3 hover:bg-gray-50 transition-colors items-center">
+      {/* App info */}
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-gray-900 truncate">{app.name}</span>
+          <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0">
+            {app.type}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-xs text-gray-500 truncate">{app.projectName}</span>
+          {app.repository && (
+            <span className="text-xs text-gray-400 flex items-center gap-1 shrink-0">
+              <GitBranch className="h-3 w-3" />
+              {app.branch || "main"}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Server columns */}
+      {allServers.map((server) => {
+        const serverInfo = app.servers.find((s) => s.serverId === server.id)
+
+        if (!serverInfo) {
+          // App not present on this server
+          return (
+            <div key={server.id} className="flex justify-center">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-50">
+                <Minus className="h-4 w-4 text-gray-300" />
+              </div>
+            </div>
+          )
+        }
+
+        const statusColors = getStatusColor(serverInfo.status)
+        const isLoading = actionLoading === serverInfo.appId
+
+        return (
+          <div key={server.id} className="flex justify-center">
+            <div className="relative group">
+              <button
+                onClick={() => onRedeploy(serverInfo.serverId, serverInfo.appId, app.type)}
+                disabled={isLoading}
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-lg transition-all",
+                  statusColors.bg,
+                  "hover:ring-2 hover:ring-offset-1 hover:ring-[#0064FA]/30"
+                )}
+                title={`${serverInfo.status} - Cliquer pour redéployer`}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-[#0064FA]" />
+                ) : serverInfo.status === "running" ? (
+                  <CheckCircle2 className={cn("h-4 w-4", statusColors.text)} />
+                ) : serverInfo.status === "error" ? (
+                  <XCircle className={cn("h-4 w-4", statusColors.text)} />
+                ) : (
+                  <CheckCircle2 className={cn("h-4 w-4", statusColors.text)} />
+                )}
+              </button>
+
+              {/* Tooltip */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-10">
+                {serverInfo.status === "running" ? "En ligne" : serverInfo.status === "error" ? "Erreur" : "Actif"}
+                {serverInfo.lastDeployment && (
+                  <span className="text-gray-400 ml-1">
+                    • {formatTimeAgo(serverInfo.lastDeployment.createdAt)}
+                  </span>
+                )}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

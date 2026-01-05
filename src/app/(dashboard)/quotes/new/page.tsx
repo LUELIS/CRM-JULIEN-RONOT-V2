@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { SearchableClientSelect } from "@/components/ui/searchable-client-select"
 import { ArrowLeft, Plus, Trash2, Save } from "lucide-react"
 
 interface Client {
@@ -240,18 +241,12 @@ export default function NewQuotePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="client">Client *</Label>
-                  <Select value={clientId} onValueChange={setClientId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un client" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.companyName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableClientSelect
+                    clients={clients}
+                    value={clientId}
+                    onChange={setClientId}
+                    placeholder="Rechercher un client..."
+                  />
                 </div>
 
                 <div className="space-y-2">

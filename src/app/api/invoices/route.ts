@@ -201,7 +201,10 @@ export async function POST(request: NextRequest) {
       : (body.discountValue || 0)
 
     const subtotalAfterDiscount = subtotalHt - discountAmount
-    const taxAfterDiscount = taxAmount * (1 - discountAmount / subtotalHt)
+    // Avoid division by zero when subtotalHt is 0
+    const taxAfterDiscount = subtotalHt > 0
+      ? taxAmount * (1 - discountAmount / subtotalHt)
+      : 0
     const totalTtc = subtotalAfterDiscount + taxAfterDiscount
 
     // Create invoice
@@ -258,8 +261,11 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Error creating invoice:", error)
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    const errorDetails = error instanceof Error ? error.stack : String(error)
+    console.error("Invoice creation error details:", errorDetails)
     return NextResponse.json(
-      { error: "Failed to create invoice" },
+      { error: "Failed to create invoice", details: errorMessage },
       { status: 500 }
     )
   }

@@ -288,9 +288,82 @@ export async function GET(request: NextRequest) {
       ).length,
     }))
 
+    // Build consolidated apps catalog (one entry per unique app name)
+    const appsCatalog = new Map<string, {
+      name: string
+      projectName: string
+      type: "application" | "compose"
+      repository: string | null
+      owner: string | null
+      branch: string | null
+      servers: {
+        serverId: number
+        serverName: string
+        serverUrl: string
+        appId: string
+        status: string
+        lastDeployment: {
+          id: string
+          status: string
+          createdAt: string
+          duration: number | null
+        } | null
+      }[]
+    }>()
+
+    for (const appInfo of allApps) {
+      const key = `${appInfo.app.name}-${appInfo.projectName}`
+
+      // Find last deployment for this app on this server
+      const appDeployments = allDeployments.filter(
+        d => d.app.app.applicationId === appInfo.app.applicationId && d.app.serverId === appInfo.serverId
+      )
+      const lastDeployment = appDeployments[0]
+
+      const serverInfo = {
+        serverId: appInfo.serverId,
+        serverName: appInfo.server,
+        serverUrl: DOKPLOY_SERVERS.find(s => s.id === appInfo.serverId)?.url || "",
+        appId: appInfo.app.applicationId,
+        status: appInfo.app.applicationStatus,
+        lastDeployment: lastDeployment ? {
+          id: lastDeployment.deployment.deploymentId,
+          status: lastDeployment.deployment.status,
+          createdAt: lastDeployment.deployment.createdAt,
+          duration: lastDeployment.deployment.finishedAt && lastDeployment.deployment.startedAt
+            ? Math.round(
+                (new Date(lastDeployment.deployment.finishedAt).getTime() -
+                  new Date(lastDeployment.deployment.startedAt).getTime()) /
+                  1000
+              )
+            : null,
+        } : null,
+      }
+
+      if (appsCatalog.has(key)) {
+        appsCatalog.get(key)!.servers.push(serverInfo)
+      } else {
+        appsCatalog.set(key, {
+          name: appInfo.app.name,
+          projectName: appInfo.projectName,
+          type: appInfo.type,
+          repository: appInfo.app.repository,
+          owner: appInfo.app.owner,
+          branch: appInfo.app.branch,
+          servers: [serverInfo],
+        })
+      }
+    }
+
+    // Convert to array and sort by name
+    const catalogArray = Array.from(appsCatalog.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
+
     return NextResponse.json({
       servers: runningByServer,
       deployments,
+      catalog: catalogArray,
       stats: {
         total: deployments.length,
         running: deployments.filter((d) => d.status === "running").length,
