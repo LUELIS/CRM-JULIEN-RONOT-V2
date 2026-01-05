@@ -2833,37 +2833,34 @@ function SettingsContent() {
 
                     <button
                       onClick={async () => {
-                        if (!revolutClientId || !revolutApiKey) {
-                          setRevolutTestResult({ type: "error", message: "Client ID et API Key requis" })
+                        if (!revolutApiKey) {
+                          setRevolutTestResult({ type: "error", message: "API Key requis" })
                           return
                         }
                         setTestingRevolut(true)
                         setRevolutTestResult(null)
                         try {
-                          const baseUrl = revolutEnvironment === "production"
-                            ? "https://b2b.revolut.com/api/1.0"
-                            : "https://sandbox-b2b.revolut.com/api/1.0"
-                          const res = await fetch(`${baseUrl}/accounts`, {
-                            headers: {
-                              "Authorization": `Bearer ${revolutApiKey}`,
-                              "Content-Type": "application/json"
-                            }
+                          const res = await fetch("/api/revolut/test", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              apiKey: revolutApiKey,
+                              environment: revolutEnvironment,
+                            }),
                           })
-                          if (res.ok) {
-                            const data = await res.json()
-                            const accountCount = Array.isArray(data) ? data.length : 0
-                            setRevolutTestResult({ type: "success", message: `Connexion réussie! ${accountCount} compte(s) trouvé(s).` })
+                          const data = await res.json()
+                          if (data.success) {
+                            setRevolutTestResult({ type: "success", message: data.message })
                           } else {
-                            const error = await res.json().catch(() => ({}))
-                            setRevolutTestResult({ type: "error", message: error.message || `Erreur ${res.status}` })
+                            setRevolutTestResult({ type: "error", message: data.error || "Erreur de connexion" })
                           }
                         } catch (err) {
-                          setRevolutTestResult({ type: "error", message: "Erreur de connexion à l'API Revolut" })
+                          setRevolutTestResult({ type: "error", message: "Erreur de connexion à l'API" })
                         } finally {
                           setTestingRevolut(false)
                         }
                       }}
-                      disabled={testingRevolut || !revolutClientId || !revolutApiKey}
+                      disabled={testingRevolut || !revolutApiKey}
                       className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-opacity disabled:opacity-50"
                       style={{ background: "#F5F5F5", color: "#191C1F" }}
                     >
