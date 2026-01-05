@@ -229,6 +229,55 @@ export class CloudflareClient {
     )
   }
 
+  // Purge all cache for a zone
+  async purgeAllCache(zoneId: string): Promise<{ id: string }> {
+    return this.request<{ id: string }>(
+      "POST",
+      `/zones/${zoneId}/purge_cache`,
+      { purge_everything: true }
+    )
+  }
+
+  // Purge cache for specific URLs
+  async purgeCacheByUrls(zoneId: string, urls: string[]): Promise<{ id: string }> {
+    return this.request<{ id: string }>(
+      "POST",
+      `/zones/${zoneId}/purge_cache`,
+      { files: urls }
+    )
+  }
+
+  // Purge cache for specific hostnames
+  async purgeCacheByHostnames(zoneId: string, hostnames: string[]): Promise<{ id: string }> {
+    return this.request<{ id: string }>(
+      "POST",
+      `/zones/${zoneId}/purge_cache`,
+      { hosts: hostnames }
+    )
+  }
+
+  // Purge cache by domain name (finds zone automatically)
+  async purgeCacheForDomain(domainName: string): Promise<{ id: string; zoneName: string }> {
+    // Extract root domain from subdomain (e.g., crm.example.com -> example.com)
+    const parts = domainName.split(".")
+    let rootDomain = domainName
+
+    // Try to find zone, starting with full domain and working up
+    let zone = null
+    while (parts.length >= 2 && !zone) {
+      rootDomain = parts.join(".")
+      zone = await this.getZoneByName(rootDomain)
+      if (!zone) parts.shift()
+    }
+
+    if (!zone) {
+      throw new Error(`Zone not found for domain: ${domainName}`)
+    }
+
+    const result = await this.purgeAllCache(zone.id)
+    return { ...result, zoneName: zone.name }
+  }
+
   // Get all DNS records for a domain name (finds zone first)
   async getDnsRecordsForDomain(
     domainName: string

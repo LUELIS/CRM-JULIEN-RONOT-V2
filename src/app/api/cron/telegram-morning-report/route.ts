@@ -125,29 +125,36 @@ async function getValidUserO365Token(
 
 // Get today's date boundaries in Paris timezone
 function getTodayBoundariesParis(): { startOfDay: Date; endOfDay: Date } {
-  // Get current time in Paris
-  const nowParis = new Date().toLocaleString("en-US", { timeZone: "Europe/Paris" })
-  const parisDate = new Date(nowParis)
+  // Get current date in Paris
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+  const parisDateStr = formatter.format(new Date()) // "2026-01-05"
 
-  // Create start and end of day in Paris time
-  const year = parisDate.getFullYear()
-  const month = parisDate.getMonth()
-  const day = parisDate.getDate()
+  // Create start and end of day in Paris timezone using ISO format
+  // Paris midnight = parisDateStr + "T00:00:00" interpreted as Paris time
+  // We need UTC equivalents for the API
 
-  // Start of day in Paris = midnight Paris time
-  // We need to convert this to UTC for the API call
-  // Paris is UTC+1 in winter, UTC+2 in summer
-  const parisOffsetMs = new Date().toLocaleString("en-US", { timeZone: "Europe/Paris" })
-  const utcMs = new Date().toLocaleString("en-US", { timeZone: "UTC" })
-  const offsetMs = new Date(parisOffsetMs).getTime() - new Date(utcMs).getTime()
+  // Get the offset between Paris and UTC
+  const now = new Date()
+  const parisTime = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" }))
+  const utcTime = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }))
+  const offsetHours = Math.round((parisTime.getTime() - utcTime.getTime()) / 3600000)
 
-  // Create Paris midnight and convert to UTC
-  const startOfDayParis = new Date(year, month, day, 0, 0, 0)
-  const endOfDayParis = new Date(year, month, day, 23, 59, 59)
+  // Parse the Paris date
+  const [year, month, day] = parisDateStr.split("-").map(Number)
 
-  // Subtract Paris offset to get UTC equivalent
-  const startOfDayUTC = new Date(startOfDayParis.getTime() - offsetMs)
-  const endOfDayUTC = new Date(endOfDayParis.getTime() - offsetMs)
+  // Create UTC times that correspond to Paris midnight and Paris 23:59:59
+  // Paris midnight = UTC (midnight - offset)
+  const startOfDayUTC = new Date(Date.UTC(year, month - 1, day, 0 - offsetHours, 0, 0))
+  const endOfDayUTC = new Date(Date.UTC(year, month - 1, day, 23 - offsetHours, 59, 59))
+
+  console.log(`[Morning Report] Paris date: ${parisDateStr}, offset: ${offsetHours}h`)
+  console.log(`[Morning Report] Start: ${startOfDayUTC.toISOString()} (${parisDateStr} 00:00 Paris)`)
+  console.log(`[Morning Report] End: ${endOfDayUTC.toISOString()} (${parisDateStr} 23:59 Paris)`)
 
   return { startOfDay: startOfDayUTC, endOfDay: endOfDayUTC }
 }
@@ -175,12 +182,16 @@ async function getCalendarEventsForUser(
     })
 
     if (!response.ok) {
-      console.error(`[Morning Report] Calendar API error for user ${user.id}:`, response.status)
+      const errorText = await response.text()
+      console.error(`[Morning Report] Calendar API error for user ${user.id}:`, response.status, errorText)
       return []
     }
 
     const data = await response.json()
-    console.log(`[Morning Report] API returned ${data.value?.length || 0} events`)
+    console.log(`[Morning Report] API returned ${data.value?.length || 0} events for date range`)
+    if (data.value?.length === 0) {
+      console.log(`[Morning Report] No events found - this could be normal or the range might be wrong`)
+    }
     return data.value || []
   } catch (error) {
     console.error(`[Morning Report] Calendar fetch error for user ${user.id}:`, error)
@@ -548,12 +559,21 @@ export async function GET() {
       try {
         // Find the user associated with this chat ID
         const user = chatIdToUser.get(chatId)
+        console.log(`[Morning Report] Processing chatId ${chatId}, user found: ${user?.name || "NO"}`)
 
         // Get calendar events for this specific user (if they have O365 connected)
         let calendarEvents: CalendarEvent[] = []
         if (user && o365Settings?.enabled && user.o365RefreshToken) {
+          console.log(`[Morning Report] User ${user.name} has O365 token, fetching calendar...`)
           calendarEvents = await getCalendarEventsForUser(user, o365Settings)
           console.log(`[Morning Report] Found ${calendarEvents.length} events for user ${user.name}`)
+          if (calendarEvents.length > 0) {
+            calendarEvents.forEach((e, i) => {
+              console.log(`[Morning Report]   Event ${i + 1}: ${e.subject} at ${e.start.dateTime}`)
+            })
+          }
+        } else {
+          console.log(`[Morning Report] Skipping calendar: o365Enabled=${o365Settings?.enabled}, hasToken=${!!user?.o365RefreshToken}`)
         }
 
         // Generate personalized report with user's calendar

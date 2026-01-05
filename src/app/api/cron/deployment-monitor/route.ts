@@ -6,6 +6,7 @@ import {
   notifyAppError,
   parseSlackConfig,
 } from "@/lib/slack"
+import { CloudflareClient } from "@/lib/cloudflare"
 
 // Dokploy servers configuration
 const DOKPLOY_SERVERS = [
@@ -78,6 +79,72 @@ async function getSlackConfig() {
   if (!tenant?.settings) return null
   const settings = JSON.parse(tenant.settings as string)
   return parseSlackConfig(settings)
+}
+
+// Get Cloudflare config from tenant settings
+async function getCloudflareConfig(): Promise<{
+  enabled: boolean
+  apiToken: string
+  purgeOnDeploy: boolean
+} | null> {
+  const tenant = await prisma.tenants.findFirst({
+    where: { id: BigInt(1) },
+  })
+  if (!tenant?.settings) return null
+
+  try {
+    const settings = JSON.parse(tenant.settings)
+    if (!settings.cloudflareApiToken) return null
+
+    return {
+      enabled: settings.cloudflareEnabled ?? false,
+      apiToken: settings.cloudflareApiToken,
+      purgeOnDeploy: settings.cloudflarePurgeOnDeploy ?? true,
+    }
+  } catch {
+    return null
+  }
+}
+
+// Get domains for an app from Dokploy
+async function getAppDomains(
+  server: (typeof DOKPLOY_SERVERS)[0],
+  applicationId: string
+): Promise<string[]> {
+  try {
+    const app = (await fetchFromDokploy(server, "application.one", { applicationId })) as {
+      domains?: Array<{ host: string }>
+    } | null
+
+    if (!app?.domains) return []
+    return app.domains.map((d) => d.host)
+  } catch {
+    return []
+  }
+}
+
+// Purge Cloudflare cache for domains
+async function purgeCloudflareCache(
+  cloudflareConfig: { apiToken: string },
+  domains: string[]
+): Promise<{ success: boolean; purged: string[]; errors: string[] }> {
+  const client = new CloudflareClient({ apiToken: cloudflareConfig.apiToken })
+  const purged: string[] = []
+  const errors: string[] = []
+
+  for (const domain of domains) {
+    try {
+      const result = await client.purgeCacheForDomain(domain)
+      purged.push(`${domain} (zone: ${result.zoneName})`)
+      console.log(`[Cron] Cache purged for ${domain} (zone: ${result.zoneName})`)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      errors.push(`${domain}: ${msg}`)
+      console.error(`[Cron] Failed to purge cache for ${domain}:`, msg)
+    }
+  }
+
+  return { success: errors.length === 0, purged, errors }
 }
 
 // Get deployment notification settings
@@ -259,6 +326,7 @@ export async function GET() {
 
     const notificationSettings = await getDeploymentNotificationSettings()
     const slackConfig = await getSlackConfig()
+    const cloudflareConfig = await getCloudflareConfig()
 
     if (!notificationSettings.enabled) {
       console.log("[Cron] Deployment notifications disabled")
@@ -285,6 +353,7 @@ export async function GET() {
     let notificationsSent = 0
     let deploymentsChecked = 0
     let appsInError = 0
+    let cachesPurged = 0
 
     // Check all servers in parallel
     const allAppsPromises = DOKPLOY_SERVERS.map((server) => getProjectsWithApps(server))
@@ -329,7 +398,7 @@ export async function GET() {
 
       // Check if status changed to done or error
       if (previousStatus && previousStatus !== deployment.status) {
-        if (deployment.status === "done" && notificationSettings.notifyOnSuccess) {
+        if (deployment.status === "done") {
           // Deployment succeeded
           const duration =
             deployment.finishedAt && deployment.startedAt
@@ -340,18 +409,35 @@ export async function GET() {
                 )
               : null
 
-          await notifyDeploymentSuccess(slackConfig, {
-            appName: app.app.name,
-            projectName: app.projectName,
-            serverName: app.server,
-            status: "done",
-            duration,
-            serverUrl: app.serverUrl,
-            repository: app.app.repository,
-            branch: app.app.branch,
-          })
-          notificationsSent++
-          console.log(`[Cron] Notified: ${app.app.name} deployment succeeded on ${app.server}`)
+          // Purge Cloudflare cache if enabled
+          if (cloudflareConfig?.enabled && cloudflareConfig.purgeOnDeploy && app.type === "application") {
+            const server = DOKPLOY_SERVERS.find((s) => s.id === app.serverId)!
+            const domains = await getAppDomains(server, app.app.applicationId)
+
+            if (domains.length > 0) {
+              const purgeResult = await purgeCloudflareCache(cloudflareConfig, domains)
+              if (purgeResult.purged.length > 0) {
+                cachesPurged += purgeResult.purged.length
+                console.log(`[Cron] Cache purged for ${app.app.name}: ${purgeResult.purged.join(", ")}`)
+              }
+            }
+          }
+
+          // Send Slack notification if enabled
+          if (notificationSettings.notifyOnSuccess) {
+            await notifyDeploymentSuccess(slackConfig, {
+              appName: app.app.name,
+              projectName: app.projectName,
+              serverName: app.server,
+              status: "done",
+              duration,
+              serverUrl: app.serverUrl,
+              repository: app.app.repository,
+              branch: app.app.branch,
+            })
+            notificationsSent++
+            console.log(`[Cron] Notified: ${app.app.name} deployment succeeded on ${app.server}`)
+          }
         } else if (deployment.status === "error" && notificationSettings.notifyOnFailure) {
           // Deployment failed
           await notifyDeploymentFailure(slackConfig, {
@@ -421,16 +507,17 @@ export async function GET() {
     await updateDeploymentState(newState)
 
     console.log(
-      `[Cron] Monitor complete: ${deploymentsChecked} deployments, ${appsInError} apps in error, ${notificationsSent} notifications sent`
+      `[Cron] Monitor complete: ${deploymentsChecked} deployments, ${appsInError} apps in error, ${notificationsSent} notifications sent, ${cachesPurged} caches purged`
     )
 
     return NextResponse.json({
       success: true,
-      message: `Monitor complete: ${notificationsSent} notifications sent`,
+      message: `Monitor complete: ${notificationsSent} notifications sent, ${cachesPurged} caches purged`,
       stats: {
         deploymentsChecked,
         appsInError,
         notificationsSent,
+        cachesPurged,
         serversChecked: DOKPLOY_SERVERS.length,
       },
     })
