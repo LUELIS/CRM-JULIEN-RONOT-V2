@@ -142,6 +142,8 @@ export default function InvoicesPage() {
   const [debitDate, setDebitDate] = useState("")
   const [paymentLink, setPaymentLink] = useState("")
   const [sendingEmail, setSendingEmail] = useState(false)
+  const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false)
+  const [paymentLinkError, setPaymentLinkError] = useState<string | null>(null)
 
   // Payment Modal State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
@@ -285,6 +287,7 @@ export default function InvoicesPage() {
     setPaymentMethod("")
     setDebitDate("")
     setPaymentLink("")
+    setPaymentLinkError(null)
     setEmailModalOpen(true)
   }
 
@@ -1464,22 +1467,70 @@ export default function InvoicesPage() {
                 </div>
               )}
 
-              {/* Lien de paiement */}
+              {/* Lien de paiement Revolut */}
               {paymentMethod === "card" && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block" style={{ color: "#444444" }}>
-                    Lien de paiement
+                <div className="p-4 rounded-xl" style={{ background: "#F5F5F7" }}>
+                  <label className="text-sm font-semibold mb-2 block" style={{ color: "#444444" }}>
+                    Lien de paiement Revolut
                   </label>
-                  <input
-                    type="url"
-                    value={paymentLink}
-                    onChange={(e) => setPaymentLink(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full px-4 py-2.5 rounded-xl text-sm"
-                    style={{ background: "#FFFFFF", border: "1px solid #EEEEEE", color: "#111111" }}
-                  />
-                  <p className="text-xs mt-1" style={{ color: "#999999" }}>
-                    Collez le lien de paiement généré
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="url"
+                      value={paymentLink}
+                      onChange={(e) => {
+                        setPaymentLink(e.target.value)
+                        setPaymentLinkError(null)
+                      }}
+                      placeholder="https://checkout.revolut.com/..."
+                      className="flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm"
+                      style={{ background: "#FFFFFF", border: "1px solid #EEEEEE", color: "#111111" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!emailInvoice) return
+                        setGeneratingPaymentLink(true)
+                        setPaymentLinkError(null)
+                        try {
+                          const res = await fetch("/api/revolut/payment-link", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              invoiceId: emailInvoice.id,
+                              amount: emailInvoice.totalTtc,
+                              currency: "EUR",
+                              description: `Facture ${emailInvoice.invoiceNumber}`,
+                            }),
+                          })
+                          const data = await res.json()
+                          if (res.ok && data.paymentLink) {
+                            setPaymentLink(data.paymentLink)
+                          } else {
+                            setPaymentLinkError(data.error || "Erreur lors de la génération")
+                          }
+                        } catch (err) {
+                          setPaymentLinkError("Erreur de connexion")
+                        } finally {
+                          setGeneratingPaymentLink(false)
+                        }
+                      }}
+                      disabled={generatingPaymentLink}
+                      className="flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ background: "#5F00BA", color: "#FFFFFF" }}
+                    >
+                      {generatingPaymentLink ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CreditCard className="h-4 w-4" />
+                      )}
+                      Générer lien Revolut
+                    </button>
+                  </div>
+                  {paymentLinkError && (
+                    <p className="text-sm mt-2" style={{ color: "#DC2626" }}>{paymentLinkError}</p>
+                  )}
+                  <p className="text-xs mt-2" style={{ color: "#999999" }}>
+                    Cliquez sur &quot;Générer&quot; pour créer automatiquement un lien de paiement Revolut
                   </p>
                 </div>
               )}
