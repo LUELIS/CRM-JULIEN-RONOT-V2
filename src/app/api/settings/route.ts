@@ -123,6 +123,12 @@ export async function GET() {
       telegramBotToken: rawSettings.telegramBotToken || "",
       telegramAllowedUsers: rawSettings.telegramAllowedUsers || "",
       telegramWebhookConfigured: rawSettings.telegramWebhookConfigured || false,
+
+      // Revolut
+      revolutEnabled: rawSettings.revolutEnabled || false,
+      revolutClientId: rawSettings.revolutClientId || "",
+      revolutApiKey: rawSettings.revolutApiKey || "",
+      revolutEnvironment: rawSettings.revolutEnvironment || "sandbox",
     }
 
     return NextResponse.json({
@@ -413,6 +419,12 @@ export async function PUT(request: NextRequest) {
       if (body.telegramBotToken !== undefined) updatedSettings.telegramBotToken = body.telegramBotToken
       if (body.telegramAllowedUsers !== undefined) updatedSettings.telegramAllowedUsers = body.telegramAllowedUsers
       if (body.telegramWebhookConfigured !== undefined) updatedSettings.telegramWebhookConfigured = body.telegramWebhookConfigured
+
+      // Revolut settings
+      if (body.revolutEnabled !== undefined) updatedSettings.revolutEnabled = body.revolutEnabled
+      if (body.revolutClientId !== undefined) updatedSettings.revolutClientId = body.revolutClientId
+      if (body.revolutApiKey !== undefined) updatedSettings.revolutApiKey = body.revolutApiKey
+      if (body.revolutEnvironment !== undefined) updatedSettings.revolutEnvironment = body.revolutEnvironment
 
       await prisma.tenants.update({
         where: { id: BigInt(1) },
