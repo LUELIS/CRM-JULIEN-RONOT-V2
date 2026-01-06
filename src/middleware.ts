@@ -53,7 +53,11 @@ export async function middleware(req: NextRequest) {
 
   // All other API routes require authentication
   // Use getToken from next-auth/jwt (Edge compatible)
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET })
+  // Support both AUTH_SECRET (Next-Auth v5) and NEXTAUTH_SECRET (legacy)
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET
+  })
 
   if (!token) {
     return NextResponse.json(
