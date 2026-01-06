@@ -30,7 +30,7 @@ export async function GET() {
           Accept: "application/vnd.github.v3+json",
           "User-Agent": "CRM-Luelis",
         },
-        next: { revalidate: 300 }, // Cache 5 minutes
+        next: { revalidate: 60 }, // Cache 1 minute
       }
     )
 
