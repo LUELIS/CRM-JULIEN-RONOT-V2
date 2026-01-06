@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import crypto from "crypto"
+import { sendInvoiceEmail } from "@/lib/email"
 
 export async function POST(
   request: NextRequest,
@@ -37,7 +38,7 @@ export async function POST(
         return await markAsPaid(invoice, body)
 
       case "sendEmail":
-        return await sendEmail(invoice, body)
+        return await sendEmailAction(invoice, body)
 
       default:
         return NextResponse.json(
@@ -158,38 +159,106 @@ async function markAsPaid(invoice: any, body: { paymentDate?: string; paymentMet
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function sendEmail(invoice: any, body: { paymentMethod?: string; debitDate?: string; paymentLink?: string }) {
+async function sendEmailAction(invoice: any, body: { paymentMethod?: string; debitDate?: string; paymentLink?: string }) {
   // Generate public token if not exists
   const publicToken = invoice.publicToken || crypto.randomBytes(32).toString("hex")
 
-  // Update invoice
-  await prisma.invoice.update({
-    where: { id: invoice.id },
-    data: {
-      status: invoice.status === "draft" ? "sent" : invoice.status,
-      sentAt: invoice.sentAt || new Date(),
-      publicToken,
-      paymentMethod: body.paymentMethod || invoice.paymentMethod,
-    },
-  })
-
-  // Get email config
-  const emailConfig = await prisma.supportEmailConfig.findUnique({
-    where: { tenant_id: BigInt(1) },
-  })
-
-  if (!emailConfig || !invoice.client.email) {
+  // Get client email
+  const clientEmail = invoice.client.contactEmail || invoice.client.email
+  if (!clientEmail) {
     return NextResponse.json({
       success: false,
-      message: "Configuration email manquante ou client sans email",
+      message: "Ce client n'a pas d'adresse email",
     })
   }
 
-  // In a real implementation, you would send the email here using nodemailer or similar
-  // For now, we just return success
-  return NextResponse.json({
-    success: true,
-    message: `Email envoyé à ${invoice.client.email}`,
-    publicUrl: `/invoice/${publicToken}`,
+  // Get tenant info for company name
+  const tenant = await prisma.tenants.findFirst({
+    where: { id: BigInt(1) },
+    select: { name: true, settings: true },
   })
+  const companyName = tenant?.name || "CRM"
+
+  // Format dates
+  const invoiceDate = new Date(invoice.issueDate).toLocaleDateString("fr-FR")
+  const dueDate = new Date(invoice.dueDate).toLocaleDateString("fr-FR")
+  const totalAmount = new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Number(invoice.totalTtc))
+
+  // Build public URL
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://crm.julienronot.fr"
+  const viewUrl = `${baseUrl}/client/invoices/${publicToken}`
+
+  // Get logo URL from settings if available
+  let logoUrl: string | undefined
+  if (tenant?.settings) {
+    try {
+      const settings = JSON.parse(tenant.settings as string)
+      logoUrl = settings.logoUrl || settings.logo_url
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  // Format debit date if provided
+  const debitDate = body.debitDate
+    ? new Date(body.debitDate).toLocaleDateString("fr-FR")
+    : undefined
+
+  try {
+    // Send the actual email using SMTP
+    await sendInvoiceEmail(
+      clientEmail,
+      invoice.client.companyName || invoice.client.contactFirstname || "Client",
+      invoice.invoiceNumber,
+      invoiceDate,
+      dueDate,
+      totalAmount,
+      viewUrl,
+      companyName,
+      logoUrl,
+      undefined, // message
+      body.paymentMethod,
+      debitDate
+    )
+
+    // Update invoice status
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: invoice.status === "draft" ? "sent" : invoice.status,
+        sentAt: invoice.sentAt || new Date(),
+        publicToken,
+        paymentMethod: body.paymentMethod || invoice.paymentMethod,
+      },
+    })
+
+    // Save email in Email table for tracking
+    await prisma.email.create({
+      data: {
+        client_id: invoice.clientId,
+        subject: `Facture ${invoice.invoiceNumber} - ${companyName}`,
+        body: `Facture ${invoice.invoiceNumber} envoyée le ${invoiceDate}. Montant: ${totalAmount}. Échéance: ${dueDate}.`,
+        from_email: tenant?.settings ? JSON.parse(tenant.settings as string).smtpFromAddress || "noreply@crm.fr" : "noreply@crm.fr",
+        to_email: clientEmail,
+        status: "sent",
+        sentAt: new Date(),
+        createdAt: new Date(),
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: `Email envoyé à ${clientEmail}`,
+      publicUrl: viewUrl,
+    })
+  } catch (error) {
+    console.error("Error sending invoice email:", error)
+    return NextResponse.json({
+      success: false,
+      message: error instanceof Error ? error.message : "Erreur lors de l'envoi de l'email",
+    })
+  }
 }

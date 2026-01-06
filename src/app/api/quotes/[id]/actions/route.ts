@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import crypto from "crypto"
 import { convertProspectToClient } from "@/lib/client-utils"
+import { sendQuoteEmail } from "@/lib/email"
 
 export async function POST(
   request: NextRequest,
@@ -38,7 +39,7 @@ export async function POST(
         return await convertToInvoice(quote)
 
       case "sendEmail":
-        return await sendEmail(quote)
+        return await sendEmailAction(quote)
 
       default:
         return NextResponse.json(
@@ -253,30 +254,97 @@ async function convertToInvoice(quote: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function sendEmail(quote: any) {
+async function sendEmailAction(quote: any) {
   // Generate public token if not exists
   const publicToken = quote.publicToken || crypto.randomBytes(32).toString("hex")
 
-  await prisma.quote.update({
-    where: { id: quote.id },
-    data: {
-      status: quote.status === "draft" ? "sent" : quote.status,
-      sent_at: quote.sent_at || new Date(),
-      publicToken,
-    },
-  })
-
-  if (!quote.client.email) {
+  // Get client email
+  const clientEmail = quote.client.contactEmail || quote.client.email
+  if (!clientEmail) {
     return NextResponse.json({
       success: false,
-      message: "Client sans adresse email",
+      message: "Ce client n'a pas d'adresse email",
     })
   }
 
-  // In a real implementation, send email here
-  return NextResponse.json({
-    success: true,
-    message: `Devis envoyé à ${quote.client.email}`,
-    publicUrl: `/quote/${publicToken}`,
+  // Get tenant info for company name
+  const tenant = await prisma.tenants.findFirst({
+    where: { id: BigInt(1) },
+    select: { name: true, settings: true },
   })
+  const companyName = tenant?.name || "CRM"
+
+  // Format dates
+  const quoteDate = new Date(quote.issueDate).toLocaleDateString("fr-FR")
+  const validUntil = new Date(quote.validityDate).toLocaleDateString("fr-FR")
+  const totalAmount = new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Number(quote.totalTtc))
+
+  // Build public URL
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://crm.julienronot.fr"
+  const viewUrl = `${baseUrl}/client/quotes/${publicToken}`
+
+  // Get logo URL from settings if available
+  let logoUrl: string | undefined
+  if (tenant?.settings) {
+    try {
+      const settings = JSON.parse(tenant.settings as string)
+      logoUrl = settings.logoUrl || settings.logo_url
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  try {
+    // Send the actual email using SMTP
+    await sendQuoteEmail(
+      clientEmail,
+      quote.client.companyName || quote.client.contactFirstname || "Client",
+      quote.quoteNumber,
+      quoteDate,
+      validUntil,
+      totalAmount,
+      viewUrl,
+      companyName,
+      logoUrl
+    )
+
+    // Update quote status
+    await prisma.quote.update({
+      where: { id: quote.id },
+      data: {
+        status: quote.status === "draft" ? "sent" : quote.status,
+        sent_at: quote.sent_at || new Date(),
+        publicToken,
+      },
+    })
+
+    // Save email in Email table for tracking
+    await prisma.email.create({
+      data: {
+        client_id: quote.clientId,
+        subject: `Devis ${quote.quoteNumber} - ${companyName}`,
+        body: `Devis ${quote.quoteNumber} envoyé le ${quoteDate}. Montant: ${totalAmount}. Valide jusqu'au: ${validUntil}.`,
+        from_email: tenant?.settings ? JSON.parse(tenant.settings as string).smtpFromAddress || "noreply@crm.fr" : "noreply@crm.fr",
+        to_email: clientEmail,
+        status: "sent",
+        sentAt: new Date(),
+        createdAt: new Date(),
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: `Email envoyé à ${clientEmail}`,
+      publicUrl: viewUrl,
+    })
+  } catch (error) {
+    console.error("Error sending quote email:", error)
+    return NextResponse.json({
+      success: false,
+      message: error instanceof Error ? error.message : "Erreur lors de l'envoi de l'email",
+    })
+  }
 }
