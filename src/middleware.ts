@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { NextResponse, type NextRequest } from "next/server"
+import { getToken } from "next-auth/jwt"
 
 // Routes that don't require authentication (webhooks should use HMAC signature validation)
 const PUBLIC_ROUTES = [
@@ -24,8 +24,7 @@ function matchesRoute(path: string, routes: string[]): boolean {
   return routes.some(route => path.startsWith(route))
 }
 
-// Use next-auth v5 middleware wrapper pattern
-export default auth((req) => {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Only protect API routes
@@ -53,8 +52,10 @@ export default auth((req) => {
   }
 
   // All other API routes require authentication
-  // req.auth is populated by the auth() wrapper
-  if (!req.auth?.user) {
+  // Use getToken from next-auth/jwt (Edge compatible)
+  const token = await getToken({ req, secret: process.env.AUTH_SECRET })
+
+  if (!token) {
     return NextResponse.json(
       { error: "Unauthorized - Authentication required" },
       { status: 401 }
@@ -63,7 +64,7 @@ export default auth((req) => {
 
   // User is authenticated, allow the request
   return NextResponse.next()
-})
+}
 
 // Configure which routes the middleware runs on
 export const config = {
