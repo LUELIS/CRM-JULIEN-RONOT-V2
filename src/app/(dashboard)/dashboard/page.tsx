@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { NoteDashboardWidget } from "@/components/notes"
+import { TodayCalendar } from "@/components/dashboard/today-calendar"
 
 interface TenantSettings {
   monthlyGoal?: number
@@ -445,8 +446,8 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Objectif, Trésorerie & Notes */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* Objectif, Trésorerie, Notes & Calendrier */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Objectif du mois */}
         <div
           className="rounded-[16px] p-5 transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
@@ -562,6 +563,9 @@ export default async function DashboardPage() {
 
         {/* Notes Widget */}
         <NoteDashboardWidget />
+
+        {/* Calendrier du jour */}
+        <TodayCalendar />
       </div>
 
       {/* Dernières factures */}

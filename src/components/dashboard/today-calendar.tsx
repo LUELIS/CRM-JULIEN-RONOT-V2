@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar, MapPin, Video, Clock, AlertCircle } from "lucide-react"
+import { Calendar, MapPin, Video, Clock, AlertCircle, RefreshCw } from "lucide-react"
 import Link from "next/link"
 
 interface CalendarEvent {
@@ -21,7 +21,7 @@ function formatTime(dateTimeStr: string): string {
   return time
 }
 
-function getTimeStatus(startTimeStr: string): { label: string; color: string } {
+function getTimeStatus(startTimeStr: string): { label: string; color: string; bg: string } {
   const now = new Date()
   // Get current Paris time
   const parisNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" }))
@@ -35,14 +35,14 @@ function getTimeStatus(startTimeStr: string): { label: string; color: string } {
   const diffMins = Math.round(diffMs / 60000)
 
   if (diffMins < 0) {
-    return { label: "En cours", color: "text-emerald-400" }
+    return { label: "En cours", color: "#28B95F", bg: "#D4EDDA" }
   } else if (diffMins <= 15) {
-    return { label: `Dans ${diffMins} min`, color: "text-amber-400" }
+    return { label: `Dans ${diffMins} min`, color: "#F0783C", bg: "#FEF3CD" }
   } else if (diffMins <= 60) {
-    return { label: `Dans ${diffMins} min`, color: "text-blue-400" }
+    return { label: `Dans ${diffMins} min`, color: "#0064FA", bg: "#E3F2FD" }
   } else {
     const hours = Math.floor(diffMins / 60)
-    return { label: `Dans ${hours}h${diffMins % 60 > 0 ? String(diffMins % 60).padStart(2, "0") : ""}`, color: "text-white/50" }
+    return { label: `Dans ${hours}h${diffMins % 60 > 0 ? String(diffMins % 60).padStart(2, "0") : ""}`, color: "#999999", bg: "#F5F5F7" }
   }
 }
 
@@ -77,20 +77,24 @@ export function TodayCalendar() {
 
   if (loading) {
     return (
-      <div className="p-6 rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#110c22]/80 to-[#0d0a1c]/80 backdrop-blur-xl">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-            <Calendar className="h-5 w-5 text-white" />
+      <div
+        className="rounded-[16px] p-5 transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
+        style={{ background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: '#E6F0FF' }}
+          >
+            <Calendar className="h-5 w-5" style={{ color: '#0064FA' }} />
           </div>
           <div>
-            <h3 className="font-semibold text-white">Agenda du jour</h3>
-            <p className="text-xs text-white/40">Chargement...</p>
+            <h3 className="text-base font-medium" style={{ color: '#111111' }}>Agenda du jour</h3>
+            <p className="text-xs" style={{ color: '#999999' }}>Chargement...</p>
           </div>
         </div>
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />
-          ))}
+        <div className="flex items-center justify-center py-8">
+          <RefreshCw className="h-6 w-6 animate-spin" style={{ color: '#0064FA' }} />
         </div>
       </div>
     )
@@ -98,21 +102,33 @@ export function TodayCalendar() {
 
   if (needsConnection) {
     return (
-      <div className="p-6 rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#110c22]/80 to-[#0d0a1c]/80 backdrop-blur-xl">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-            <Calendar className="h-5 w-5 text-white" />
+      <div
+        className="rounded-[16px] p-5 transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
+        style={{ background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: '#E6F0FF' }}
+          >
+            <Calendar className="h-5 w-5" style={{ color: '#0064FA' }} />
           </div>
           <div>
-            <h3 className="font-semibold text-white">Agenda du jour</h3>
+            <h3 className="text-base font-medium" style={{ color: '#111111' }}>Agenda du jour</h3>
           </div>
         </div>
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <AlertCircle className="h-8 w-8 text-white/30 mb-3" />
-          <p className="text-sm text-white/50 mb-3">Calendrier non connecté</p>
+        <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center mb-3"
+            style={{ background: '#FEF3CD' }}
+          >
+            <AlertCircle className="h-6 w-6" style={{ color: '#F0783C' }} />
+          </div>
+          <p className="text-sm mb-3" style={{ color: '#666666' }}>Calendrier non connecté</p>
           <Link
             href="/settings?tab=profile"
-            className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+            className="text-sm font-medium hover:underline"
+            style={{ color: '#0064FA' }}
           >
             Connecter mon calendrier O365
           </Link>
@@ -122,15 +138,21 @@ export function TodayCalendar() {
   }
 
   return (
-    <div className="p-6 rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#110c22]/80 to-[#0d0a1c]/80 backdrop-blur-xl">
-      <div className="flex items-center justify-between mb-5">
+    <div
+      className="rounded-[16px] p-5 transition-shadow hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
+      style={{ background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)' }}
+    >
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-            <Calendar className="h-5 w-5 text-white" />
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: '#E6F0FF' }}
+          >
+            <Calendar className="h-5 w-5" style={{ color: '#0064FA' }} />
           </div>
           <div>
-            <h3 className="font-semibold text-white">Agenda du jour</h3>
-            <p className="text-xs text-white/40">
+            <h3 className="text-base font-medium" style={{ color: '#111111' }}>Agenda du jour</h3>
+            <p className="text-xs" style={{ color: '#999999' }}>
               {events.length === 0 ? "Aucun RDV" : `${events.length} RDV`}
             </p>
           </div>
@@ -139,10 +161,15 @@ export function TodayCalendar() {
 
       <div className="space-y-2">
         {events.length === 0 ? (
-          <div className="py-8 text-center">
-            <Calendar className="h-10 w-10 text-white/20 mx-auto mb-3" />
-            <p className="text-sm text-white/40">Aucun rendez-vous aujourd&apos;hui</p>
-            <p className="text-xs text-white/30 mt-1">Profitez de votre journée !</p>
+          <div className="py-6 text-center">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3"
+              style={{ background: '#D4EDDA' }}
+            >
+              <Calendar className="h-6 w-6" style={{ color: '#28B95F' }} />
+            </div>
+            <p className="text-sm" style={{ color: '#666666' }}>Aucun rendez-vous aujourd&apos;hui</p>
+            <p className="text-xs mt-1" style={{ color: '#999999' }}>Profitez de votre journée !</p>
           </div>
         ) : (
           events.map((event) => {
@@ -151,24 +178,30 @@ export function TodayCalendar() {
             return (
               <div
                 key={event.id}
-                className="p-3 rounded-xl bg-white/5 hover:bg-white/[0.08] transition-colors group"
+                className="p-3 rounded-xl transition-colors hover:bg-[#F5F5F7]"
+                style={{ background: '#FAFAFA' }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white/90 truncate">
+                    <p className="text-sm font-medium truncate" style={{ color: '#111111' }}>
                       {event.subject}
                     </p>
                     <div className="flex items-center gap-3 mt-1.5">
                       {event.isAllDay ? (
-                        <span className="text-xs text-violet-400">Toute la journée</span>
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded"
+                          style={{ background: '#E6F0FF', color: '#0064FA' }}
+                        >
+                          Toute la journée
+                        </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-xs text-white/50">
+                        <span className="flex items-center gap-1 text-xs" style={{ color: '#666666' }}>
                           <Clock className="h-3 w-3" />
                           {formatTime(event.startTime)} - {formatTime(event.endTime)}
                         </span>
                       )}
                       {event.location && (
-                        <span className="flex items-center gap-1 text-xs text-white/40 truncate">
+                        <span className="flex items-center gap-1 text-xs truncate" style={{ color: '#999999' }}>
                           <MapPin className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate">{event.location}</span>
                         </span>
@@ -181,14 +214,18 @@ export function TodayCalendar() {
                         href={event.videoUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ background: '#E3F2FD', color: '#0064FA' }}
                         title="Rejoindre la visio"
                       >
                         <Video className="h-4 w-4" />
                       </a>
                     )}
                     {timeStatus && (
-                      <span className={`text-xs font-medium ${timeStatus.color}`}>
+                      <span
+                        className="text-xs font-medium px-2 py-1 rounded-full"
+                        style={{ background: timeStatus.bg, color: timeStatus.color }}
+                      >
                         {timeStatus.label}
                       </span>
                     )}
