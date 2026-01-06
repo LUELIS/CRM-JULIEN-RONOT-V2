@@ -36,14 +36,14 @@ const securityHeaders = [
   },
   {
     // CSP - Allows inline styles/scripts for Next.js compatibility
-    // but restricts external sources
+    // Allows Google Fonts and other necessary external sources
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       "connect-src 'self' https://api.docuseal.eu https://api.docuseal.com https://bankaccountdata.gocardless.com https://merchant.revolut.com https://sandbox-merchant.revolut.com https://api.telegram.org",
       "frame-src 'self' https://checkout.revolut.com https://sandbox-checkout.revolut.com",
       "frame-ancestors 'self'",

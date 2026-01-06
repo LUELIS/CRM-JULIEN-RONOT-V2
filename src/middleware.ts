@@ -53,10 +53,17 @@ export async function middleware(req: NextRequest) {
 
   // All other API routes require authentication
   // Use getToken from next-auth/jwt (Edge compatible)
-  // Support both AUTH_SECRET (Next-Auth v5) and NEXTAUTH_SECRET (legacy)
+  // NextAuth v5 (Auth.js) uses "authjs.session-token" as the cookie name
+  const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET
+
+  // Determine if we're on HTTPS (production) - cookie names differ
+  const isSecure = req.nextUrl.protocol === "https:"
+
   const token = await getToken({
     req,
-    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET
+    secret,
+    // NextAuth v5 uses "authjs.session-token" as the salt/cookieName
+    salt: isSecure ? "__Secure-authjs.session-token" : "authjs.session-token",
   })
 
   if (!token) {
