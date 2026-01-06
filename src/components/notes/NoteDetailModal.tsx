@@ -136,23 +136,34 @@ function formatDate(dateStr: string, full = false) {
 }
 
 // Extract title from content (first line or first 50 chars)
-function extractTitle(content: string): { title: string; body: string } {
+function extractTitle(content: string): { title: string; body: string; titleLineCount: number } {
   const lines = content.split("\n")
   const firstLine = lines[0].trim()
+
+  // Check if first line is a task - don't use as title
+  if (firstLine.match(/^- \[[ xX]\]/)) {
+    return {
+      title: "",
+      body: content,
+      titleLineCount: 0,
+    }
+  }
 
   // Check if first line is a heading
   if (firstLine.startsWith("# ")) {
     return {
       title: firstLine.slice(2),
       body: lines.slice(1).join("\n").trim(),
+      titleLineCount: 1,
     }
   }
 
-  // Use first line as title if reasonable length
-  if (firstLine.length <= 100 && firstLine.length > 0) {
+  // Use first line as title if reasonable length and not a list item
+  if (firstLine.length <= 100 && firstLine.length > 0 && !firstLine.startsWith("- ")) {
     return {
       title: firstLine,
       body: lines.slice(1).join("\n").trim(),
+      titleLineCount: 1,
     }
   }
 
@@ -160,6 +171,7 @@ function extractTitle(content: string): { title: string; body: string } {
   return {
     title: "",
     body: content,
+    titleLineCount: 0,
   }
 }
 
@@ -177,18 +189,31 @@ export function NoteDetailModal({
   const [copied, setCopied] = useState(false)
   const config = typeConfig[note.type]
   const TypeIcon = config.icon
-  const { title, body } = extractTitle(note.content)
+  const { title, body, titleLineCount } = extractTitle(note.content)
 
   const handleTaskToggle = useCallback((taskIndex: number, checked: boolean) => {
     const lines = note.content.split("\n")
     let currentTaskIndex = 0
+    // Skip tasks in the title portion (if title was extracted)
+    let skippedTitleTasks = 0
+
+    // First, count how many tasks are in the title portion we skipped
+    for (let i = 0; i < titleLineCount && i < lines.length; i++) {
+      const line = lines[i]
+      if (line.match(/^- \[[ xX]\]/)) {
+        skippedTitleTasks++
+      }
+    }
+
+    // Adjust taskIndex to account for the body's task numbering
+    const adjustedTaskIndex = taskIndex + skippedTitleTasks
 
     const newLines = lines.map(line => {
       const uncheckedMatch = line.match(/^- \[ \] (.+)$/)
       const checkedMatch = line.match(/^- \[x\] (.+)$/i)
 
       if (uncheckedMatch || checkedMatch) {
-        if (currentTaskIndex === taskIndex) {
+        if (currentTaskIndex === adjustedTaskIndex) {
           currentTaskIndex++
           const taskContent = uncheckedMatch ? uncheckedMatch[1] : checkedMatch![1]
           return checked ? `- [x] ${taskContent}` : `- [ ] ${taskContent}`
@@ -200,7 +225,7 @@ export function NoteDetailModal({
 
     const newContent = newLines.join("\n")
     onUpdateContent?.(note.id, newContent)
-  }, [note.content, note.id, onUpdateContent])
+  }, [note.content, note.id, onUpdateContent, titleLineCount])
 
   const handleCopyContent = async () => {
     await navigator.clipboard.writeText(note.content)

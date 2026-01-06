@@ -156,8 +156,9 @@ export function Header({ onMenuClick }: HeaderProps) {
     fetchDeployments()
   }, [fetchNotifications, fetchNextEvent, fetchDeployments])
 
+  // Refresh notifications every 10s for better reactivity
   useEffect(() => {
-    const interval = setInterval(fetchNotifications, 30000)
+    const interval = setInterval(fetchNotifications, 10000)
     return () => clearInterval(interval)
   }, [fetchNotifications])
 
@@ -167,9 +168,9 @@ export function Header({ onMenuClick }: HeaderProps) {
     return () => clearInterval(interval)
   }, [fetchNextEvent])
 
-  // Refresh deployments every 10s if active, 30s otherwise
+  // Refresh deployments every 5s if active, 15s otherwise for real-time monitoring
   useEffect(() => {
-    const interval = setInterval(fetchDeployments, activeDeployments.length > 0 ? 10000 : 30000)
+    const interval = setInterval(fetchDeployments, activeDeployments.length > 0 ? 5000 : 15000)
     return () => clearInterval(interval)
   }, [fetchDeployments, activeDeployments.length])
 

@@ -337,6 +337,10 @@ function SettingsContent() {
   const [testingRevolut, setTestingRevolut] = useState(false)
   const [revolutTestResult, setRevolutTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
+  // Automations / Crons
+  const [runningCron, setRunningCron] = useState<string | null>(null)
+  const [cronResults, setCronResults] = useState<Record<string, { success: boolean; message: string; timestamp: Date }>>({})
+
   const [showIntegrationSecrets, setShowIntegrationSecrets] = useState(false)
   const [integrationTestResult, setIntegrationTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [activeIntegrationTab, setActiveIntegrationTab] = useState("slack")
@@ -754,6 +758,130 @@ function SettingsContent() {
     return currentGroups.includes(groupId)
   }
 
+  // Crons configuration
+  const availableCrons = [
+    {
+      id: "revolut-payments",
+      name: "Vérification paiements Revolut",
+      description: "Vérifie les paiements par carte bancaire via Revolut et marque les factures comme payées",
+      endpoint: "/api/cron/revolut-payments",
+      icon: CreditCard,
+      color: "#0064FA",
+      schedule: "Toutes les 15 minutes",
+      requires: "Revolut API",
+    },
+    {
+      id: "invoice-reminders",
+      name: "Relances factures",
+      description: "Envoie des emails de relance pour les factures impayées ou proches de l'échéance",
+      endpoint: "/api/cron/invoice-reminders",
+      icon: Mail,
+      color: "#F04B69",
+      schedule: "Tous les jours à 9h",
+      requires: "SMTP",
+    },
+    {
+      id: "telegram-morning-report",
+      name: "Rapport matinal Telegram",
+      description: "Envoie un récapitulatif quotidien des factures et du CA sur Telegram",
+      endpoint: "/api/cron/telegram-morning-report",
+      icon: Send,
+      color: "#0088CC",
+      schedule: "Tous les jours à 8h",
+      requires: "Telegram Bot",
+    },
+    {
+      id: "deployment-monitor",
+      name: "Monitoring déploiements",
+      description: "Surveille les déploiements Dokploy et envoie des notifications",
+      endpoint: "/api/cron/deployment-monitor",
+      icon: Server,
+      color: "#28B95F",
+      schedule: "Toutes les 5 minutes",
+      requires: "Dokploy API",
+    },
+    {
+      id: "treasury-sync",
+      name: "Synchronisation bancaire",
+      description: "Récupère les transactions bancaires via GoCardless",
+      endpoint: "/api/cron/treasury-sync",
+      icon: Landmark,
+      color: "#7C3AED",
+      schedule: "Toutes les 6 heures",
+      requires: "GoCardless API",
+    },
+    {
+      id: "sync-o365",
+      name: "Sync emails O365",
+      description: "Synchronise les emails de la boîte support O365",
+      endpoint: "/api/cron/sync-o365",
+      icon: Mail,
+      color: "#0078D4",
+      schedule: "Toutes les 5 minutes",
+      requires: "O365 API",
+    },
+    {
+      id: "calendar-reminders",
+      name: "Rappels calendrier",
+      description: "Envoie des rappels pour les événements calendrier à venir",
+      endpoint: "/api/cron/calendar-reminders",
+      icon: Calendar,
+      color: "#14B4E6",
+      schedule: "Toutes les heures",
+      requires: "O365 Calendar",
+    },
+    {
+      id: "note-reminders",
+      name: "Rappels notes",
+      description: "Envoie des notifications pour les notes avec rappel programmé",
+      endpoint: "/api/cron/note-reminders",
+      icon: Bell,
+      color: "#DCB40A",
+      schedule: "Toutes les minutes",
+      requires: "Aucun",
+    },
+    {
+      id: "ticket-reminders",
+      name: "Rappels tickets",
+      description: "Envoie des rappels pour les tickets sans réponse",
+      endpoint: "/api/cron/ticket-reminders",
+      icon: MessageSquare,
+      color: "#F0783C",
+      schedule: "Toutes les heures",
+      requires: "Aucun",
+    },
+  ]
+
+  const runCron = async (cronId: string, endpoint: string) => {
+    setRunningCron(cronId)
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const data = await res.json()
+      setCronResults(prev => ({
+        ...prev,
+        [cronId]: {
+          success: res.ok && data.success !== false,
+          message: data.message || (res.ok ? "Exécution terminée avec succès" : "Erreur lors de l'exécution"),
+          timestamp: new Date(),
+        },
+      }))
+    } catch (error) {
+      setCronResults(prev => ({
+        ...prev,
+        [cronId]: {
+          success: false,
+          message: `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
+          timestamp: new Date(),
+        },
+      }))
+    } finally {
+      setRunningCron(null)
+    }
+  }
+
   const tabs = [
     { id: "company", label: "Entreprise", icon: Building2, color: "#0064FA" },
     { id: "appearance", label: "Apparence", icon: ImagePlus, color: "#5F00BA" },
@@ -764,6 +892,7 @@ function SettingsContent() {
     { id: "dns", label: "DNS", icon: Globe, color: "#14B4E6" },
     { id: "notifications", label: "Notifications", icon: Bell, color: "#F04B69" },
     { id: "integrations", label: "Intégrations", icon: Puzzle, color: "#28B95F" },
+    { id: "automations", label: "Automatisations", icon: Clock, color: "#DCB40A" },
     { id: "calendar", label: "Mon Calendrier", icon: Calendar, color: "#14B4E6" },
   ]
 
@@ -2887,6 +3016,168 @@ function SettingsContent() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Automations Tab - Crons Management */}
+      {activeTab === "automations" && (
+        <div
+          className="rounded-2xl p-6 w-full space-y-6"
+          style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#FFF8E1" }}>
+              <Clock className="h-5 w-5" style={{ color: "#DCB40A" }} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold" style={{ color: "#111111" }}>Automatisations</h2>
+              <p className="text-sm" style={{ color: "#666666" }}>Gérez les tâches automatiques (crons) de votre CRM</p>
+            </div>
+          </div>
+
+          {/* Info Box */}
+          <div className="rounded-xl p-4" style={{ background: "#F0F9FF", border: "1px solid #BAE6FD" }}>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 mt-0.5" style={{ color: "#0284C7" }} />
+              <div className="text-sm" style={{ color: "#0369A1" }}>
+                <strong>À propos des crons</strong>
+                <p className="mt-1">Les crons sont des tâches automatiques planifiées. Vous pouvez les exécuter manuellement ici pour tester ou forcer une exécution. En production, ils sont exécutés automatiquement selon leur planification.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Cron Cards */}
+          <div className="space-y-3">
+            {availableCrons.map((cron) => {
+              const CronIcon = cron.icon
+              const result = cronResults[cron.id]
+              const isRunning = runningCron === cron.id
+
+              return (
+                <div
+                  key={cron.id}
+                  className="rounded-xl p-4 transition-all"
+                  style={{
+                    background: "#F8F9FA",
+                    border: result
+                      ? result.success
+                        ? "1px solid #4ADE80"
+                        : "1px solid #F87171"
+                      : "1px solid #EEEEEE",
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${cron.color}15` }}
+                      >
+                        <CronIcon className="h-5 w-5" style={{ color: cron.color }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-medium truncate" style={{ color: "#111111" }}>{cron.name}</h3>
+                        <p className="text-sm mt-0.5" style={{ color: "#666666" }}>{cron.description}</p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium"
+                            style={{ background: "#E5E7EB", color: "#374151" }}
+                          >
+                            <Clock className="h-3 w-3" />
+                            {cron.schedule}
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium"
+                            style={{ background: "#FEE2E2", color: "#991B1B" }}
+                          >
+                            <Plug className="h-3 w-3" />
+                            {cron.requires}
+                          </span>
+                        </div>
+                        {result && (
+                          <div
+                            className="mt-2 p-2 rounded-lg text-sm flex items-start gap-2"
+                            style={{
+                              background: result.success ? "#DCFCE7" : "#FEE2E2",
+                              color: result.success ? "#166534" : "#991B1B",
+                            }}
+                          >
+                            {result.success ? (
+                              <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            )}
+                            <div>
+                              <span>{result.message}</span>
+                              <span className="block text-xs opacity-75 mt-1">
+                                {result.timestamp.toLocaleString("fr-FR")}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => runCron(cron.id, cron.endpoint)}
+                      disabled={isRunning || runningCron !== null}
+                      className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50 flex-shrink-0"
+                      style={{
+                        background: isRunning ? "#DCB40A" : "#191C1F",
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      {isRunning ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Exécution...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4" />
+                          Exécuter
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Cron URL Info */}
+          <div className="rounded-xl p-4" style={{ background: "#F8F9FA", border: "1px solid #EEEEEE" }}>
+            <h3 className="font-medium mb-3" style={{ color: "#111111" }}>Configuration externe</h3>
+            <p className="text-sm mb-3" style={{ color: "#666666" }}>
+              Pour automatiser l&apos;exécution des crons, configurez un service de cron externe (ex: cron-job.org, Uptime Robot)
+              pour appeler ces URLs avec la méthode GET ou POST.
+            </p>
+            <div className="space-y-2">
+              {availableCrons.slice(0, 3).map((cron) => (
+                <div key={cron.id} className="flex items-center gap-2">
+                  <code
+                    className="flex-1 px-3 py-2 rounded-lg text-xs font-mono truncate"
+                    style={{ background: "#FFFFFF", border: "1px solid #EEEEEE", color: "#374151" }}
+                  >
+                    {typeof window !== "undefined" ? window.location.origin : ""}{cron.endpoint}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}${cron.endpoint}`)
+                      setCopiedCron(cron.id)
+                      setTimeout(() => setCopiedCron(null), 2000)
+                    }}
+                    className="p-2 rounded-lg transition-colors"
+                    style={{ background: copiedCron === cron.id ? "#DCFCE7" : "#FFFFFF", border: "1px solid #EEEEEE" }}
+                  >
+                    {copiedCron === cron.id ? (
+                      <CheckCircle className="h-4 w-4" style={{ color: "#16A34A" }} />
+                    ) : (
+                      <Copy className="h-4 w-4" style={{ color: "#666666" }} />
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
