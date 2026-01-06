@@ -568,17 +568,14 @@ export default function DeploymentsPage() {
             <Loader2 className="h-5 w-5 animate-spin text-[#0064FA]" />
             Déploiements en cours ({runningDeployments.length})
           </h2>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {runningDeployments.map((deployment) => (
-              <DeploymentCard
+              <RunningDeploymentCard
                 key={deployment.id}
                 deployment={deployment}
                 onAction={handleAction}
                 actionLoading={actionLoading}
                 formatDuration={formatDuration}
-                formatTimeAgo={formatTimeAgo}
-                getStatusConfig={getStatusConfig}
-                highlighted
                 onClick={() => setSelectedDeployment(deployment)}
               />
             ))}
@@ -1254,6 +1251,104 @@ function DeploymentDetailModal({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function RunningDeploymentCard({
+  deployment,
+  onAction,
+  actionLoading,
+  formatDuration,
+  onClick,
+}: {
+  deployment: Deployment
+  onAction: (action: "redeploy" | "cancel", deployment: Deployment) => void
+  actionLoading: string | null
+  formatDuration: (seconds: number | null) => string
+  onClick?: () => void
+}) {
+  const [elapsed, setElapsed] = useState(0)
+
+  // Update elapsed time every second
+  useEffect(() => {
+    const startTime = deployment.startedAt ? new Date(deployment.startedAt).getTime() : new Date(deployment.createdAt).getTime()
+
+    const updateElapsed = () => {
+      const now = Date.now()
+      setElapsed(Math.floor((now - startTime) / 1000))
+    }
+
+    updateElapsed()
+    const interval = setInterval(updateElapsed, 1000)
+    return () => clearInterval(interval)
+  }, [deployment.startedAt, deployment.createdAt])
+
+  return (
+    <div
+      className="bg-white rounded-xl border-2 border-[#0064FA] p-4 shadow-lg shadow-[#0064FA]/10 cursor-pointer hover:shadow-xl transition-all"
+      onClick={onClick}
+    >
+      {/* Header with app name and server */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-[#E6F0FF] flex items-center justify-center shrink-0">
+            <Loader2 className="h-4 w-4 text-[#0064FA] animate-spin" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-gray-900 truncate">{deployment.appName}</h3>
+            <p className="text-xs text-gray-500 truncate">{deployment.projectName}</p>
+          </div>
+        </div>
+        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 shrink-0">
+          {deployment.server}
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mb-3">
+        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-[#0064FA] to-[#0052CC] rounded-full transition-all duration-1000"
+            style={{
+              width: `${Math.min(95, Math.max(5, (elapsed / 120) * 100))}%`,
+              animation: 'pulse 2s ease-in-out infinite'
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Timer and action */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm">
+          <Timer className="h-4 w-4 text-[#0064FA]" />
+          <span className="font-mono text-[#0064FA] font-medium">
+            {formatDuration(elapsed)}
+          </span>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAction("cancel", deployment)
+          }}
+          disabled={actionLoading === deployment.id}
+          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+        >
+          {actionLoading === deployment.id ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Square className="h-3 w-3" />
+          )}
+          Annuler
+        </button>
+      </div>
+
+      {/* Commit message preview */}
+      {deployment.title && (
+        <p className="mt-2 text-xs text-gray-500 truncate border-t border-gray-100 pt-2">
+          {deployment.title.split("\n")[0].slice(0, 50)}
+        </p>
+      )}
     </div>
   )
 }
