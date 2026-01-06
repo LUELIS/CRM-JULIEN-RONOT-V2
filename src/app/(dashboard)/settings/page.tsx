@@ -47,6 +47,7 @@ import Image from "next/image"
 import { useTenant } from "@/contexts/tenant-context"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
 import { NotificationSettings } from "@/components/settings/NotificationSettings"
+import { DokploySettings } from "@/components/settings/DokploySettings"
 
 const monthlyGoalModeOptions: SelectOption[] = [
   { value: "auto", label: "Automatique (basé sur l'historique)", color: "#28B95F" },
@@ -1725,6 +1726,10 @@ function SettingsContent() {
               <CreditCard className="h-4 w-4" />
               <span className="hidden sm:inline">Revolut</span>
             </button>
+            <button onClick={() => setActiveIntegrationTab("dokploy")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "dokploy" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "dokploy" ? "#0064FA" : "#666666", boxShadow: activeIntegrationTab === "dokploy" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+              <Server className="h-4 w-4" />
+              <span className="hidden sm:inline">Dokploy</span>
+            </button>
           </div>
 
           {/* Slack Settings */}
@@ -3031,6 +3036,11 @@ function SettingsContent() {
                 {saved === "integrations" && <span className="flex items-center gap-1 text-sm" style={{ color: "#28B95F" }}><CheckCircle className="h-4 w-4" />Enregistré</span>}
               </div>
             </div>
+          )}
+
+          {/* Dokploy Settings */}
+          {activeIntegrationTab === "dokploy" && (
+            <DokploySettings />
           )}
         </div>
       )}

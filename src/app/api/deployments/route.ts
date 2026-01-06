@@ -1,26 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
 
-// Dokploy servers configuration from environment variables
-const DOKPLOY_SERVERS = [
-  {
-    id: 7,
-    name: "Orion",
-    url: process.env.DOKPLOY_ORION_URL || "",
-    token: process.env.DOKPLOY_ORION_TOKEN || "",
-  },
-  {
-    id: 8,
-    name: "Andromeda",
-    url: process.env.DOKPLOY_ANDROMEDA_URL || "",
-    token: process.env.DOKPLOY_ANDROMEDA_TOKEN || "",
-  },
-  {
-    id: 9,
-    name: "Cassiopeia",
-    url: process.env.DOKPLOY_CASSIOPEIA_URL || "",
-    token: process.env.DOKPLOY_CASSIOPEIA_TOKEN || "",
-  },
-].filter(s => s.url && s.token) // Only include servers with valid config
+interface DokployServer {
+  id: bigint
+  name: string
+  url: string
+  apiToken: string
+  isActive: boolean
+}
 
 interface Application {
   applicationId: string
@@ -63,8 +50,24 @@ interface ProjectData {
   }[]
 }
 
+async function getDokployServers(): Promise<DokployServer[]> {
+  try {
+    const servers = await prisma.dokployServer.findMany({
+      where: {
+        tenant_id: BigInt(1),
+        isActive: true,
+      },
+      orderBy: { name: "asc" },
+    })
+    return servers
+  } catch (error) {
+    console.error("Error fetching Dokploy servers from DB:", error)
+    return []
+  }
+}
+
 async function fetchFromDokploy(
-  server: typeof DOKPLOY_SERVERS[0],
+  server: DokployServer,
   endpoint: string,
   params: Record<string, unknown> = {}
 ): Promise<unknown> {
@@ -75,7 +78,7 @@ async function fetchFromDokploy(
   try {
     const res = await fetch(url, {
       headers: {
-        "x-api-key": server.token,
+        "x-api-key": server.apiToken,
         "Content-Type": "application/json",
       },
       cache: "no-store",
@@ -94,11 +97,11 @@ async function fetchFromDokploy(
   }
 }
 
-async function getServerHealth(server: typeof DOKPLOY_SERVERS[0]): Promise<boolean> {
+async function getServerHealth(server: DokployServer): Promise<boolean> {
   try {
     // Use project.all as a health check endpoint
     const res = await fetch(`${server.url}/api/trpc/project.all`, {
-      headers: { "x-api-key": server.token },
+      headers: { "x-api-key": server.apiToken },
       signal: AbortSignal.timeout(5000),
     })
     return res.ok
@@ -107,13 +110,13 @@ async function getServerHealth(server: typeof DOKPLOY_SERVERS[0]): Promise<boole
   }
 }
 
-async function getProjectsWithApps(server: typeof DOKPLOY_SERVERS[0]) {
+async function getProjectsWithApps(server: DokployServer) {
   const projects = (await fetchFromDokploy(server, "project.all")) as ProjectData[] | null
   if (!projects) return []
 
   const apps: Array<{
     server: string
-    serverId: number
+    serverId: string
     projectName: string
     projectId: string
     app: Application
@@ -125,7 +128,7 @@ async function getProjectsWithApps(server: typeof DOKPLOY_SERVERS[0]) {
       for (const app of env.applications || []) {
         apps.push({
           server: server.name,
-          serverId: server.id,
+          serverId: server.id.toString(),
           projectName: project.name,
           projectId: project.projectId,
           app,
@@ -135,7 +138,7 @@ async function getProjectsWithApps(server: typeof DOKPLOY_SERVERS[0]) {
       for (const compose of env.compose || []) {
         apps.push({
           server: server.name,
-          serverId: server.id,
+          serverId: server.id.toString(),
           projectName: project.name,
           projectId: project.projectId,
           app: {
@@ -159,7 +162,7 @@ async function getProjectsWithApps(server: typeof DOKPLOY_SERVERS[0]) {
 }
 
 async function getRecentDeployments(
-  server: typeof DOKPLOY_SERVERS[0],
+  server: DokployServer,
   applicationId: string,
   type: "application" | "compose"
 ): Promise<Deployment[]> {
@@ -180,9 +183,22 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "50")
 
   try {
+    // Fetch servers from database
+    const dokployServers = await getDokployServers()
+
+    if (dokployServers.length === 0) {
+      return NextResponse.json({
+        servers: [],
+        deployments: [],
+        catalog: [],
+        stats: { total: 0, running: 0, done: 0, error: 0 },
+        message: "Aucun serveur Dokploy configuré. Allez dans Paramètres > Intégrations > Dokploy pour en ajouter.",
+      })
+    }
+
     // Check server health in parallel
     const healthChecks = await Promise.all(
-      DOKPLOY_SERVERS.map(async (server) => ({
+      dokployServers.map(async (server) => ({
         ...server,
         online: await getServerHealth(server),
       }))
@@ -213,7 +229,7 @@ export async function GET(request: NextRequest) {
       const batch = appsToCheck.slice(i, i + batchSize)
       const batchResults = await Promise.all(
         batch.map(async (appInfo) => {
-          const server = DOKPLOY_SERVERS.find((s) => s.id === appInfo.serverId)!
+          const server = dokployServers.find((s) => s.id.toString() === appInfo.serverId)!
           const deployments = await getRecentDeployments(
             server,
             appInfo.app.applicationId,
@@ -278,7 +294,7 @@ export async function GET(request: NextRequest) {
     // Get running deployments count per server (only count errors if app is currently in error state)
     const runningByServer = healthChecks.map((server) => ({
       name: server.name,
-      id: server.id,
+      id: server.id.toString(),
       online: server.online,
       running: deployments.filter(
         (d) => d.server === server.name && d.status === "running"
@@ -297,7 +313,7 @@ export async function GET(request: NextRequest) {
       owner: string | null
       branch: string | null
       servers: {
-        serverId: number
+        serverId: string
         serverName: string
         serverUrl: string
         appId: string
@@ -323,7 +339,7 @@ export async function GET(request: NextRequest) {
       const serverInfo = {
         serverId: appInfo.serverId,
         serverName: appInfo.server,
-        serverUrl: DOKPLOY_SERVERS.find(s => s.id === appInfo.serverId)?.url || "",
+        serverUrl: dokployServers.find(s => s.id.toString() === appInfo.serverId)?.url || "",
         appId: appInfo.app.applicationId,
         status: appInfo.app.applicationStatus,
         lastDeployment: lastDeployment ? {
@@ -384,9 +400,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { action, serverId, appId, appType, deploymentId } = body
+    const { action, serverId, appId, appType } = body
 
-    const server = DOKPLOY_SERVERS.find((s) => s.id === serverId)
+    // Fetch server from database
+    const server = await prisma.dokployServer.findFirst({
+      where: {
+        id: BigInt(serverId),
+        tenant_id: BigInt(1),
+        isActive: true,
+      },
+    })
+
     if (!server) {
       return NextResponse.json({ error: "Server not found" }, { status: 404 })
     }
@@ -414,7 +438,7 @@ export async function POST(request: NextRequest) {
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        "x-api-key": server.token,
+        "x-api-key": server.apiToken,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ json: params }),

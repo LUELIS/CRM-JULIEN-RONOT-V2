@@ -1148,6 +1148,7 @@ model tenants {
   pushSubscriptions      PushSubscription[]
   projects               Project[]
   recurringReminders     RecurringReminder[]
+  dokployServers         DokployServer[]
 }
 
 model user_tenants {
@@ -2128,4 +2129,26 @@ model RecurringReminder {
   @@index([tenant_id], map: "recurring_reminders_tenant_id_index")
   @@index([nextRun, isActive], map: "recurring_reminders_next_run_index")
   @@map("recurring_reminders")
+}
+
+// ============================================
+// DOKPLOY SERVERS (Infrastructure monitoring)
+// ============================================
+model DokployServer {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id   BigInt    @db.UnsignedBigInt
+  name        String    @db.VarChar(100)
+  url         String    @db.VarChar(255)
+  apiToken    String    @map("api_token") @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  lastCheckAt DateTime? @map("last_check_at") @db.Timestamp(0)
+  lastStatus  String?   @map("last_status") @db.VarChar(50)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  tenant tenants @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, name], map: "dokploy_servers_tenant_name_unique")
+  @@index([tenant_id], map: "dokploy_servers_tenant_id_index")
+  @@map("dokploy_servers")
 }
