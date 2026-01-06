@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, nativeImage, shell } = require('electron')
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, nativeImage, shell, dialog } = require('electron')
 const path = require('path')
 const Store = require('electron-store')
+const { autoUpdater } = require('electron-updater')
 
 // Configuration store
 const store = new Store({
@@ -22,6 +23,54 @@ let deploymentPollInterval = null
 
 // CRM URL
 const CRM_URL = store.get('crmUrl')
+
+// Auto-updater configuration
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = true
+
+function setupAutoUpdater() {
+  // Check for updates silently
+  autoUpdater.checkForUpdates().catch(() => {})
+
+  // Update available
+  autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Update available:', info.version)
+    sendNotification(
+      'Mise à jour disponible',
+      `Version ${info.version} en cours de téléchargement...`,
+      'info'
+    )
+  })
+
+  // Update downloaded - prompt to restart
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version)
+
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Mise à jour prête',
+      message: `La version ${info.version} est prête à être installée.`,
+      detail: 'L\'application va redémarrer pour appliquer la mise à jour.',
+      buttons: ['Redémarrer maintenant', 'Plus tard'],
+      defaultId: 0,
+    }).then((result) => {
+      if (result.response === 0) {
+        isQuitting = true
+        autoUpdater.quitAndInstall(false, true)
+      }
+    })
+  })
+
+  // Error handling
+  autoUpdater.on('error', (err) => {
+    console.log('[AutoUpdater] Error:', err.message)
+  })
+
+  // Check for updates every 30 minutes
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch(() => {})
+  }, 30 * 60 * 1000)
+}
 
 // Create main window
 function createMainWindow() {
@@ -295,6 +344,23 @@ function createTray() {
     },
     { type: 'separator' },
     {
+      label: 'Vérifier les mises à jour',
+      click: () => {
+        autoUpdater.checkForUpdates().then((result) => {
+          if (!result || !result.updateInfo || result.updateInfo.version === app.getVersion()) {
+            sendNotification('Aucune mise à jour', 'Vous utilisez la dernière version.', 'info')
+          }
+        }).catch(() => {
+          sendNotification('Erreur', 'Impossible de vérifier les mises à jour.', 'error')
+        })
+      }
+    },
+    {
+      label: `Version ${app.getVersion()}`,
+      enabled: false
+    },
+    { type: 'separator' },
+    {
       label: 'Quitter',
       click: () => {
         isQuitting = true
@@ -344,6 +410,7 @@ ipcMain.on('deployment-update', (event, deployments) => {
 app.whenReady().then(() => {
   createMainWindow()
   createTray()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
