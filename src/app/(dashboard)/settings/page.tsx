@@ -177,6 +177,8 @@ interface SettingsData {
     revolutClientId?: string
     revolutApiKey?: string
     revolutEnvironment?: string
+    // Cron
+    cronSecret?: string
   }
 }
 
@@ -340,6 +342,8 @@ function SettingsContent() {
   // Automations / Crons
   const [runningCron, setRunningCron] = useState<string | null>(null)
   const [cronResults, setCronResults] = useState<Record<string, { success: boolean; message: string; timestamp: Date }>>({})
+  const [cronSecret, setCronSecret] = useState("")
+  const [showCronSecret, setShowCronSecret] = useState(false)
 
   const [showIntegrationSecrets, setShowIntegrationSecrets] = useState(false)
   const [integrationTestResult, setIntegrationTestResult] = useState<{ type: "success" | "error"; message: string } | null>(null)
@@ -467,6 +471,9 @@ function SettingsContent() {
         setRevolutClientId(data.settings?.revolutClientId || "")
         setRevolutApiKey(data.settings?.revolutApiKey || "")
         setRevolutEnvironment((data.settings?.revolutEnvironment as "sandbox" | "production") || "sandbox")
+
+        // Cron Secret
+        setCronSecret(data.settings?.cronSecret || "")
       }
     } catch (error) {
       console.error("Error fetching settings:", error)
@@ -3160,14 +3167,56 @@ function SettingsContent() {
             </div>
             <p className="text-sm mb-4" style={{ color: "#666666" }}>
               Copiez ces lignes dans la section &quot;Cron Jobs&quot; de votre application Dokploy.
-              Méthode : <code className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#E5E7EB" }}>curl -X GET</code>
             </p>
+
+            {/* Cron Secret Field */}
+            <div className="mb-4 p-3 rounded-lg" style={{ background: "#FFFFFF", border: "1px solid #EEEEEE" }}>
+              <label className="block text-sm font-medium mb-2" style={{ color: "#111111" }}>
+                CRON_SECRET (variable d&apos;environnement)
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showCronSecret ? "text" : "password"}
+                    value={cronSecret}
+                    onChange={(e) => setCronSecret(e.target.value)}
+                    placeholder="Entrez votre CRON_SECRET..."
+                    className="w-full px-3 py-2 rounded-lg text-sm font-mono pr-10"
+                    style={{ background: "#F5F5F7", border: "1px solid #EEEEEE", color: "#111111" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCronSecret(!showCronSecret)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
+                  >
+                    {showCronSecret ? (
+                      <EyeOff className="h-4 w-4" style={{ color: "#666666" }} />
+                    ) : (
+                      <Eye className="h-4 w-4" style={{ color: "#666666" }} />
+                    )}
+                  </button>
+                </div>
+                <button
+                  onClick={() => handleSave("automations", { cronSecret })}
+                  disabled={saving === "automations"}
+                  className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ background: "#191C1F", color: "#FFFFFF" }}
+                >
+                  {saving === "automations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Enregistrer
+                </button>
+              </div>
+              {saved === "automations" && <span className="flex items-center gap-1 text-sm mt-2" style={{ color: "#28B95F" }}><CheckCircle className="h-4 w-4" />Enregistré</span>}
+              <p className="text-xs mt-2" style={{ color: "#666666" }}>
+                Ce secret doit correspondre à la variable <code className="px-1 py-0.5 rounded" style={{ background: "#E5E7EB" }}>CRON_SECRET</code> de votre application.
+              </p>
+            </div>
 
             {/* Table header */}
             <div className="grid grid-cols-12 gap-2 px-3 py-2 rounded-t-lg text-xs font-medium" style={{ background: "#E5E7EB", color: "#374151" }}>
-              <div className="col-span-3">Nom</div>
+              <div className="col-span-2">Nom</div>
               <div className="col-span-2">Schedule</div>
-              <div className="col-span-6">Commande</div>
+              <div className="col-span-7">Commande</div>
               <div className="col-span-1"></div>
             </div>
 
@@ -3175,19 +3224,21 @@ function SettingsContent() {
             <div className="divide-y" style={{ borderColor: "#EEEEEE" }}>
               {availableCrons.map((cron) => {
                 const fullUrl = typeof window !== "undefined" ? `${window.location.origin}${cron.endpoint}` : cron.endpoint
-                const curlCommand = `curl -X GET "${fullUrl}"`
+                const curlCommand = cronSecret
+                  ? `curl -X GET "${fullUrl}" -H "Authorization: Bearer ${cronSecret}"`
+                  : `curl -X GET "${fullUrl}"`
 
                 return (
                   <div key={cron.id} className="grid grid-cols-12 gap-2 px-3 py-3 items-center hover:bg-white transition-colors">
-                    <div className="col-span-3">
-                      <span className="text-sm font-medium truncate block" style={{ color: "#111111" }}>{cron.name}</span>
+                    <div className="col-span-2">
+                      <span className="text-xs font-medium truncate block" style={{ color: "#111111" }}>{cron.name}</span>
                     </div>
                     <div className="col-span-2">
                       <code className="px-2 py-1 rounded text-xs font-mono" style={{ background: "#FEF3CD", color: "#92400E" }}>
                         {cron.cronExpression}
                       </code>
                     </div>
-                    <div className="col-span-6">
+                    <div className="col-span-7">
                       <code
                         className="block px-2 py-1.5 rounded text-xs font-mono truncate"
                         style={{ background: "#FFFFFF", border: "1px solid #EEEEEE", color: "#374151" }}
@@ -3223,9 +3274,10 @@ function SettingsContent() {
             <div className="mt-4 pt-4" style={{ borderTop: "1px solid #EEEEEE" }}>
               <button
                 onClick={() => {
+                  const authHeader = cronSecret ? ` -H "Authorization: Bearer ${cronSecret}"` : ""
                   const allCommands = availableCrons.map(cron => {
                     const fullUrl = typeof window !== "undefined" ? `${window.location.origin}${cron.endpoint}` : cron.endpoint
-                    return `# ${cron.name} (${cron.schedule})\n${cron.cronExpression} curl -X GET "${fullUrl}"`
+                    return `# ${cron.name} (${cron.schedule})\n${cron.cronExpression} curl -X GET "${fullUrl}"${authHeader}`
                   }).join("\n\n")
                   navigator.clipboard.writeText(allCommands)
                   setCopiedCron("all")
