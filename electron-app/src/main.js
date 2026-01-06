@@ -75,12 +75,23 @@ function createMainWindow() {
 }
 
 // Create deployment overlay window
-function createDeploymentWindow() {
-  if (deploymentWindow) return
+function createDeploymentWindow(deploymentCount = 1) {
+  // Calculate height based on number of deployments
+  // Header: 50px, Each deployment: 45px, Progress bar: 20px, Padding: 35px
+  const baseHeight = 105
+  const perDeploymentHeight = 45
+  const height = Math.min(baseHeight + (deploymentCount * perDeploymentHeight), 400)
+
+  if (deploymentWindow) {
+    // Resize existing window
+    const [width] = deploymentWindow.getSize()
+    deploymentWindow.setSize(width, height)
+    return
+  }
 
   deploymentWindow = new BrowserWindow({
-    width: 320,
-    height: 120,
+    width: 340,
+    height: height,
     x: 20,
     y: 80,
     frame: false,
@@ -109,17 +120,21 @@ function createDeploymentWindow() {
 function showDeploymentOverlay(deployments) {
   if (!store.get('deploymentOverlay')) return
 
+  const count = deployments.length
+
   if (!deploymentWindow) {
-    createDeploymentWindow()
-  }
-
-  deploymentWindow.webContents.once('did-finish-load', () => {
+    createDeploymentWindow(count)
+    deploymentWindow.webContents.once('did-finish-load', () => {
+      deploymentWindow.webContents.send('deployment-update', deployments)
+      deploymentWindow.show()
+    })
+  } else {
+    // Resize window based on deployment count
+    createDeploymentWindow(count)
     deploymentWindow.webContents.send('deployment-update', deployments)
-    deploymentWindow.show()
-  })
-
-  if (deploymentWindow.isVisible()) {
-    deploymentWindow.webContents.send('deployment-update', deployments)
+    if (!deploymentWindow.isVisible()) {
+      deploymentWindow.show()
+    }
   }
 }
 

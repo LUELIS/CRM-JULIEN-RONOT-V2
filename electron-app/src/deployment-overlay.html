@@ -11,6 +11,10 @@
       box-sizing: border-box;
     }
 
+    html, body {
+      height: 100%;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: transparent;
@@ -21,10 +25,13 @@
     .container {
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       border-radius: 16px;
-      padding: 16px 20px;
+      padding: 14px 18px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
       backdrop-filter: blur(10px);
       animation: slideIn 0.3s ease-out;
+      height: calc(100% - 10px);
+      display: flex;
+      flex-direction: column;
     }
 
     @keyframes slideIn {
@@ -42,7 +49,29 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+
+    #deployments {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-app-region: no-drag;
+    }
+
+    #deployments::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    #deployments::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+    }
+
+    #deployments::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
     }
 
     .rocket {
@@ -61,6 +90,16 @@
       font-size: 14px;
       font-weight: 600;
       letter-spacing: 0.5px;
+    }
+
+    .count-badge {
+      background: #0064FA;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: auto;
     }
 
     .deployment-item {
@@ -110,8 +149,9 @@
       height: 3px;
       background: rgba(255, 255, 255, 0.1);
       border-radius: 2px;
-      margin-top: 8px;
+      margin-top: 10px;
       overflow: hidden;
+      flex-shrink: 0;
     }
 
     .progress-fill {
@@ -139,7 +179,8 @@
         <path d="M12 2C12 2 8 6 8 12C8 14 8.5 15.5 9 17L7 19L8 22L11 20C11.5 20.5 12 21 12 21C12 21 12.5 20.5 13 20L16 22L17 19L15 17C15.5 15.5 16 14 16 12C16 6 12 2 12 2Z" stroke="#0064FA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="12" cy="10" r="2" fill="#28B95F"/>
       </svg>
-      <span class="title">Deployment en cours</span>
+      <span class="title">Déploiements</span>
+      <span id="count-badge" class="count-badge">0</span>
     </div>
     <div id="deployments">
       <!-- Deployments will be injected here -->
@@ -151,6 +192,7 @@
 
   <script>
     const deploymentsContainer = document.getElementById('deployments')
+    const countBadge = document.getElementById('count-badge')
 
     // Listen for deployment updates from main process
     if (window.electronAPI) {
@@ -160,6 +202,9 @@
     }
 
     function renderDeployments(deployments) {
+      const count = deployments ? deployments.length : 0
+      countBadge.textContent = count
+
       if (!deployments || deployments.length === 0) {
         deploymentsContainer.innerHTML = ''
         return
@@ -170,13 +215,14 @@
           <div class="spinner"></div>
           <div class="app-info">
             <div class="app-name">${escapeHtml(d.appName)}</div>
-            <div class="project-name">${escapeHtml(d.projectName)} • ${escapeHtml(d.serverName)}</div>
+            <div class="project-name">${escapeHtml(d.projectName)} • ${escapeHtml(d.serverName || 'Serveur')}</div>
           </div>
         </div>
       `).join('')
     }
 
     function escapeHtml(text) {
+      if (!text) return ''
       const div = document.createElement('div')
       div.textContent = text
       return div.innerHTML
