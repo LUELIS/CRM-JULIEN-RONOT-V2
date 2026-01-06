@@ -62,8 +62,8 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({
     req,
     secret,
-    // NextAuth v5 uses "authjs.session-token" as the salt/cookieName
-    salt: isSecure ? "__Secure-authjs.session-token" : "authjs.session-token",
+    // NextAuth v5 uses "authjs.session-token" as the cookie name
+    cookieName: isSecure ? "__Secure-authjs.session-token" : "authjs.session-token",
   })
 
   if (!token) {
