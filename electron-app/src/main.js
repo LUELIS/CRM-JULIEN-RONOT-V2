@@ -46,6 +46,11 @@ function createMainWindow() {
   // Load CRM
   mainWindow.loadURL(CRM_URL)
 
+  // Inject polling script when page is ready
+  mainWindow.webContents.on('did-finish-load', () => {
+    injectDeploymentPolling()
+  })
+
   // Handle external links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(CRM_URL)) {
@@ -67,9 +72,6 @@ function createMainWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
-
-  // Start deployment polling
-  startDeploymentPolling()
 }
 
 // Create deployment overlay window
@@ -128,48 +130,70 @@ function hideDeploymentOverlay() {
   }
 }
 
-// Poll for deployments
-async function pollDeployments() {
-  try {
-    const response = await fetch(`${CRM_URL}/api/deployments/status`)
-    if (!response.ok) return
+// Handle deployment updates from renderer
+function handleDeploymentUpdate(deployments) {
+  const runningDeployments = deployments.filter(d => d.status === 'running')
 
-    const data = await response.json()
-    const deployments = data.deployments || []
-
-    // Check for new deployments to notify
-    const runningDeployments = deployments.filter(d => d.status === 'running')
-
-    // Show overlay if there are running deployments
-    if (runningDeployments.length > 0) {
-      showDeploymentOverlay(runningDeployments)
-    } else {
-      hideDeploymentOverlay()
-    }
-
-    // Check for completed deployments
-    for (const prev of activeDeployments) {
-      const current = deployments.find(d => d.id === prev.id)
-      if (current && prev.status === 'running' && current.status !== 'running') {
-        // Deployment finished - send notification
-        sendNotification(
-          current.status === 'done' ? 'Deployment Successful' : 'Deployment Failed',
-          `${current.appName} - ${current.projectName}`,
-          current.status === 'done' ? 'success' : 'error'
-        )
-      }
-    }
-
-    activeDeployments = deployments
-  } catch (error) {
-    console.error('Failed to poll deployments:', error)
+  // Show overlay if there are running deployments
+  if (runningDeployments.length > 0) {
+    showDeploymentOverlay(runningDeployments)
+  } else {
+    hideDeploymentOverlay()
   }
+
+  // Check for completed deployments
+  for (const prev of activeDeployments) {
+    const current = deployments.find(d => d.id === prev.id)
+    if (current && prev.status === 'running' && current.status !== 'running') {
+      // Deployment finished - send notification
+      sendNotification(
+        current.status === 'done' ? 'Déploiement réussi' : 'Déploiement échoué',
+        `${current.appName} - ${current.projectName}`,
+        current.status === 'done' ? 'success' : 'error'
+      )
+    }
+  }
+
+  activeDeployments = deployments
 }
 
-// Start deployment polling
-function startDeploymentPolling() {
-  pollDeployments()
-  deploymentPollInterval = setInterval(pollDeployments, 5000) // Every 5 seconds
+// Inject polling script into the page
+function injectDeploymentPolling() {
+  const script = `
+    (function() {
+      if (window.__electronDeploymentPolling) return;
+      window.__electronDeploymentPolling = true;
+
+      let lastDeployments = [];
+
+      async function pollDeployments() {
+        try {
+          const res = await fetch('/api/deployments/status');
+          if (!res.ok) return;
+          const data = await res.json();
+          const deployments = data.deployments || [];
+
+          // Send to main process
+          if (window.electronAPI) {
+            window.electronAPI.sendDeployments(deployments);
+          }
+
+          lastDeployments = deployments;
+        } catch (e) {
+          console.log('Deployment poll error:', e);
+        }
+      }
+
+      // Poll every 5 seconds
+      pollDeployments();
+      setInterval(pollDeployments, 5000);
+      console.log('[Electron] Deployment polling started');
+    })();
+  `;
+
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.executeJavaScript(script).catch(() => {})
+  }
 }
 
 // Send system notification
@@ -282,6 +306,10 @@ ipcMain.handle('set-setting', (event, key, value) => {
 
 ipcMain.on('show-notification', (event, { title, body, type }) => {
   sendNotification(title, body, type)
+})
+
+ipcMain.on('deployment-update', (event, deployments) => {
+  handleDeploymentUpdate(deployments)
 })
 
 // App lifecycle

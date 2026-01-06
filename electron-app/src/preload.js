@@ -11,7 +11,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   setSetting: (key, value) => ipcRenderer.invoke('set-setting', key, value),
 
-  // Deployment updates (for overlay)
+  // Deployment updates (send from renderer to main)
+  sendDeployments: (deployments) => {
+    ipcRenderer.send('deployment-update', deployments)
+  },
+
+  // Deployment updates (receive from main to overlay)
   onDeploymentUpdate: (callback) => {
     ipcRenderer.on('deployment-update', (event, deployments) => callback(deployments))
   },
