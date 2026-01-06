@@ -2,16 +2,12 @@
   "openapi": "3.1.0",
   "info": {
     "title": "CRM Luelis API",
-    "description": "API complète du CRM Luelis pour la gestion des clients, factures, devis, contrats et plus encore.",
+    "description": "API complète du CRM Luelis pour la gestion des clients, factures, devis, contrats, tickets, domaines, trésorerie et plus encore.\n\n## Authentification\nLa plupart des endpoints nécessitent une authentification via cookie de session NextAuth.js.\n\n## Format des réponses\nToutes les réponses sont en JSON. Les BigInt sont sérialisés en strings.",
     "version": "2.0.0",
     "contact": {
       "name": "Support Luelis",
       "email": "support@luelis.fr",
       "url": "https://luelis.fr"
-    },
-    "license": {
-      "name": "Propriétaire",
-      "url": "https://luelis.fr/license"
     }
   },
   "servers": [
@@ -29,19 +25,24 @@
     { "name": "Clients", "description": "Gestion des clients et prospects" },
     { "name": "Factures", "description": "Création et gestion des factures" },
     { "name": "Devis", "description": "Création et gestion des devis" },
-    { "name": "Contrats", "description": "Gestion des contrats et signatures électroniques" },
-    { "name": "Notes", "description": "Notes, rappels et pièces jointes" },
+    { "name": "Contrats", "description": "Gestion des contrats et signatures électroniques via DocuSeal" },
+    { "name": "Notes", "description": "Notes, rappels, tags et pièces jointes" },
     { "name": "Tickets", "description": "Système de tickets support" },
-    { "name": "Domaines", "description": "Gestion des noms de domaine" },
-    { "name": "Abonnements", "description": "Gestion des abonnements récurrents" },
+    { "name": "Domaines", "description": "Gestion des noms de domaine (OVH, Cloudflare)" },
+    { "name": "Abonnements", "description": "Gestion des abonnements et récurrences" },
     { "name": "Trésorerie", "description": "Comptes bancaires et transactions" },
-    { "name": "Services", "description": "Catalogue de services" },
-    { "name": "Utilisateurs", "description": "Gestion des utilisateurs" },
-    { "name": "Paiements", "description": "Intégrations Revolut et paiements" },
-    { "name": "Banque", "description": "Intégration GoCardless" },
+    { "name": "Services", "description": "Catalogue de services et catégories" },
+    { "name": "Utilisateurs", "description": "Gestion des utilisateurs et rôles" },
+    { "name": "Paiements Revolut", "description": "Intégration Revolut Merchant API" },
+    { "name": "Banque GoCardless", "description": "Intégration bancaire GoCardless/Nordigen" },
     { "name": "Portail Client", "description": "API du portail client" },
     { "name": "Paramètres", "description": "Configuration de l'application" },
-    { "name": "Public", "description": "Endpoints publics sans authentification" }
+    { "name": "Public", "description": "Endpoints publics sans authentification" },
+    { "name": "Notifications", "description": "Notifications et push" },
+    { "name": "Email", "description": "Templates et campagnes email" },
+    { "name": "Prélèvements", "description": "Prélèvements SEPA" },
+    { "name": "IA", "description": "Fonctionnalités d'intelligence artificielle" },
+    { "name": "Webhooks", "description": "Endpoints webhook pour intégrations tierces" }
   ],
   "paths": {
     "/auth/me": {
@@ -78,7 +79,7 @@
                 "type": "object",
                 "required": ["email"],
                 "properties": {
-                  "email": { "type": "string", "format": "email" }
+                  "email": { "type": "string", "format": "email", "example": "user@example.com" }
                 }
               }
             }
@@ -92,7 +93,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": { "type": "string" }
+                    "message": { "type": "string", "example": "Si cette adresse existe, un email a été envoyé." }
                   }
                 }
               }
@@ -114,8 +115,8 @@
                 "type": "object",
                 "required": ["token", "password"],
                 "properties": {
-                  "token": { "type": "string" },
-                  "password": { "type": "string", "minLength": 8 }
+                  "token": { "type": "string", "description": "Token reçu par email" },
+                  "password": { "type": "string", "minLength": 8, "description": "Nouveau mot de passe (min 8 caractères)" }
                 }
               }
             }
@@ -127,11 +128,66 @@
         }
       }
     },
+    "/auth/accept-invitation": {
+      "post": {
+        "tags": ["Authentification"],
+        "summary": "Accepter une invitation",
+        "description": "Accepte une invitation utilisateur et crée le compte",
+        "operationId": "acceptInvitation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["token", "name", "password"],
+                "properties": {
+                  "token": { "type": "string" },
+                  "name": { "type": "string" },
+                  "password": { "type": "string", "minLength": 8 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Compte créé avec succès" },
+          "400": { "description": "Token invalide" }
+        }
+      }
+    },
+    "/auth/impersonate": {
+      "post": {
+        "tags": ["Authentification"],
+        "summary": "Impersonner un utilisateur",
+        "description": "Permet à un admin de se connecter en tant qu'un autre utilisateur",
+        "operationId": "impersonateUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId"],
+                "properties": {
+                  "userId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Session d'impersonation créée" },
+          "403": { "description": "Non autorisé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
     "/clients": {
       "get": {
         "tags": ["Clients"],
         "summary": "Liste des clients",
-        "description": "Récupère la liste paginée des clients avec filtrage",
+        "description": "Récupère la liste paginée des clients avec filtrage et statistiques",
         "operationId": "listClients",
         "parameters": [
           { "$ref": "#/components/parameters/Page" },
@@ -140,11 +196,7 @@
           {
             "name": "status",
             "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": ["all", "active", "prospect", "inactive"],
-              "default": "all"
-            }
+            "schema": { "type": "string", "enum": ["all", "active", "prospect", "inactive"], "default": "all" }
           },
           { "$ref": "#/components/parameters/SortBy" },
           { "$ref": "#/components/parameters/SortOrder" }
@@ -157,18 +209,14 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "clients": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/Client" }
-                    },
+                    "clients": { "type": "array", "items": { "$ref": "#/components/schemas/Client" } },
                     "stats": { "$ref": "#/components/schemas/ClientStats" },
                     "pagination": { "$ref": "#/components/schemas/Pagination" }
                   }
                 }
               }
             }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          }
         },
         "security": [{ "session": [] }]
       },
@@ -198,9 +246,7 @@
                 }
               }
             }
-          },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          }
         },
         "security": [{ "session": [] }]
       }
@@ -210,9 +256,7 @@
         "tags": ["Clients"],
         "summary": "Détails d'un client",
         "operationId": "getClient",
-        "parameters": [
-          { "$ref": "#/components/parameters/Id" }
-        ],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "responses": {
           "200": {
             "description": "Détails du client",
@@ -230,11 +274,8 @@
         "tags": ["Clients"],
         "summary": "Modifier un client",
         "operationId": "updateClient",
-        "parameters": [
-          { "$ref": "#/components/parameters/Id" }
-        ],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": { "$ref": "#/components/schemas/ClientInput" }
@@ -242,8 +283,7 @@
           }
         },
         "responses": {
-          "200": { "description": "Client mis à jour" },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "200": { "description": "Client mis à jour" }
         },
         "security": [{ "session": [] }]
       },
@@ -251,12 +291,73 @@
         "tags": ["Clients"],
         "summary": "Supprimer un client",
         "operationId": "deleteClient",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Client supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/clients/{id}/services": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Services du client",
+        "operationId": "getClientServices",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Liste des services assignés au client" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Clients"],
+        "summary": "Ajouter un service",
+        "operationId": "addClientService",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["serviceId"],
+                "properties": {
+                  "serviceId": { "type": "string" },
+                  "customPrice": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Service ajouté" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/clients/{id}/services/{serviceId}": {
+      "delete": {
+        "tags": ["Clients"],
+        "summary": "Retirer un service",
+        "operationId": "removeClientService",
         "parameters": [
-          { "$ref": "#/components/parameters/Id" }
+          { "$ref": "#/components/parameters/Id" },
+          { "name": "serviceId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": { "description": "Client supprimé" },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "200": { "description": "Service retiré" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/clients/{id}/users": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Utilisateurs du client",
+        "description": "Liste les utilisateurs du portail client",
+        "operationId": "getClientUsers",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Liste des utilisateurs" }
         },
         "security": [{ "session": [] }]
       }
@@ -271,29 +372,12 @@
           { "$ref": "#/components/parameters/Page" },
           { "$ref": "#/components/parameters/PerPage" },
           { "$ref": "#/components/parameters/Search" },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": ["all", "draft", "sent", "pending", "paid", "overdue", "cancelled"]
-            }
-          },
-          {
-            "name": "clientId",
-            "in": "query",
-            "schema": { "type": "string" }
-          },
-          {
-            "name": "dateFrom",
-            "in": "query",
-            "schema": { "type": "string", "format": "date" }
-          },
-          {
-            "name": "dateTo",
-            "in": "query",
-            "schema": { "type": "string", "format": "date" }
-          }
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["all", "draft", "sent", "pending", "paid", "overdue", "cancelled"] } },
+          { "name": "clientId", "in": "query", "schema": { "type": "string" } },
+          { "name": "dateFrom", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "dateTo", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "$ref": "#/components/parameters/SortBy" },
+          { "$ref": "#/components/parameters/SortOrder" }
         ],
         "responses": {
           "200": {
@@ -303,10 +387,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "invoices": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/Invoice" }
-                    },
+                    "invoices": { "type": "array", "items": { "$ref": "#/components/schemas/Invoice" } },
                     "stats": { "$ref": "#/components/schemas/InvoiceStats" },
                     "pagination": { "$ref": "#/components/schemas/Pagination" }
                   }
@@ -338,7 +419,7 @@
                   "type": "object",
                   "properties": {
                     "id": { "type": "string" },
-                    "invoiceNumber": { "type": "string" }
+                    "invoiceNumber": { "type": "string", "example": "FAC-2025-0001" }
                   }
                 }
               }
@@ -374,7 +455,17 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/InvoiceInput" }
+              "schema": {
+                "allOf": [
+                  { "$ref": "#/components/schemas/InvoiceInput" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": { "type": "string", "enum": ["markPaid", "markSent", "duplicate"], "description": "Action spéciale à effectuer" }
+                    }
+                  }
+                ]
+              }
             }
           }
         },
@@ -394,6 +485,69 @@
         "security": [{ "session": [] }]
       }
     },
+    "/invoices/{id}/send": {
+      "post": {
+        "tags": ["Factures"],
+        "summary": "Envoyer la facture",
+        "description": "Envoie la facture par email au client",
+        "operationId": "sendInvoice",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Facture envoyée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/invoices/{id}/send-email": {
+      "post": {
+        "tags": ["Factures"],
+        "summary": "Envoyer notification email",
+        "operationId": "sendInvoiceEmail",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subject": { "type": "string" },
+                  "message": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Email envoyé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/invoices/{id}/due-date": {
+      "put": {
+        "tags": ["Factures"],
+        "summary": "Modifier la date d'échéance",
+        "operationId": "updateInvoiceDueDate",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["dueDate"],
+                "properties": {
+                  "dueDate": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Date mise à jour" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
     "/invoices/{id}/mark-paid": {
       "post": {
         "tags": ["Factures"],
@@ -407,10 +561,7 @@
                 "type": "object",
                 "properties": {
                   "paymentDate": { "type": "string", "format": "date" },
-                  "paymentMethod": {
-                    "type": "string",
-                    "enum": ["virement", "cb", "cheque", "especes", "prelevement"]
-                  },
+                  "paymentMethod": { "type": "string", "enum": ["virement", "cb", "cheque", "especes", "prelevement"] },
                   "paymentNotes": { "type": "string" }
                 }
               }
@@ -426,7 +577,7 @@
     "/invoices/{id}/pdf": {
       "get": {
         "tags": ["Factures"],
-        "summary": "Générer PDF",
+        "summary": "Générer le PDF",
         "operationId": "getInvoicePdf",
         "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "responses": {
@@ -442,14 +593,58 @@
         "security": [{ "session": [] }]
       }
     },
-    "/invoices/{id}/send": {
-      "post": {
+    "/invoices/{id}/download": {
+      "get": {
         "tags": ["Factures"],
-        "summary": "Envoyer par email",
-        "operationId": "sendInvoice",
+        "summary": "Télécharger la facture",
+        "operationId": "downloadInvoice",
         "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "responses": {
-          "200": { "description": "Facture envoyée" }
+          "200": {
+            "description": "Fichier PDF",
+            "content": {
+              "application/pdf": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/invoices/{id}/reconcile-suggestions": {
+      "get": {
+        "tags": ["Factures"],
+        "summary": "Suggestions de rapprochement",
+        "description": "Récupère les transactions bancaires candidates pour le rapprochement",
+        "operationId": "getReconcileSuggestions",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "Liste des suggestions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "transactionId": { "type": "string" },
+                          "amount": { "type": "number" },
+                          "date": { "type": "string", "format": "date" },
+                          "label": { "type": "string" },
+                          "score": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
         "security": [{ "session": [] }]
       }
@@ -463,14 +658,7 @@
           { "$ref": "#/components/parameters/Page" },
           { "$ref": "#/components/parameters/PerPage" },
           { "$ref": "#/components/parameters/Search" },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": ["all", "draft", "sent", "accepted", "rejected", "expired", "converted"]
-            }
-          }
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["all", "draft", "sent", "accepted", "rejected", "expired", "converted"] } }
         ],
         "responses": {
           "200": {
@@ -480,10 +668,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "quotes": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/Quote" }
-                    },
+                    "quotes": { "type": "array", "items": { "$ref": "#/components/schemas/Quote" } },
                     "pagination": { "$ref": "#/components/schemas/Pagination" }
                   }
                 }
@@ -506,7 +691,86 @@
           }
         },
         "responses": {
-          "201": { "description": "Devis créé" }
+          "201": {
+            "description": "Devis créé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "quoteNumber": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/quotes/{id}": {
+      "get": {
+        "tags": ["Devis"],
+        "summary": "Détails d'un devis",
+        "operationId": "getQuote",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails du devis" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Devis"],
+        "summary": "Modifier un devis",
+        "operationId": "updateQuote",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/QuoteInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Devis mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Devis"],
+        "summary": "Supprimer un devis",
+        "operationId": "deleteQuote",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Devis supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/quotes/{id}/pdf": {
+      "get": {
+        "tags": ["Devis"],
+        "summary": "Générer le PDF",
+        "operationId": "getQuotePdf",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "PDF du devis",
+            "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } }
+          }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/quotes/{id}/download": {
+      "get": {
+        "tags": ["Devis"],
+        "summary": "Télécharger le devis",
+        "operationId": "downloadQuote",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Fichier PDF" }
         },
         "security": [{ "session": [] }]
       }
@@ -515,20 +779,18 @@
       "post": {
         "tags": ["Devis"],
         "summary": "Action sur devis",
-        "description": "Convertir en facture, marquer comme envoyé/accepté/refusé",
+        "description": "Effectue une action: convertir en facture, marquer comme envoyé/accepté/refusé",
         "operationId": "quoteAction",
         "parameters": [{ "$ref": "#/components/parameters/Id" }],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "required": ["action"],
                 "properties": {
-                  "action": {
-                    "type": "string",
-                    "enum": ["convert_to_invoice", "mark_sent", "mark_accepted", "mark_rejected"]
-                  }
+                  "action": { "type": "string", "enum": ["convert_to_invoice", "mark_sent", "mark_accepted", "mark_rejected"] }
                 }
               }
             }
@@ -540,14 +802,902 @@
         "security": [{ "session": [] }]
       }
     },
+    "/quotes/{id}/generate-contract": {
+      "post": {
+        "tags": ["Devis"],
+        "summary": "Générer un contrat",
+        "description": "Génère un contrat à partir du devis",
+        "operationId": "generateContractFromQuote",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "201": {
+            "description": "Contrat créé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contractId": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}": {
+      "get": {
+        "tags": ["Contrats"],
+        "summary": "Détails d'un contrat",
+        "description": "Récupère le contrat avec documents, champs et signataires",
+        "operationId": "getContract",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "Détails du contrat",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Contract" }
+              }
+            }
+          }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Contrats"],
+        "summary": "Modifier un contrat",
+        "description": "Modifiable uniquement en statut draft",
+        "operationId": "updateContract",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "content": { "type": "string" },
+                  "expirationDays": { "type": "integer", "default": 30 },
+                  "lockOrder": { "type": "boolean" },
+                  "signerReminders": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Contrat mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Contrats"],
+        "summary": "Supprimer un contrat",
+        "description": "Supprimable uniquement en statut draft",
+        "operationId": "deleteContract",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Contrat supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}/documents": {
+      "post": {
+        "tags": ["Contrats"],
+        "summary": "Ajouter un document",
+        "operationId": "addContractDocument",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Document ajouté" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}/fields": {
+      "get": {
+        "tags": ["Contrats"],
+        "summary": "Champs de signature",
+        "operationId": "getContractFields",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Liste des champs" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Contrats"],
+        "summary": "Créer un champ",
+        "operationId": "createContractField",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "enum": ["signature", "initials", "date", "text"] },
+                  "page": { "type": "integer" },
+                  "x": { "type": "number" },
+                  "y": { "type": "number" },
+                  "width": { "type": "number" },
+                  "height": { "type": "number" },
+                  "signerId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Champ créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}/signers": {
+      "get": {
+        "tags": ["Contrats"],
+        "summary": "Signataires",
+        "operationId": "getContractSigners",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Liste des signataires" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Contrats"],
+        "summary": "Ajouter un signataire",
+        "operationId": "addContractSigner",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string", "format": "email" },
+                  "role": { "type": "string", "enum": ["signer", "approver"], "default": "signer" },
+                  "order": { "type": "integer", "default": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Signataire ajouté" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}/send-emails": {
+      "post": {
+        "tags": ["Contrats"],
+        "summary": "Envoyer demandes de signature",
+        "operationId": "sendContractEmails",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Emails envoyés" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}/signing-urls": {
+      "post": {
+        "tags": ["Contrats"],
+        "summary": "Générer URLs de signature",
+        "operationId": "generateSigningUrls",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "URLs générées",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "signerId": { "type": "string" },
+                          "email": { "type": "string" },
+                          "url": { "type": "string", "format": "uri" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}/sync": {
+      "get": {
+        "tags": ["Contrats"],
+        "summary": "Synchroniser avec DocuSeal",
+        "operationId": "syncContract",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Statut synchronisé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}/reset": {
+      "post": {
+        "tags": ["Contrats"],
+        "summary": "Réinitialiser le contrat",
+        "description": "Efface toutes les signatures",
+        "operationId": "resetContract",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Contrat réinitialisé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/contracts/{id}/download": {
+      "get": {
+        "tags": ["Contrats"],
+        "summary": "Télécharger contrat signé",
+        "operationId": "downloadContract",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": {
+            "description": "PDF signé",
+            "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } }
+          }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notes": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Liste des notes",
+        "operationId": "listNotes",
+        "parameters": [
+          { "$ref": "#/components/parameters/Search" },
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["all", "quick", "note", "todo"] } },
+          { "name": "tagId", "in": "query", "schema": { "type": "string" } },
+          { "name": "entityType", "in": "query", "schema": { "type": "string", "enum": ["client", "invoice", "quote", "subscription", "domain", "ticket", "contract", "project"] } },
+          { "name": "entityId", "in": "query", "schema": { "type": "string" } },
+          { "name": "archived", "in": "query", "schema": { "type": "boolean" } },
+          { "name": "recycled", "in": "query", "schema": { "type": "boolean" } },
+          { "$ref": "#/components/parameters/Page" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste des notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notes": { "type": "array", "items": { "$ref": "#/components/schemas/Note" } },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" },
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "quick": { "type": "integer" },
+                        "note": { "type": "integer" },
+                        "todo": { "type": "integer" },
+                        "archived": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Notes"],
+        "summary": "Créer une note",
+        "operationId": "createNote",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NoteInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Note créée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notes/{id}": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Détails d'une note",
+        "description": "Inclut commentaires et historique",
+        "operationId": "getNote",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails de la note" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Notes"],
+        "summary": "Modifier une note",
+        "description": "Sauvegarde l'historique des modifications",
+        "operationId": "updateNote",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NoteInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Note mise à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Notes"],
+        "summary": "Supprimer une note",
+        "operationId": "deleteNote",
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "name": "permanent", "in": "query", "schema": { "type": "boolean", "default": false }, "description": "Suppression définitive (sinon corbeille)" }
+        ],
+        "responses": {
+          "200": { "description": "Note supprimée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notes/{id}/attachments": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Pièces jointes",
+        "operationId": "getNoteAttachments",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Liste des pièces jointes" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Notes"],
+        "summary": "Ajouter une pièce jointe",
+        "operationId": "addNoteAttachment",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary", "description": "Max 10MB" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Pièce jointe ajoutée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notes/{id}/attachments/{attachmentId}": {
+      "delete": {
+        "tags": ["Notes"],
+        "summary": "Supprimer une pièce jointe",
+        "operationId": "deleteNoteAttachment",
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "name": "attachmentId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Pièce jointe supprimée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notes/tags": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Liste des tags",
+        "operationId": "listNoteTags",
+        "responses": {
+          "200": { "description": "Liste des tags" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Notes"],
+        "summary": "Créer un tag",
+        "operationId": "createNoteTag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "color": { "type": "string", "example": "#8B5CF6" },
+                  "icon": { "type": "string", "example": "tag" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Tag créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notes/tags/{id}": {
+      "delete": {
+        "tags": ["Notes"],
+        "summary": "Supprimer un tag",
+        "operationId": "deleteNoteTag",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Tag supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notes/entity/{type}/{entityId}": {
+      "get": {
+        "tags": ["Notes"],
+        "summary": "Notes d'une entité",
+        "operationId": "getEntityNotes",
+        "parameters": [
+          { "name": "type", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "entityId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Notes liées à l'entité" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/tickets": {
+      "get": {
+        "tags": ["Tickets"],
+        "summary": "Liste des tickets",
+        "operationId": "listTickets",
+        "parameters": [
+          { "$ref": "#/components/parameters/Search" },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["new", "open", "pending", "resolved"] } },
+          { "name": "priority", "in": "query", "schema": { "type": "string", "enum": ["low", "normal", "high", "urgent"] } },
+          { "name": "clientId", "in": "query", "schema": { "type": "string" } },
+          { "name": "assignedTo", "in": "query", "schema": { "type": "string" } },
+          { "$ref": "#/components/parameters/Page" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Liste des tickets" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Tickets"],
+        "summary": "Créer un ticket",
+        "operationId": "createTicket",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TicketInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Ticket créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/tickets/{id}": {
+      "get": {
+        "tags": ["Tickets"],
+        "summary": "Détails d'un ticket",
+        "operationId": "getTicket",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails du ticket" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Tickets"],
+        "summary": "Modifier un ticket",
+        "operationId": "updateTicket",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Ticket mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Tickets"],
+        "summary": "Supprimer un ticket",
+        "operationId": "deleteTicket",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Ticket supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/tickets/count": {
+      "get": {
+        "tags": ["Tickets"],
+        "summary": "Compteurs tickets",
+        "operationId": "getTicketCount",
+        "responses": {
+          "200": {
+            "description": "Compteurs par statut",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "openCount": { "type": "integer" },
+                    "newCount": { "type": "integer" },
+                    "pendingCount": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/tickets/settings": {
+      "get": {
+        "tags": ["Tickets"],
+        "summary": "Paramètres tickets",
+        "operationId": "getTicketSettings",
+        "responses": {
+          "200": { "description": "Paramètres" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Tickets"],
+        "summary": "Modifier paramètres",
+        "operationId": "updateTicketSettings",
+        "responses": {
+          "200": { "description": "Paramètres mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/domains": {
+      "get": {
+        "tags": ["Domaines"],
+        "summary": "Liste des domaines",
+        "operationId": "listDomains",
+        "responses": {
+          "200": { "description": "Liste des domaines" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Domaines"],
+        "summary": "Ajouter un domaine",
+        "operationId": "createDomain",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DomainInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Domaine ajouté" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/domains/{id}": {
+      "get": {
+        "tags": ["Domaines"],
+        "summary": "Détails d'un domaine",
+        "operationId": "getDomain",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails du domaine" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Domaines"],
+        "summary": "Modifier un domaine",
+        "operationId": "updateDomain",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Domaine mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Domaines"],
+        "summary": "Supprimer un domaine",
+        "operationId": "deleteDomain",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Domaine supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/domains/{id}/dns": {
+      "get": {
+        "tags": ["Domaines"],
+        "summary": "Enregistrements DNS",
+        "operationId": "getDomainDns",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Liste des enregistrements DNS" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Domaines"],
+        "summary": "Modifier DNS",
+        "operationId": "updateDomainDns",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "DNS mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/domains/{id}/nameservers": {
+      "get": {
+        "tags": ["Domaines"],
+        "summary": "Serveurs de noms",
+        "operationId": "getDomainNameservers",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Liste des nameservers" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Domaines"],
+        "summary": "Modifier nameservers",
+        "operationId": "updateDomainNameservers",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Nameservers mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/domains/{id}/create-invoice": {
+      "post": {
+        "tags": ["Domaines"],
+        "summary": "Créer facture renouvellement",
+        "operationId": "createDomainInvoice",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "201": { "description": "Facture créée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/domains/check-renewals": {
+      "get": {
+        "tags": ["Domaines"],
+        "summary": "Vérifier renouvellements",
+        "operationId": "checkDomainRenewals",
+        "responses": {
+          "200": { "description": "Domaines à renouveler" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/domains/sync": {
+      "post": {
+        "tags": ["Domaines"],
+        "summary": "Synchroniser avec OVH",
+        "operationId": "syncDomains",
+        "responses": {
+          "200": { "description": "Synchronisation effectuée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Utilisateurs"],
+        "summary": "Liste des utilisateurs",
+        "operationId": "listUsers",
+        "parameters": [
+          { "$ref": "#/components/parameters/Search" },
+          { "name": "role", "in": "query", "schema": { "type": "string", "enum": ["all", "super_admin", "tenant_owner", "tenant_admin", "tenant_user", "client"] } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active", "inactive", "all"] } }
+        ],
+        "responses": {
+          "200": { "description": "Liste des utilisateurs" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Utilisateurs"],
+        "summary": "Créer un utilisateur",
+        "operationId": "createUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UserInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Utilisateur créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "tags": ["Utilisateurs"],
+        "summary": "Détails utilisateur",
+        "operationId": "getUser",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Utilisateurs"],
+        "summary": "Modifier utilisateur",
+        "operationId": "updateUser",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Utilisateur mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Utilisateurs"],
+        "summary": "Supprimer utilisateur",
+        "operationId": "deleteUser",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Utilisateur supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/users/o365-connect": {
+      "post": {
+        "tags": ["Utilisateurs"],
+        "summary": "Connecter Office 365",
+        "operationId": "connectO365",
+        "responses": {
+          "200": { "description": "URL d'autorisation" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/users/o365-callback": {
+      "get": {
+        "tags": ["Utilisateurs"],
+        "summary": "Callback OAuth O365",
+        "operationId": "o365Callback",
+        "responses": {
+          "302": { "description": "Redirection" }
+        }
+      }
+    },
+    "/users/o365-disconnect": {
+      "post": {
+        "tags": ["Utilisateurs"],
+        "summary": "Déconnecter Office 365",
+        "operationId": "disconnectO365",
+        "responses": {
+          "200": { "description": "Déconnecté" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/users/calendar-status": {
+      "get": {
+        "tags": ["Utilisateurs"],
+        "summary": "Statut calendrier",
+        "operationId": "getCalendarStatus",
+        "responses": {
+          "200": { "description": "Statut de sync" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/users/today-events": {
+      "get": {
+        "tags": ["Utilisateurs"],
+        "summary": "Événements du jour",
+        "operationId": "getTodayEvents",
+        "responses": {
+          "200": { "description": "Liste des événements" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/users/next-event": {
+      "get": {
+        "tags": ["Utilisateurs"],
+        "summary": "Prochain événement",
+        "operationId": "getNextEvent",
+        "responses": {
+          "200": { "description": "Prochain événement" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/revolut/test": {
+      "post": {
+        "tags": ["Paiements Revolut"],
+        "summary": "Tester connexion",
+        "operationId": "testRevolut",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["apiKey"],
+                "properties": {
+                  "apiKey": { "type": "string" },
+                  "environment": { "type": "string", "enum": ["sandbox", "production"], "default": "sandbox" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Test réussi" }
+        }
+      }
+    },
     "/revolut/payment-link": {
       "post": {
-        "tags": ["Paiements"],
+        "tags": ["Paiements Revolut"],
         "summary": "Créer lien de paiement",
-        "description": "Génère un lien de paiement Revolut pour une facture",
         "operationId": "createPaymentLink",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -565,7 +1715,7 @@
         },
         "responses": {
           "200": {
-            "description": "Lien de paiement créé",
+            "description": "Lien créé",
             "content": {
               "application/json": {
                 "schema": {
@@ -573,8 +1723,7 @@
                   "properties": {
                     "success": { "type": "boolean" },
                     "paymentLink": { "type": "string", "format": "uri" },
-                    "orderId": { "type": "string" },
-                    "orderState": { "type": "string" }
+                    "orderId": { "type": "string" }
                   }
                 }
               }
@@ -586,7 +1735,7 @@
     },
     "/revolut/check-payment": {
       "post": {
-        "tags": ["Paiements"],
+        "tags": ["Paiements Revolut"],
         "summary": "Vérifier paiement",
         "operationId": "checkPayment",
         "requestBody": {
@@ -610,11 +1759,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["pending", "paid", "no_link", "error", "processing", "authorised", "cancelled", "failed"]
-                    },
-                    "message": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending", "paid", "no_link", "error"] },
                     "paidAt": { "type": "string", "format": "date-time" }
                   }
                 }
@@ -625,30 +1770,41 @@
         "security": [{ "session": [] }]
       }
     },
+    "/revolut/webhook": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "Vérification webhook Revolut",
+        "operationId": "verifyRevolutWebhook",
+        "responses": {
+          "200": { "description": "Webhook actif" }
+        }
+      },
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Webhook Revolut",
+        "operationId": "revolutWebhook",
+        "responses": {
+          "200": { "description": "Traité" }
+        }
+      }
+    },
     "/gocardless/institutions": {
       "get": {
-        "tags": ["Banque"],
+        "tags": ["Banque GoCardless"],
         "summary": "Liste des banques",
-        "description": "Récupère la liste des banques disponibles pour connexion",
         "operationId": "listInstitutions",
         "parameters": [
-          {
-            "name": "country",
-            "in": "query",
-            "schema": { "type": "string", "default": "FR" }
-          }
+          { "name": "country", "in": "query", "schema": { "type": "string", "default": "FR" } }
         ],
         "responses": {
-          "200": {
-            "description": "Liste des institutions bancaires"
-          }
+          "200": { "description": "Liste des institutions" }
         },
         "security": [{ "session": [] }]
       }
     },
     "/gocardless/connect": {
       "post": {
-        "tags": ["Banque"],
+        "tags": ["Banque GoCardless"],
         "summary": "Connecter une banque",
         "operationId": "connectBank",
         "requestBody": {
@@ -668,7 +1824,7 @@
         },
         "responses": {
           "200": {
-            "description": "URL de connexion bancaire",
+            "description": "URL de connexion",
             "content": {
               "application/json": {
                 "schema": {
@@ -686,9 +1842,42 @@
         "security": [{ "session": [] }]
       }
     },
+    "/gocardless/callback": {
+      "get": {
+        "tags": ["Banque GoCardless"],
+        "summary": "Callback OAuth",
+        "operationId": "gocardlessCallback",
+        "parameters": [
+          { "name": "ref", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "302": { "description": "Redirection vers trésorerie" }
+        }
+      }
+    },
+    "/gocardless/connections": {
+      "get": {
+        "tags": ["Banque GoCardless"],
+        "summary": "Connexions bancaires",
+        "operationId": "listConnections",
+        "responses": {
+          "200": { "description": "Liste des connexions" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Banque GoCardless"],
+        "summary": "Créer connexion",
+        "operationId": "createConnection",
+        "responses": {
+          "201": { "description": "Connexion créée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
     "/gocardless/sync": {
       "post": {
-        "tags": ["Banque"],
+        "tags": ["Banque GoCardless"],
         "summary": "Synchroniser transactions",
         "operationId": "syncTransactions",
         "responses": {
@@ -697,49 +1886,502 @@
         "security": [{ "session": [] }]
       }
     },
+    "/gocardless/rate-limit": {
+      "get": {
+        "tags": ["Banque GoCardless"],
+        "summary": "Statut rate limit",
+        "operationId": "getRateLimit",
+        "responses": {
+          "200": { "description": "Statut" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/gocardless/process-pending": {
+      "post": {
+        "tags": ["Banque GoCardless"],
+        "summary": "Traiter transactions en attente",
+        "operationId": "processPending",
+        "responses": {
+          "200": { "description": "Traitement effectué" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/subscriptions": {
+      "get": {
+        "tags": ["Abonnements"],
+        "summary": "Liste des abonnements",
+        "operationId": "listSubscriptions",
+        "responses": {
+          "200": { "description": "Liste" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Abonnements"],
+        "summary": "Créer un abonnement",
+        "operationId": "createSubscription",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SubscriptionInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Abonnement créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/subscriptions/{id}": {
+      "get": {
+        "tags": ["Abonnements"],
+        "summary": "Détails abonnement",
+        "operationId": "getSubscription",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Abonnements"],
+        "summary": "Modifier abonnement",
+        "operationId": "updateSubscription",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Abonnement mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Abonnements"],
+        "summary": "Supprimer abonnement",
+        "operationId": "deleteSubscription",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Abonnement supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/treasury/accounts": {
+      "get": {
+        "tags": ["Trésorerie"],
+        "summary": "Comptes bancaires",
+        "operationId": "listAccounts",
+        "responses": {
+          "200": { "description": "Liste des comptes" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Trésorerie"],
+        "summary": "Créer un compte",
+        "operationId": "createAccount",
+        "responses": {
+          "201": { "description": "Compte créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/treasury/accounts/{id}": {
+      "get": {
+        "tags": ["Trésorerie"],
+        "summary": "Détails compte",
+        "operationId": "getAccount",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Trésorerie"],
+        "summary": "Modifier compte",
+        "operationId": "updateAccount",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Compte mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/treasury/transactions": {
+      "get": {
+        "tags": ["Trésorerie"],
+        "summary": "Transactions",
+        "operationId": "listTransactions",
+        "parameters": [
+          { "name": "accountId", "in": "query", "schema": { "type": "string" } },
+          { "name": "dateFrom", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "dateTo", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["credit", "debit"] } },
+          { "name": "reconciled", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": { "description": "Liste des transactions" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Trésorerie"],
+        "summary": "Créer transaction manuelle",
+        "operationId": "createTransaction",
+        "responses": {
+          "201": { "description": "Transaction créée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/treasury/transactions/{id}": {
+      "get": {
+        "tags": ["Trésorerie"],
+        "summary": "Détails transaction",
+        "operationId": "getTransaction",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Trésorerie"],
+        "summary": "Modifier transaction",
+        "operationId": "updateTransaction",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Transaction mise à jour" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/services": {
+      "get": {
+        "tags": ["Services"],
+        "summary": "Liste des services",
+        "operationId": "listServices",
+        "responses": {
+          "200": { "description": "Liste" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Services"],
+        "summary": "Créer un service",
+        "operationId": "createService",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ServiceInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Service créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/services/{id}": {
+      "get": {
+        "tags": ["Services"],
+        "summary": "Détails service",
+        "operationId": "getService",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Services"],
+        "summary": "Modifier service",
+        "operationId": "updateService",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Service mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Services"],
+        "summary": "Supprimer service",
+        "operationId": "deleteService",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Service supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/services/categories": {
+      "get": {
+        "tags": ["Services"],
+        "summary": "Catégories",
+        "operationId": "listServiceCategories",
+        "responses": {
+          "200": { "description": "Liste" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Services"],
+        "summary": "Créer catégorie",
+        "operationId": "createServiceCategory",
+        "responses": {
+          "201": { "description": "Catégorie créée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/services/categories/{id}": {
+      "get": {
+        "tags": ["Services"],
+        "summary": "Détails catégorie",
+        "operationId": "getServiceCategory",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Services"],
+        "summary": "Modifier catégorie",
+        "operationId": "updateServiceCategory",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Catégorie mise à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Services"],
+        "summary": "Supprimer catégorie",
+        "operationId": "deleteServiceCategory",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Catégorie supprimée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/settings": {
+      "get": {
+        "tags": ["Paramètres"],
+        "summary": "Paramètres application",
+        "operationId": "getSettings",
+        "responses": {
+          "200": { "description": "Paramètres" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Paramètres"],
+        "summary": "Modifier paramètres",
+        "operationId": "updateSettings",
+        "responses": {
+          "200": { "description": "Paramètres mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/settings/smtp/test": {
+      "post": {
+        "tags": ["Paramètres"],
+        "summary": "Tester SMTP",
+        "operationId": "testSmtp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "host": { "type": "string" },
+                  "port": { "type": "integer" },
+                  "secure": { "type": "boolean" },
+                  "user": { "type": "string" },
+                  "password": { "type": "string" },
+                  "from": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Test réussi" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/settings/ovh/test": {
+      "post": {
+        "tags": ["Paramètres"],
+        "summary": "Tester OVH",
+        "operationId": "testOvh",
+        "responses": {
+          "200": { "description": "Test réussi" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/settings/ovh/authorize": {
+      "post": {
+        "tags": ["Paramètres"],
+        "summary": "Autoriser OVH",
+        "operationId": "authorizeOvh",
+        "responses": {
+          "200": { "description": "URL d'autorisation" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/settings/cloudflare/test": {
+      "post": {
+        "tags": ["Paramètres"],
+        "summary": "Tester Cloudflare",
+        "operationId": "testCloudflare",
+        "responses": {
+          "200": { "description": "Test réussi" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/settings/logo": {
+      "post": {
+        "tags": ["Paramètres"],
+        "summary": "Upload logo",
+        "operationId": "uploadLogo",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "logo": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Logo uploadé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "Liste notifications",
+        "operationId": "listNotifications",
+        "responses": {
+          "200": { "description": "Liste" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Notifications"],
+        "summary": "Créer notification",
+        "operationId": "createNotification",
+        "responses": {
+          "201": { "description": "Notification créée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/notifications/{id}": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "Détails notification",
+        "operationId": "getNotification",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Notifications"],
+        "summary": "Modifier notification",
+        "operationId": "updateNotification",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Notification mise à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Notifications"],
+        "summary": "Supprimer notification",
+        "operationId": "deleteNotification",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Notification supprimée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/push/vapid-key": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "Clé VAPID publique",
+        "operationId": "getVapidKey",
+        "responses": {
+          "200": { "description": "Clé VAPID" }
+        }
+      }
+    },
+    "/push/subscribe": {
+      "post": {
+        "tags": ["Notifications"],
+        "summary": "S'abonner aux push",
+        "operationId": "subscribePush",
+        "responses": {
+          "200": { "description": "Abonné" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/push/test": {
+      "post": {
+        "tags": ["Notifications"],
+        "summary": "Tester push",
+        "operationId": "testPush",
+        "responses": {
+          "200": { "description": "Push envoyé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
     "/public/invoice/{token}": {
       "get": {
         "tags": ["Public"],
-        "summary": "Voir facture publique",
-        "description": "Affiche une facture via son token public (sans authentification)",
+        "summary": "Facture publique",
+        "description": "Affiche une facture via token (incrémente compteur vues)",
         "operationId": "getPublicInvoice",
         "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
+          { "name": "token", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "Données de la facture",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/PublicInvoice" }
-              }
-            }
-          },
-          "404": { "description": "Facture non trouvée" }
+          "200": { "description": "Données facture" },
+          "404": { "description": "Non trouvée" }
         }
       }
     },
     "/public/quote/{token}": {
       "get": {
         "tags": ["Public"],
-        "summary": "Voir devis public",
+        "summary": "Devis public",
         "operationId": "getPublicQuote",
         "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
+          { "name": "token", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": { "description": "Données du devis" },
-          "404": { "description": "Devis non trouvé" }
+          "200": { "description": "Données devis" }
         }
       }
     },
@@ -747,15 +2389,9 @@
       "post": {
         "tags": ["Public"],
         "summary": "Répondre au devis",
-        "description": "Permet au client d'accepter ou refuser un devis",
         "operationId": "respondToQuote",
         "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
+          { "name": "token", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
           "content": {
@@ -764,10 +2400,7 @@
                 "type": "object",
                 "required": ["status"],
                 "properties": {
-                  "status": {
-                    "type": "string",
-                    "enum": ["accepted", "rejected"]
-                  },
+                  "status": { "type": "string", "enum": ["accepted", "rejected"] },
                   "notes": { "type": "string" }
                 }
               }
@@ -777,6 +2410,341 @@
         "responses": {
           "200": { "description": "Réponse enregistrée" }
         }
+      }
+    },
+    "/client-portal/dashboard": {
+      "get": {
+        "tags": ["Portail Client"],
+        "summary": "Dashboard client",
+        "operationId": "getClientDashboard",
+        "responses": {
+          "200": { "description": "Données dashboard" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/client-portal/invoices": {
+      "get": {
+        "tags": ["Portail Client"],
+        "summary": "Factures client",
+        "operationId": "getClientInvoices",
+        "responses": {
+          "200": { "description": "Liste factures" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/client-portal/invoices/{id}": {
+      "get": {
+        "tags": ["Portail Client"],
+        "summary": "Détails facture client",
+        "operationId": "getClientInvoice",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/client-portal/quotes": {
+      "get": {
+        "tags": ["Portail Client"],
+        "summary": "Devis client",
+        "operationId": "getClientQuotes",
+        "responses": {
+          "200": { "description": "Liste devis" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/client-portal/contracts": {
+      "get": {
+        "tags": ["Portail Client"],
+        "summary": "Contrats client",
+        "operationId": "getClientContracts",
+        "responses": {
+          "200": { "description": "Liste contrats" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/client-portal/contracts/{id}/download": {
+      "get": {
+        "tags": ["Portail Client"],
+        "summary": "Télécharger contrat",
+        "operationId": "downloadClientContract",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "PDF" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/client-portal/services": {
+      "get": {
+        "tags": ["Portail Client"],
+        "summary": "Services client",
+        "operationId": "getClientServices",
+        "responses": {
+          "200": { "description": "Liste services" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/client-portal/users": {
+      "get": {
+        "tags": ["Portail Client"],
+        "summary": "Utilisateurs client",
+        "operationId": "listClientPortalUsers",
+        "responses": {
+          "200": { "description": "Liste" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Portail Client"],
+        "summary": "Ajouter utilisateur",
+        "operationId": "addClientPortalUser",
+        "responses": {
+          "201": { "description": "Utilisateur ajouté" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/email-templates": {
+      "get": {
+        "tags": ["Email"],
+        "summary": "Liste templates",
+        "operationId": "listEmailTemplates",
+        "responses": {
+          "200": { "description": "Liste" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Email"],
+        "summary": "Créer template",
+        "operationId": "createEmailTemplate",
+        "responses": {
+          "201": { "description": "Template créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/email-templates/{id}": {
+      "get": {
+        "tags": ["Email"],
+        "summary": "Détails template",
+        "operationId": "getEmailTemplate",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Email"],
+        "summary": "Modifier template",
+        "operationId": "updateEmailTemplate",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Template mis à jour" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "delete": {
+        "tags": ["Email"],
+        "summary": "Supprimer template",
+        "operationId": "deleteEmailTemplate",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Template supprimé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/prelevements": {
+      "post": {
+        "tags": ["Prélèvements"],
+        "summary": "Créer prélèvement",
+        "operationId": "createPrelevement",
+        "responses": {
+          "201": { "description": "Prélèvement créé" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/prelevements/pain008": {
+      "post": {
+        "tags": ["Prélèvements"],
+        "summary": "Générer PAIN.008",
+        "description": "Génère un fichier PAIN.008 XML pour virement bancaire",
+        "operationId": "generatePain008",
+        "responses": {
+          "200": {
+            "description": "Fichier XML",
+            "content": {
+              "application/xml": {
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/ai/generate-contract": {
+      "post": {
+        "tags": ["IA"],
+        "summary": "Générer contrat IA",
+        "operationId": "generateContractAI",
+        "responses": {
+          "200": { "description": "Contrat généré" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/ai/improve-text": {
+      "post": {
+        "tags": ["IA"],
+        "summary": "Améliorer texte",
+        "operationId": "improveText",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["text"],
+                "properties": {
+                  "text": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Texte amélioré" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/webhooks/docuseal": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Webhook DocuSeal",
+        "description": "Reçoit les événements de signature DocuSeal",
+        "operationId": "docusealWebhook",
+        "responses": {
+          "200": { "description": "Traité" }
+        }
+      }
+    },
+    "/releases": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "Releases GitHub",
+        "operationId": "getReleases",
+        "responses": {
+          "200": { "description": "Liste des releases" }
+        }
+      }
+    },
+    "/statistics": {
+      "get": {
+        "tags": ["Paramètres"],
+        "summary": "Statistiques",
+        "operationId": "getStatistics",
+        "responses": {
+          "200": { "description": "Statistiques globales" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/tenant": {
+      "get": {
+        "tags": ["Paramètres"],
+        "summary": "Info tenant",
+        "operationId": "getTenant",
+        "responses": {
+          "200": { "description": "Informations tenant" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/tenant/signer-info": {
+      "get": {
+        "tags": ["Paramètres"],
+        "summary": "Info signataire",
+        "operationId": "getSignerInfo",
+        "responses": {
+          "200": { "description": "Informations signataire par défaut" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/deployments/status": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "Statut déploiements",
+        "description": "Utilisé par l'app desktop pour l'overlay",
+        "operationId": "getDeploymentStatus",
+        "responses": {
+          "200": { "description": "Statut des déploiements en cours" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/recurring": {
+      "get": {
+        "tags": ["Abonnements"],
+        "summary": "Transactions récurrentes",
+        "operationId": "listRecurring",
+        "responses": {
+          "200": { "description": "Liste" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "post": {
+        "tags": ["Abonnements"],
+        "summary": "Créer récurrence",
+        "operationId": "createRecurring",
+        "responses": {
+          "201": { "description": "Récurrence créée" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/recurring/transactions": {
+      "get": {
+        "tags": ["Abonnements"],
+        "summary": "Historique récurrences",
+        "operationId": "listRecurringTransactions",
+        "responses": {
+          "200": { "description": "Historique" }
+        },
+        "security": [{ "session": [] }]
+      }
+    },
+    "/recurring/transactions/{id}": {
+      "get": {
+        "tags": ["Abonnements"],
+        "summary": "Détails récurrence",
+        "operationId": "getRecurringTransaction",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Détails" }
+        },
+        "security": [{ "session": [] }]
+      },
+      "put": {
+        "tags": ["Abonnements"],
+        "summary": "Modifier récurrence",
+        "operationId": "updateRecurringTransaction",
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Récurrence mise à jour" }
+        },
+        "security": [{ "session": [] }]
       }
     }
   },
@@ -795,37 +2763,32 @@
         "in": "path",
         "required": true,
         "schema": { "type": "string" },
-        "description": "Identifiant unique de la ressource"
+        "description": "Identifiant unique"
       },
       "Page": {
         "name": "page",
         "in": "query",
-        "schema": { "type": "integer", "minimum": 1, "default": 1 },
-        "description": "Numéro de page"
+        "schema": { "type": "integer", "minimum": 1, "default": 1 }
       },
       "PerPage": {
         "name": "perPage",
         "in": "query",
-        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 15 },
-        "description": "Éléments par page"
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 15 }
       },
       "Search": {
         "name": "search",
         "in": "query",
-        "schema": { "type": "string" },
-        "description": "Recherche textuelle"
+        "schema": { "type": "string" }
       },
       "SortBy": {
         "name": "sortBy",
         "in": "query",
-        "schema": { "type": "string" },
-        "description": "Champ de tri"
+        "schema": { "type": "string" }
       },
       "SortOrder": {
         "name": "sortOrder",
         "in": "query",
-        "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" },
-        "description": "Ordre de tri"
+        "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
       }
     },
     "responses": {
@@ -843,7 +2806,7 @@
         }
       },
       "NotFound": {
-        "description": "Ressource non trouvée",
+        "description": "Non trouvé",
         "content": {
           "application/json": {
             "schema": {
@@ -862,8 +2825,7 @@
             "schema": {
               "type": "object",
               "properties": {
-                "error": { "type": "string" },
-                "details": { "type": "object" }
+                "error": { "type": "string" }
               }
             }
           }
@@ -915,9 +2877,7 @@
               "address": { "type": "string" },
               "postalCode": { "type": "string" },
               "country": { "type": "string" },
-              "notes": { "type": "string" },
-              "invoices": { "type": "array", "items": { "$ref": "#/components/schemas/Invoice" } },
-              "quotes": { "type": "array", "items": { "$ref": "#/components/schemas/Quote" } }
+              "notes": { "type": "string" }
             }
           }
         ]
@@ -957,8 +2917,8 @@
           "id": { "type": "string" },
           "invoiceNumber": { "type": "string", "example": "FAC-2025-0001" },
           "status": { "type": "string", "enum": ["draft", "sent", "pending", "paid", "overdue", "cancelled"] },
-          "totalHt": { "type": "number", "format": "float" },
-          "totalTtc": { "type": "number", "format": "float" },
+          "totalHt": { "type": "number" },
+          "totalTtc": { "type": "number" },
           "issueDate": { "type": "string", "format": "date" },
           "dueDate": { "type": "string", "format": "date" },
           "paymentDate": { "type": "string", "format": "date", "nullable": true },
@@ -977,10 +2937,7 @@
           {
             "type": "object",
             "properties": {
-              "items": {
-                "type": "array",
-                "items": { "$ref": "#/components/schemas/InvoiceItem" }
-              },
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/InvoiceItem" } },
               "notes": { "type": "string" },
               "publicToken": { "type": "string" }
             }
@@ -1096,24 +3053,121 @@
           "notes": { "type": "string" }
         }
       },
-      "PublicInvoice": {
+      "Contract": {
         "type": "object",
         "properties": {
-          "invoiceNumber": { "type": "string" },
-          "status": { "type": "string" },
-          "totalHt": { "type": "number" },
-          "totalTtc": { "type": "number" },
-          "issueDate": { "type": "string", "format": "date" },
-          "dueDate": { "type": "string", "format": "date" },
-          "items": { "type": "array" },
-          "company": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "string", "enum": ["draft", "pending", "completed", "declined", "expired"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "documents": { "type": "array" },
+          "signers": { "type": "array" }
+        }
+      },
+      "Note": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "content": { "type": "string" },
+          "type": { "type": "string", "enum": ["quick", "note", "todo"] },
+          "isTop": { "type": "boolean" },
+          "isArchived": { "type": "boolean" },
+          "reminderAt": { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "author": {
             "type": "object",
             "properties": {
-              "name": { "type": "string" },
-              "address": { "type": "string" },
-              "siret": { "type": "string" }
+              "id": { "type": "string" },
+              "name": { "type": "string" }
             }
-          }
+          },
+          "tags": { "type": "array" },
+          "entityLinks": { "type": "array" }
+        }
+      },
+      "NoteInput": {
+        "type": "object",
+        "properties": {
+          "content": { "type": "string" },
+          "type": { "type": "string", "enum": ["quick", "note", "todo"], "default": "note" },
+          "isTop": { "type": "boolean", "default": false },
+          "reminderAt": { "type": "string", "format": "date-time", "nullable": true },
+          "entityLinks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entityType": { "type": "string" },
+                "entityId": { "type": "string" }
+              }
+            }
+          },
+          "tagIds": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "TicketInput": {
+        "type": "object",
+        "required": ["subject", "senderEmail"],
+        "properties": {
+          "subject": { "type": "string" },
+          "senderEmail": { "type": "string", "format": "email" },
+          "senderName": { "type": "string" },
+          "clientId": { "type": "string" },
+          "status": { "type": "string", "enum": ["new", "open", "pending", "resolved"], "default": "new" },
+          "priority": { "type": "string", "enum": ["low", "normal", "high", "urgent"], "default": "normal" },
+          "assignedTo": { "type": "string" },
+          "content": { "type": "string" }
+        }
+      },
+      "DomainInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "example": "example.com" },
+          "clientId": { "type": "string" },
+          "registrar": { "type": "string", "enum": ["ovh", "cloudflare", "other"] },
+          "expirationDate": { "type": "string", "format": "date" },
+          "autoRenew": { "type": "boolean", "default": true },
+          "notes": { "type": "string" }
+        }
+      },
+      "SubscriptionInput": {
+        "type": "object",
+        "required": ["clientId", "name", "priceHt", "billingCycle"],
+        "properties": {
+          "clientId": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "priceHt": { "type": "number" },
+          "vatRate": { "type": "number", "default": 20 },
+          "billingCycle": { "type": "string", "enum": ["monthly", "quarterly", "yearly"] },
+          "startDate": { "type": "string", "format": "date" },
+          "status": { "type": "string", "default": "active" }
+        }
+      },
+      "ServiceInput": {
+        "type": "object",
+        "required": ["name", "priceHt"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "categoryId": { "type": "string" },
+          "priceHt": { "type": "number" },
+          "vatRate": { "type": "number", "default": 20 },
+          "unit": { "type": "string", "enum": ["unité", "heure", "jour", "mois"], "default": "unité" },
+          "isActive": { "type": "boolean", "default": true }
+        }
+      },
+      "UserInput": {
+        "type": "object",
+        "required": ["name", "email", "password"],
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 8 },
+          "role": { "type": "string", "enum": ["tenant_admin", "tenant_user"], "default": "tenant_user" },
+          "isActive": { "type": "boolean", "default": true },
+          "slackUserId": { "type": "string" }
         }
       }
     }
