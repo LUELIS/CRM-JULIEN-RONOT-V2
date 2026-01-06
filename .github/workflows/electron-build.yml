@@ -11,6 +11,9 @@ on:
         required: false
         default: '1.0.0'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -55,30 +58,33 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List built files
+        working-directory: electron-app
+        run: ls -la dist/
+
       - name: Upload Windows artifacts
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: CRM-Luelis-Windows
-          path: electron-app/dist/*.exe
+          path: electron-app/dist/*Setup*.exe
+          if-no-files-found: error
 
       - name: Upload macOS artifacts
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: CRM-Luelis-macOS
-          path: |
-            electron-app/dist/*.dmg
-            electron-app/dist/*.zip
+          path: electron-app/dist/*.dmg
+          if-no-files-found: error
 
       - name: Upload Linux artifacts
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: CRM-Luelis-Linux
-          path: |
-            electron-app/dist/*.AppImage
-            electron-app/dist/*.deb
+          path: electron-app/dist/*.AppImage
+          if-no-files-found: error
 
   release:
     needs: build
