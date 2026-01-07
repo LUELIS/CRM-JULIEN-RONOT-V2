@@ -42,12 +42,14 @@ import {
   Calendar,
   Link,
   Unlink,
+  Key,
 } from "lucide-react"
 import Image from "next/image"
 import { useTenant } from "@/contexts/tenant-context"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
 import { NotificationSettings } from "@/components/settings/NotificationSettings"
 import { DokploySettings } from "@/components/settings/DokploySettings"
+import { ApiKeysSettings } from "@/components/settings/ApiKeysSettings"
 
 const monthlyGoalModeOptions: SelectOption[] = [
   { value: "auto", label: "Automatique (basé sur l'historique)", color: "#28B95F" },
@@ -911,6 +913,7 @@ function SettingsContent() {
     { id: "integrations", label: "Intégrations", icon: Puzzle, color: "#28B95F" },
     { id: "automations", label: "Automatisations", icon: Clock, color: "#DCB40A" },
     { id: "calendar", label: "Mon Calendrier", icon: Calendar, color: "#14B4E6" },
+    { id: "api", label: "API", icon: Key, color: "#F04B69" },
   ]
 
   const inputStyle = {
@@ -3485,6 +3488,16 @@ function SettingsContent() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* API Tab */}
+      {activeTab === "api" && (
+        <div
+          className="rounded-2xl p-6 w-full"
+          style={{ background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+        >
+          <ApiKeysSettings />
         </div>
       )}
     </div>

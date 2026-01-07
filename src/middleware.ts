@@ -14,6 +14,7 @@ const PUBLIC_ROUTES = [
   "/api/auth/microsoft/callback",
   "/api/campaigns/track",
   "/api/tenant", // Public for login page to show logo/name
+  "/api/external", // External API uses its own token authentication
 ]
 
 // Routes that require CRON_SECRET header
