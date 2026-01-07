@@ -58,6 +58,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
+    console.log("[Upload] User:", session.user.email, "ID:", session.user.id)
+
     // Get S3 config
     const s3Config = await getS3Config()
     if (!s3Config) {
@@ -66,6 +68,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    console.log("[Upload] S3 Config found, bucket:", s3Config.bucket)
 
     const formData = await request.formData()
     const file = formData.get("file") as File | null
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
     const s3Key = `support-downloads/${platform}/${fileName}`
 
     // Upload to S3
+    console.log("[Upload] Uploading file:", file.name, "size:", file.size, "to key:", s3Key)
     const buffer = Buffer.from(await file.arrayBuffer())
     const uploadResult = await uploadToS3(
       buffer,
@@ -125,11 +130,14 @@ export async function POST(request: NextRequest) {
     )
 
     if (!uploadResult.success) {
+      console.error("[Upload] S3 upload failed:", uploadResult.error)
       return NextResponse.json(
         { error: `Erreur upload S3: ${uploadResult.error}` },
         { status: 500 }
       )
     }
+
+    console.log("[Upload] S3 upload successful, creating DB record...")
 
     // Deactivate existing file for this platform
     await prisma.supportDownload.updateMany({
