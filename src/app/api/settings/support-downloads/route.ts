@@ -169,8 +169,18 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Error uploading support download:", error)
+    const errorMessage = error instanceof Error ? error.message : "Erreur inconnue"
+
+    // Check for specific errors
+    if (errorMessage.includes("support_downloads") || errorMessage.includes("SupportDownload")) {
+      return NextResponse.json(
+        { error: "Table support_downloads non trouvée. Exécutez 'npx prisma db push' pour créer la table." },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
-      { error: "Erreur lors de l'upload du fichier" },
+      { error: `Erreur lors de l'upload: ${errorMessage}` },
       { status: 500 }
     )
   }
