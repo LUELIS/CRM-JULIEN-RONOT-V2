@@ -43,6 +43,7 @@ import {
   Link,
   Unlink,
   Key,
+  Headphones,
 } from "lucide-react"
 import Image from "next/image"
 import { useTenant } from "@/contexts/tenant-context"
@@ -50,6 +51,7 @@ import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
 import { NotificationSettings } from "@/components/settings/NotificationSettings"
 import { DokploySettings } from "@/components/settings/DokploySettings"
 import { ApiKeysSettings } from "@/components/settings/ApiKeysSettings"
+import { RemoteSupportSettings } from "@/components/settings/RemoteSupportSettings"
 
 const monthlyGoalModeOptions: SelectOption[] = [
   { value: "auto", label: "Automatique (basé sur l'historique)", color: "#28B95F" },
@@ -924,6 +926,7 @@ function SettingsContent() {
         { id: "integrations", label: "Intégrations", icon: Puzzle, color: "#28B95F" },
         { id: "dns", label: "DNS", icon: Globe, color: "#14B4E6" },
         { id: "api", label: "API Externe", icon: Key, color: "#F04B69" },
+        { id: "remote-support", label: "Support", icon: Headphones, color: "#7B1FA2" },
       ],
     },
     {
@@ -3540,6 +3543,36 @@ function SettingsContent() {
         >
           <ApiKeysSettings />
         </div>
+      )}
+
+      {/* Remote Support Tab */}
+      {activeTab === "remote-support" && (
+        <RemoteSupportSettings
+          settings={{
+            s3Endpoint: settings?.settings?.s3Endpoint || "",
+            s3Region: settings?.settings?.s3Region || "fr-par",
+            s3AccessKey: settings?.settings?.s3AccessKey || "",
+            s3SecretKey: settings?.settings?.s3SecretKey || "",
+            s3Bucket: settings?.settings?.s3Bucket || "",
+            s3ForcePathStyle: settings?.settings?.s3ForcePathStyle ?? true,
+          }}
+          onSave={async (s3Config) => {
+            const newSettings = {
+              ...settings?.settings,
+              ...s3Config,
+            }
+            // Save to API
+            const response = await fetch("/api/settings", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ settings: newSettings }),
+            })
+            if (response.ok) {
+              // Refresh settings
+              fetchSettings()
+            }
+          }}
+        />
       )}
     </div>
   )

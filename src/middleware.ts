@@ -20,13 +20,41 @@ const PUBLIC_ROUTES = [
 // Routes that require CRON_SECRET header
 const CRON_ROUTES = ["/api/cron"]
 
+// Support subdomain patterns (e.g., support.julienronot.fr)
+const SUPPORT_DOMAINS = ["support."]
+
 // Check if path matches any pattern in the list
 function matchesRoute(path: string, routes: string[]): boolean {
   return routes.some(route => path.startsWith(route))
 }
 
+// Check if this is a support subdomain request
+function isSupportDomain(host: string): boolean {
+  return SUPPORT_DOMAINS.some(pattern => host.startsWith(pattern))
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
+  const host = req.headers.get("host") || ""
+
+  // Handle support subdomain - redirect all requests to /support page
+  if (isSupportDomain(host)) {
+    // Allow API routes for the support page
+    if (pathname.startsWith("/api/public/support-downloads")) {
+      return NextResponse.next()
+    }
+
+    // Allow static files
+    if (pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.includes(".")) {
+      return NextResponse.next()
+    }
+
+    // Redirect everything else to /support
+    if (pathname !== "/support") {
+      return NextResponse.rewrite(new URL("/support", req.url))
+    }
+    return NextResponse.next()
+  }
 
   // Only protect API routes
   if (!pathname.startsWith("/api")) {
@@ -81,7 +109,7 @@ export async function middleware(req: NextRequest) {
 // Configure which routes the middleware runs on
 export const config = {
   matcher: [
-    // Match all API routes
-    "/api/:path*",
+    // Match all routes except static files
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 }

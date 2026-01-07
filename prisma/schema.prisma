@@ -44,6 +44,7 @@ model User {
   cardComments                   ProjectCardComment[]    @relation("CardComments")
   cardAttachments                ProjectCardAttachment[] @relation("CardAttachments")
   externalApiKeys                ExternalApiKey[]
+  supportDownloads               SupportDownload[] @relation("SupportDownloadUploader")
 
   // O365 Calendar integration per user
   o365AccessToken                String?          @map("o365_access_token") @db.Text
@@ -1151,6 +1152,7 @@ model tenants {
   recurringReminders     RecurringReminder[]
   dokployServers         DokployServer[]
   externalApiKeys        ExternalApiKey[]
+  supportDownloads       SupportDownload[]
 }
 
 model user_tenants {
@@ -2181,4 +2183,32 @@ model ExternalApiKey {
   @@index([tenant_id], map: "external_api_keys_tenant_id_index")
   @@index([tokenHash], map: "external_api_keys_token_hash_index")
   @@map("external_api_keys")
+}
+
+// ============================================
+// REMOTE SUPPORT DOWNLOADS (RustDesk, etc.)
+// ============================================
+model SupportDownload {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id     BigInt    @db.UnsignedBigInt
+  platform      String    @db.VarChar(20) // windows, macos
+  fileName      String    @map("file_name") @db.VarChar(255)
+  originalName  String    @map("original_name") @db.VarChar(255)
+  fileSize      BigInt    @map("file_size") @db.BigInt
+  mimeType      String    @map("mime_type") @db.VarChar(100)
+  s3Key         String    @map("s3_key") @db.VarChar(500)
+  s3Bucket      String    @map("s3_bucket") @db.VarChar(100)
+  version       String?   @db.VarChar(50)
+  downloadCount Int       @default(0) @map("download_count")
+  isActive      Boolean   @default(true) @map("is_active")
+  uploadedBy    BigInt?   @map("uploaded_by") @db.UnsignedBigInt
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  tenant   tenants @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  uploader User?   @relation("SupportDownloadUploader", fields: [uploadedBy], references: [id], onUpdate: NoAction)
+
+  @@index([tenant_id], map: "support_downloads_tenant_id_index")
+  @@index([platform, isActive], map: "support_downloads_platform_index")
+  @@map("support_downloads")
 }
