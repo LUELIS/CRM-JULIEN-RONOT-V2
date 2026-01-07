@@ -179,14 +179,14 @@ export function ApiKeysSettings() {
         </div>
         <div className="flex items-center gap-2">
           <a
-            href="/api-docs"
+            href="/api-docs/support"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-blue-50"
             style={{ color: "#0064FA", border: "1px solid #0064FA" }}
           >
             <Book className="w-4 h-4" />
-            Documentation API
+            Documentation API Support
             <ExternalLink className="w-3 h-3" />
           </a>
           <button

@@ -435,7 +435,7 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function CodeBlock({ code, language = "json" }: { code: string; language?: string }) {
+function CodeBlock({ code }: { code: string }) {
   return (
     <div className="relative group">
       <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -560,7 +560,7 @@ function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
   )
 }
 
-export default function ApiDocsPage() {
+export default function SupportApiDocsPage() {
   const [activeSection, setActiveSection] = useState("tickets")
   const [copiedCurl, setCopiedCurl] = useState<string | null>(null)
 
@@ -603,7 +603,7 @@ export default function ApiDocsPage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-white">API Support Externe</h1>
-                <p className="text-sm text-gray-500">Documentation pour intégrations tierces</p>
+                <p className="text-sm text-gray-500">Documentation pour prestataires support</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -695,21 +695,34 @@ export default function ApiDocsPage() {
                 <AlertTriangle className="w-5 h-5 text-red-400" />
                 Codes d&apos;erreur
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   { code: "200", desc: "Succès", color: "emerald" },
                   { code: "201", desc: "Créé", color: "emerald" },
                   { code: "400", desc: "Requête invalide", color: "amber" },
                   { code: "401", desc: "Non autorisé", color: "red" },
                   { code: "404", desc: "Non trouvé", color: "red" },
+                  { code: "409", desc: "Conflit", color: "amber" },
                   { code: "429", desc: "Rate limit", color: "amber" },
                   { code: "500", desc: "Erreur serveur", color: "red" },
                 ].map((error) => (
                   <div
                     key={error.code}
-                    className={`p-3 rounded-lg bg-${error.color}-500/10 border border-${error.color}-500/20`}
+                    className="p-3 rounded-lg"
+                    style={{
+                      background: error.color === "emerald" ? "rgba(16, 185, 129, 0.1)" :
+                                  error.color === "amber" ? "rgba(245, 158, 11, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                      border: `1px solid ${error.color === "emerald" ? "rgba(16, 185, 129, 0.2)" :
+                                           error.color === "amber" ? "rgba(245, 158, 11, 0.2)" : "rgba(239, 68, 68, 0.2)"}`
+                    }}
                   >
-                    <span className={`text-lg font-bold text-${error.color}-400`}>
+                    <span
+                      className="text-lg font-bold"
+                      style={{
+                        color: error.color === "emerald" ? "#10B981" :
+                               error.color === "amber" ? "#F59E0B" : "#EF4444"
+                      }}
+                    >
                       {error.code}
                     </span>
                     <p className="text-xs text-gray-400 mt-1">{error.desc}</p>
@@ -782,7 +795,7 @@ export default function ApiDocsPage() {
                         )}
                       </button>
                     </div>
-                    <CodeBlock code={value} language="bash" />
+                    <CodeBlock code={value} />
                   </div>
                 ))}
               </div>
