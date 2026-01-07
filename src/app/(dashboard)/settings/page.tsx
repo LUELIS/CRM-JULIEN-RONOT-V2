@@ -184,6 +184,13 @@ interface SettingsData {
     revolutEnvironment?: string
     // Cron
     cronSecret?: string
+    // S3 Storage
+    s3Endpoint?: string
+    s3Region?: string
+    s3AccessKey?: string
+    s3SecretKey?: string
+    s3Bucket?: string
+    s3ForcePathStyle?: boolean
   }
 }
 
