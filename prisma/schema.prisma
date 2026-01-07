@@ -43,6 +43,7 @@ model User {
   assignedSubtasks               ProjectSubtask[]        @relation("SubtaskAssignee")
   cardComments                   ProjectCardComment[]    @relation("CardComments")
   cardAttachments                ProjectCardAttachment[] @relation("CardAttachments")
+  externalApiKeys                ExternalApiKey[]
 
   // O365 Calendar integration per user
   o365AccessToken                String?          @map("o365_access_token") @db.Text
@@ -1149,6 +1150,7 @@ model tenants {
   projects               Project[]
   recurringReminders     RecurringReminder[]
   dokployServers         DokployServer[]
+  externalApiKeys        ExternalApiKey[]
 }
 
 model user_tenants {
@@ -2151,4 +2153,32 @@ model DokployServer {
   @@unique([tenant_id, name], map: "dokploy_servers_tenant_name_unique")
   @@index([tenant_id], map: "dokploy_servers_tenant_id_index")
   @@map("dokploy_servers")
+}
+
+// ============================================
+// EXTERNAL API KEYS (for third-party integrations)
+// ============================================
+model ExternalApiKey {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id   BigInt    @db.UnsignedBigInt
+  name        String    @db.VarChar(100) // e.g., "Support Provider - Prestataire X"
+  description String?   @db.Text
+  tokenHash   String    @unique @map("token_hash") @db.VarChar(64) // SHA256 hash of the token
+  tokenPrefix String    @map("token_prefix") @db.VarChar(12) // First 8 chars for identification (crm_xxxx)
+  permissions String?   @db.Text // JSON array: ["support", "clients", "*"]
+  isActive    Boolean   @default(true) @map("is_active")
+  expiresAt   DateTime? @map("expires_at") @db.Timestamp(0)
+  lastUsedAt  DateTime? @map("last_used_at") @db.Timestamp(0)
+  ipWhitelist String?   @map("ip_whitelist") @db.Text // JSON array of allowed IPs (optional)
+  rateLimit   Int       @default(1000) @map("rate_limit") // requests per hour
+  createdBy   BigInt?   @map("created_by") @db.UnsignedBigInt
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  tenant  tenants @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  creator User?   @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
+
+  @@index([tenant_id], map: "external_api_keys_tenant_id_index")
+  @@index([tokenHash], map: "external_api_keys_token_hash_index")
+  @@map("external_api_keys")
 }
