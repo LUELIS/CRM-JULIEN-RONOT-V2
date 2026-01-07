@@ -67,6 +67,8 @@ export function RemoteSupportSettings({ settings, onSave }: RemoteSupportSetting
   const [showSecretKey, setShowSecretKey] = useState(false)
   const [savingS3, setSavingS3] = useState(false)
   const [s3Saved, setS3Saved] = useState(false)
+  const [testingS3, setTestingS3] = useState(false)
+  const [s3TestResult, setS3TestResult] = useState<{ success: boolean; message: string } | null>(null)
 
   // Downloads state
   const [downloads, setDownloads] = useState<DownloadFile[]>([])
@@ -122,6 +124,38 @@ export function RemoteSupportSettings({ settings, onSave }: RemoteSupportSetting
       console.error("Error saving S3 config:", error)
     } finally {
       setSavingS3(false)
+    }
+  }
+
+  const handleTestS3 = async () => {
+    setTestingS3(true)
+    setS3TestResult(null)
+    try {
+      const response = await fetch("/api/settings/s3-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          s3Endpoint,
+          s3Region,
+          s3AccessKey,
+          s3SecretKey,
+          s3Bucket,
+          s3ForcePathStyle,
+        }),
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setS3TestResult({ success: true, message: data.message })
+      } else {
+        setS3TestResult({ success: false, message: data.error || "Erreur de connexion" })
+      }
+    } catch (error) {
+      console.error("Error testing S3:", error)
+      setS3TestResult({ success: false, message: "Erreur lors du test" })
+    } finally {
+      setTestingS3(false)
+      // Clear result after 5 seconds
+      setTimeout(() => setS3TestResult(null), 5000)
     }
   }
 
@@ -327,7 +361,43 @@ export function RemoteSupportSettings({ settings, onSave }: RemoteSupportSetting
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end">
+        {/* Test Result */}
+        {s3TestResult && (
+          <div
+            className="mt-4 p-3 rounded-xl flex items-center gap-3"
+            style={{
+              background: s3TestResult.success ? "#E8F5E9" : "#FFEBEE",
+              border: `1px solid ${s3TestResult.success ? "#A5D6A7" : "#EF9A9A"}`,
+            }}
+          >
+            {s3TestResult.success ? (
+              <CheckCircle className="h-5 w-5 flex-shrink-0" style={{ color: "#28B95F" }} />
+            ) : (
+              <XCircle className="h-5 w-5 flex-shrink-0" style={{ color: "#F04B69" }} />
+            )}
+            <p
+              className="text-sm font-medium"
+              style={{ color: s3TestResult.success ? "#2E7D32" : "#C62828" }}
+            >
+              {s3TestResult.message}
+            </p>
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={handleTestS3}
+            disabled={testingS3 || !s3Endpoint || !s3AccessKey || !s3SecretKey || !s3Bucket}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+            style={{ background: "#F5F5F7", color: "#444444" }}
+          >
+            {testingS3 ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Tester la connexion
+          </button>
           <button
             onClick={handleSaveS3Config}
             disabled={savingS3 || !s3Endpoint || !s3AccessKey || !s3SecretKey || !s3Bucket}
@@ -341,7 +411,7 @@ export function RemoteSupportSettings({ settings, onSave }: RemoteSupportSetting
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {s3Saved ? "Sauvegardé" : "Sauvegarder la config S3"}
+            {s3Saved ? "Sauvegardé" : "Sauvegarder"}
           </button>
         </div>
       </div>
