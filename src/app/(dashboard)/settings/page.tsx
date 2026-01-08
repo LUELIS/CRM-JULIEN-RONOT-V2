@@ -894,6 +894,28 @@ function SettingsContent() {
       cronExpression: "0 * * * *",
       requires: "Aucun",
     },
+    {
+      id: "domain-sync",
+      name: "Sync domaines OVH",
+      description: "Synchronise la liste des domaines depuis OVH",
+      endpoint: "/api/cron/domain-sync",
+      icon: Globe,
+      color: "#059669",
+      schedule: "Tous les jours à 6h",
+      cronExpression: "0 6 * * *",
+      requires: "OVH API",
+    },
+    {
+      id: "domain-renewals",
+      name: "Alertes expiration domaines",
+      description: "Vérifie les domaines expirant dans les 30 jours et crée des notifications",
+      endpoint: "/api/cron/domain-renewals",
+      icon: Globe,
+      color: "#DC2626",
+      schedule: "Tous les jours à 7h",
+      cronExpression: "0 7 * * *",
+      requires: "Aucun",
+    },
   ]
 
   const runCron = async (cronId: string, endpoint: string) => {
@@ -3305,8 +3327,8 @@ function SettingsContent() {
               {availableCrons.map((cron) => {
                 const fullUrl = typeof window !== "undefined" ? `${window.location.origin}${cron.endpoint}` : cron.endpoint
                 const curlCommand = cronSecret
-                  ? `curl -X GET "${fullUrl}" -H "Authorization: Bearer ${cronSecret}"`
-                  : `curl -X GET "${fullUrl}"`
+                  ? `curl -s "${fullUrl}" -H "x-cron-secret: ${cronSecret}"`
+                  : `curl -s "${fullUrl}"`
 
                 return (
                   <div key={cron.id} className="grid grid-cols-12 gap-2 px-3 py-3 items-center hover:bg-white transition-colors">
@@ -3354,7 +3376,7 @@ function SettingsContent() {
             <div className="mt-4 pt-4" style={{ borderTop: "1px solid #EEEEEE" }}>
               <button
                 onClick={() => {
-                  const authHeader = cronSecret ? ` -H "Authorization: Bearer ${cronSecret}"` : ""
+                  const authHeader = cronSecret ? ` -H "x-cron-secret: ${cronSecret}"` : ""
                   const allCommands = availableCrons.map(cron => {
                     const fullUrl = typeof window !== "undefined" ? `${window.location.origin}${cron.endpoint}` : cron.endpoint
                     return `# ${cron.name} (${cron.schedule})\n${cron.cronExpression} curl -X GET "${fullUrl}"${authHeader}`

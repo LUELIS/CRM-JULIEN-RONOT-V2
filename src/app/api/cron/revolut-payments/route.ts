@@ -24,15 +24,8 @@ async function getRevolutSettings() {
 }
 
 // GET: Cron job to check all pending Revolut payments
+// Authentication is handled by middleware via x-cron-secret header
 export async function GET(request: NextRequest) {
-  // Verify cron secret (optional, for security)
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   try {
     // Get Revolut settings
     const settings = await getRevolutSettings()
