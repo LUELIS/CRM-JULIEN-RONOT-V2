@@ -58,6 +58,7 @@ export function ApiKeysSettings() {
   const permissions = [
     { id: "support", label: "Support", description: "Gestion des tickets et messages" },
     { id: "clients", label: "Clients", description: "Lecture et modification des clients" },
+    { id: "notes", label: "Notes", description: "Accès aux notes pour le widget desktop" },
     { id: "*", label: "Toutes", description: "Accès complet à toutes les ressources" },
   ]
 
