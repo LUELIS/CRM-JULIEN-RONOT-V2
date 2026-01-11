@@ -258,6 +258,7 @@ export function cleanHtmlContent(html: string): string {
 }
 
 // Generate professional email template for ticket responses
+// Uses unified CRM design: #0064FA primary color, clean Outlook/Gmail compatible
 export function generateTicketEmailTemplate(options: {
   logo?: string | null
   companyName: string
@@ -298,131 +299,171 @@ export function generateTicketEmailTemplate(options: {
 
   // Generate history HTML (only last 5 messages)
   const historyHtml = history.slice(-5).map((msg) => `
-    <div style="margin-bottom: 15px; padding: 12px; background-color: ${msg.isStaff ? "#f0f7ff" : "#f9fafb"}; border-radius: 8px; border-left: 3px solid ${msg.isStaff ? "#3b82f6" : "#9ca3af"};">
-      <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
-        <strong>${msg.senderName}</strong> - ${formatDate(msg.date)}
-      </div>
-      <div style="color: #374151; font-size: 14px;">
-        ${cleanHtmlContent(msg.content)}
-      </div>
-    </div>
-  `).join("")
-
-  // Logo section - use base64 if available
-  const logoSection = logo
-    ? `<img src="${logo}" alt="${companyName}" style="max-height: 50px; max-width: 200px;" />`
-    : `<span style="font-size: 20px; font-weight: bold; color: #1f2937;">${companyName}</span>`
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 20px 0;">
     <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-
-          <!-- Header -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 25px 30px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td>
-                    ${logoSection}
-                  </td>
-                  <td align="right" style="color: #ffffff;">
-                    <div style="font-size: 12px; opacity: 0.9;">Ticket</div>
-                    <div style="font-size: 16px; font-weight: bold;">${ticketNumber}</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Subject Banner -->
-          <tr>
-            <td style="background-color: #1e3a5f; padding: 15px 30px;">
-              <div style="color: #93c5fd; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Objet</div>
-              <div style="color: #ffffff; font-size: 16px; font-weight: 500; margin-top: 4px;">${subject}</div>
-            </td>
-          </tr>
-
-          <!-- Main Content -->
-          <tr>
-            <td style="padding: 30px;">
-              <!-- Greeting -->
-              <div style="color: #374151; font-size: 15px; margin-bottom: 20px;">
-                Bonjour ${recipientName.split(" ")[0]},
-              </div>
-
-              <!-- New Message -->
-              <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
-                <div style="color: #166534; font-size: 12px; font-weight: 600; margin-bottom: 10px; text-transform: uppercase;">
-                  Nouvelle réponse
-                </div>
-                <div style="color: #374151; font-size: 14px; line-height: 1.6;">
-                  ${newMessage}
-                </div>
-              </div>
-
-              ${history.length > 0 ? `
-              <!-- History Section -->
-              <div style="margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-                <div style="color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 15px;">
-                  Historique de la conversation
-                </div>
-                ${historyHtml}
-              </div>
-              ` : ""}
-
-              ${portalUrl ? `
-              <!-- Portal Link -->
-              <div style="margin-top: 30px; text-align: center;">
-                <a href="${portalUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 500; font-size: 14px;">
-                  Voir le ticket complet
-                </a>
-              </div>
-              ` : ""}
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td>
-                    <div style="color: #374151; font-size: 13px; font-weight: 500;">${senderName}</div>
-                    <div style="color: #6b7280; font-size: 12px;">${companyName}</div>
-                    <a href="mailto:${senderEmail}" style="color: #3b82f6; font-size: 12px; text-decoration: none;">${senderEmail}</a>
-                  </td>
-                  <td align="right" style="color: #9ca3af; font-size: 11px;">
-                    <div>Répondez directement à cet email</div>
-                    <div>pour continuer la conversation</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-        </table>
-
-        <!-- Bottom Text -->
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
-          <tr>
-            <td style="padding: 20px; text-align: center; color: #9ca3af; font-size: 11px;">
-              Cet email a été envoyé par ${companyName} en réponse à votre demande de support.
-            </td>
-          </tr>
-        </table>
+      <td style="padding: 12px 16px; background-color: ${msg.isStaff ? "#F0F7FF" : "#F9FAFB"}; border-radius: 8px; border-left: 4px solid ${msg.isStaff ? "#0064FA" : "#E5E7EB"}; margin-bottom: 12px;">
+        <p style="margin: 0 0 6px 0; font-size: 12px; color: #6B7280;">
+          <strong style="color: #374151;">${msg.senderName}</strong> &bull; ${formatDate(msg.date)}
+        </p>
+        <div style="color: #374151; font-size: 14px; line-height: 1.5;">
+          ${cleanHtmlContent(msg.content)}
+        </div>
       </td>
     </tr>
-  </table>
-</body>
+    <tr><td style="height: 12px;"></td></tr>
+  `).join("")
+
+  // Logo section
+  const logoSection = logo
+    ? `<img src="${logo}" alt="${companyName}" style="max-height: 48px; max-width: 180px;" />`
+    : `<span style="font-size: 24px; font-weight: bold; color: #0064FA;">${companyName}</span>`
+
+  return `
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="fr">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--[if mso]>
+    <style type="text/css">
+      body, table, td {font-family: Arial, Helvetica, sans-serif !important;}
+    </style>
+    <![endif]-->
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F3F4F6">
+      <tr>
+        <td align="center" style="padding: 40px 20px;">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width: 560px; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+
+            <!-- Header with Logo -->
+            <tr>
+              <td style="padding: 32px 40px 24px 40px; border-bottom: 1px solid #E5E7EB;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center">
+                      ${logoSection}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Title Section -->
+            <tr>
+              <td style="padding: 32px 40px 24px 40px;">
+                <h1 style="color: #111111; font-size: 24px; margin: 0 0 8px 0; font-weight: 600; text-align: center;">
+                  Réponse à votre demande
+                </h1>
+                <p style="color: #6B7280; font-size: 14px; margin: 0; text-align: center;">Ticket ${ticketNumber}</p>
+              </td>
+            </tr>
+
+            <!-- Content -->
+            <tr>
+              <td style="padding: 0 40px 32px 40px;">
+                <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                  Bonjour <strong>${recipientName.split(" ")[0]}</strong>,
+                </p>
+
+                <!-- Subject Box -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
+                  <tr>
+                    <td style="padding: 16px; background-color: #F9FAFB; border-radius: 8px; border-left: 4px solid #0064FA;">
+                      <p style="margin: 0 0 4px 0; color: #6B7280; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Objet</p>
+                      <p style="margin: 0; color: #111111; font-size: 15px; font-weight: 600;">${subject}</p>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- New Message -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
+                  <tr>
+                    <td style="padding: 20px; background-color: #F0F7FF; border-radius: 8px; border-left: 4px solid #0064FA;">
+                      <p style="margin: 0 0 4px 0; color: #0064FA; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Nouvelle réponse</p>
+                      <div style="color: #374151; font-size: 15px; line-height: 1.6; margin-top: 12px;">
+                        ${newMessage}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                ${portalUrl ? `
+                <!-- Button -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0;">
+                  <tr>
+                    <td align="center">
+                      <!--[if mso]>
+                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${portalUrl}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="17%" stroke="f" fillcolor="#0064FA">
+                        <w:anchorlock/>
+                        <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">Voir le ticket</center>
+                      </v:roundrect>
+                      <![endif]-->
+                      <!--[if !mso]><!-->
+                      <a href="${portalUrl}" style="display: inline-block; background-color: #0064FA; color: #ffffff; text-decoration: none; padding: 14px 40px; font-size: 15px; font-weight: 600; border-radius: 8px; mso-hide: all;">
+                        Voir le ticket
+                      </a>
+                      <!--<![endif]-->
+                    </td>
+                  </tr>
+                </table>
+                ` : ""}
+
+                ${history.length > 0 ? `
+                <!-- History Section -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 32px; border-top: 1px solid #E5E7EB; padding-top: 24px;">
+                  <tr>
+                    <td style="padding-bottom: 16px;">
+                      <p style="margin: 0; color: #6B7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Historique de la conversation
+                      </p>
+                    </td>
+                  </tr>
+                  ${historyHtml}
+                </table>
+                ` : ""}
+
+                <!-- Reply Notice -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 24px;">
+                  <tr>
+                    <td style="padding: 16px; background-color: #F9FAFB; border-radius: 8px;">
+                      <p style="margin: 0; color: #6B7280; font-size: 13px; text-align: center;">
+                        Répondez directement à cet email pour continuer la conversation.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding: 24px 40px; border-top: 1px solid #E5E7EB; background-color: #F9FAFB;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td>
+                      <p style="margin: 0; color: #374151; font-size: 13px; font-weight: 600;">${senderName}</p>
+                      <p style="margin: 4px 0 0 0; color: #6B7280; font-size: 12px;">${companyName}</p>
+                      <a href="mailto:${senderEmail}" style="color: #0064FA; font-size: 12px; text-decoration: none;">${senderEmail}</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Bottom Text -->
+            <tr>
+              <td style="padding: 16px 40px; border-top: 1px solid #E5E7EB;">
+                <p style="color: #9CA3AF; font-size: 11px; margin: 0; text-align: center;">
+                  ${companyName} &bull; Cet email a été envoyé automatiquement
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
 </html>
 `
 }
