@@ -61,29 +61,51 @@ function setupAutoUpdater() {
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version)
 
-    // Show system notification first
-    sendNotification(
-      '✅ Mise à jour prête',
-      `Version ${info.version} prête à installer. Cliquez pour redémarrer.`,
-      'success'
-    )
+    // Show main window if hidden to ensure dialog is visible
+    if (mainWindow) {
+      if (!mainWindow.isVisible()) {
+        mainWindow.show()
+      }
+      mainWindow.focus()
+    }
 
-    // Then show dialog
-    setTimeout(() => {
-      dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Mise à jour prête',
-        message: `La version ${info.version} est prête à être installée.`,
-        detail: 'L\'application va redémarrer pour appliquer la mise à jour.\n\nNouveautés:\n' + (info.releaseNotes || 'Améliorations et corrections'),
-        buttons: ['Redémarrer maintenant', 'Plus tard'],
-        defaultId: 0,
-      }).then((result) => {
-        if (result.response === 0) {
-          isQuitting = true
-          autoUpdater.quitAndInstall(false, true)
-        }
-      })
-    }, 500)
+    // Show dialog immediately (no notification first - dialog is more reliable)
+    const dialogOptions = {
+      type: 'info',
+      title: 'Mise à jour prête',
+      message: `La version ${info.version} est prête à être installée.`,
+      detail: 'L\'application va redémarrer pour appliquer la mise à jour.',
+      buttons: ['Redémarrer maintenant', 'Plus tard'],
+      defaultId: 0,
+      cancelId: 1,
+    }
+
+    // Use mainWindow if available, otherwise show without parent
+    const parentWindow = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+
+    dialog.showMessageBox(parentWindow, dialogOptions).then((result) => {
+      if (result.response === 0) {
+        console.log('[AutoUpdater] User chose to restart')
+        isQuitting = true
+        autoUpdater.quitAndInstall(false, true)
+      } else {
+        console.log('[AutoUpdater] User chose to restart later')
+        // Show notification as reminder
+        sendNotification(
+          '✅ Mise à jour prête',
+          'La mise à jour sera installée au prochain redémarrage.',
+          'info'
+        )
+      }
+    }).catch((err) => {
+      console.log('[AutoUpdater] Dialog error:', err)
+      // Fallback: just install on next quit
+      sendNotification(
+        '✅ Mise à jour prête',
+        'La mise à jour sera installée au prochain redémarrage.',
+        'info'
+      )
+    })
   })
 
   // No update available
