@@ -12,11 +12,15 @@ const store = new Store({
     notifications: true,
     deploymentOverlay: true,
     overlayPosition: { x: 20, y: 80 }, // Default position
+    notesWidget: false, // Notes widget enabled
+    notesWidgetPosition: { x: 20, y: 200 }, // Notes widget position
+    notesApiToken: '', // API token for notes widget
   }
 })
 
 let mainWindow = null
 let deploymentWindow = null
+let notesWidgetWindow = null
 let tray = null
 let isQuitting = false
 let activeDeployments = []
@@ -28,49 +32,77 @@ const CRM_URL = store.get('crmUrl')
 // Auto-updater configuration
 autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
+autoUpdater.allowPrerelease = false
 
 function setupAutoUpdater() {
-  // Check for updates silently
-  autoUpdater.checkForUpdates().catch(() => {})
+  console.log('[AutoUpdater] Current version:', app.getVersion())
+  console.log('[AutoUpdater] Checking for updates...')
 
-  // Update available
+  // Check for updates on startup
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.log('[AutoUpdater] Initial check failed:', err.message)
+  })
+
+  // Update available - show prominent notification
   autoUpdater.on('update-available', (info) => {
     console.log('[AutoUpdater] Update available:', info.version)
     sendNotification(
-      'Mise à jour disponible',
+      '🚀 Mise à jour disponible',
       `Version ${info.version} en cours de téléchargement...`,
       'info'
     )
   })
 
-  // Update downloaded - prompt to restart
+  // Download progress
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`[AutoUpdater] Download progress: ${Math.round(progress.percent)}%`)
+  })
+
+  // Update downloaded - prompt to restart with more urgency
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version)
 
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Mise à jour prête',
-      message: `La version ${info.version} est prête à être installée.`,
-      detail: 'L\'application va redémarrer pour appliquer la mise à jour.',
-      buttons: ['Redémarrer maintenant', 'Plus tard'],
-      defaultId: 0,
-    }).then((result) => {
-      if (result.response === 0) {
-        isQuitting = true
-        autoUpdater.quitAndInstall(false, true)
-      }
-    })
+    // Show system notification first
+    sendNotification(
+      '✅ Mise à jour prête',
+      `Version ${info.version} prête à installer. Cliquez pour redémarrer.`,
+      'success'
+    )
+
+    // Then show dialog
+    setTimeout(() => {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Mise à jour prête',
+        message: `La version ${info.version} est prête à être installée.`,
+        detail: 'L\'application va redémarrer pour appliquer la mise à jour.\n\nNouveautés:\n' + (info.releaseNotes || 'Améliorations et corrections'),
+        buttons: ['Redémarrer maintenant', 'Plus tard'],
+        defaultId: 0,
+      }).then((result) => {
+        if (result.response === 0) {
+          isQuitting = true
+          autoUpdater.quitAndInstall(false, true)
+        }
+      })
+    }, 500)
   })
 
-  // Error handling
+  // No update available
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('[AutoUpdater] No update available. Current:', app.getVersion())
+  })
+
+  // Error handling with more details
   autoUpdater.on('error', (err) => {
     console.log('[AutoUpdater] Error:', err.message)
+    console.log('[AutoUpdater] Error details:', err)
   })
 
-  // Check for updates every 30 minutes
+  // Check for updates every 15 minutes (more frequent)
   setInterval(() => {
+    console.log('[AutoUpdater] Scheduled check...')
     autoUpdater.checkForUpdates().catch(() => {})
-  }, 30 * 60 * 1000)
+  }, 15 * 60 * 1000)
 }
 
 // Create main window
@@ -225,6 +257,92 @@ function hideDeploymentOverlay() {
   }
 }
 
+// ==================== NOTES WIDGET ====================
+
+// Create notes widget window
+function createNotesWidget() {
+  if (notesWidgetWindow && !notesWidgetWindow.isDestroyed()) {
+    notesWidgetWindow.show()
+    notesWidgetWindow.focus()
+    return
+  }
+
+  const savedPosition = store.get('notesWidgetPosition')
+
+  notesWidgetWindow = new BrowserWindow({
+    width: 320,
+    height: 450,
+    x: savedPosition.x,
+    y: savedPosition.y,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: true,
+    focusable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  })
+
+  notesWidgetWindow.loadFile(path.join(__dirname, 'notes-widget.html'))
+  notesWidgetWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  // Send config when loaded
+  notesWidgetWindow.webContents.once('did-finish-load', () => {
+    if (notesWidgetWindow && !notesWidgetWindow.isDestroyed()) {
+      notesWidgetWindow.webContents.send('widget-config', {
+        crmUrl: CRM_URL,
+        apiToken: store.get('notesApiToken'),
+      })
+    }
+  })
+
+  // Save position when moved
+  notesWidgetWindow.on('move', () => {
+    if (notesWidgetWindow && !notesWidgetWindow.isDestroyed()) {
+      const [x, y] = notesWidgetWindow.getPosition()
+      store.set('notesWidgetPosition', { x, y })
+    }
+  })
+
+  notesWidgetWindow.on('closed', () => {
+    notesWidgetWindow = null
+  })
+}
+
+// Hide notes widget
+function hideNotesWidget() {
+  if (notesWidgetWindow && !notesWidgetWindow.isDestroyed()) {
+    notesWidgetWindow.hide()
+  }
+}
+
+// Toggle notes widget
+function toggleNotesWidget() {
+  if (notesWidgetWindow && !notesWidgetWindow.isDestroyed()) {
+    if (notesWidgetWindow.isVisible()) {
+      notesWidgetWindow.hide()
+    } else {
+      notesWidgetWindow.show()
+    }
+  } else {
+    createNotesWidget()
+  }
+}
+
+// Refresh notes widget
+function refreshNotesWidget() {
+  if (notesWidgetWindow && !notesWidgetWindow.isDestroyed()) {
+    notesWidgetWindow.webContents.send('widget-refresh')
+  }
+}
+
+// ==================== END NOTES WIDGET ====================
+
 // Handle deployment updates from renderer
 function handleDeploymentUpdate(deployments) {
   const runningDeployments = deployments.filter(d => d.status === 'running')
@@ -353,6 +471,19 @@ function createTray() {
       }
     },
     {
+      label: 'Widget Notes',
+      type: 'checkbox',
+      checked: store.get('notesWidget'),
+      click: (item) => {
+        store.set('notesWidget', item.checked)
+        if (item.checked) {
+          createNotesWidget()
+        } else {
+          hideNotesWidget()
+        }
+      }
+    },
+    {
       label: 'Minimiser dans le tray',
       type: 'checkbox',
       checked: store.get('minimizeToTray'),
@@ -361,6 +492,41 @@ function createTray() {
       }
     },
     { type: 'separator' },
+    {
+      label: 'Configurer Token Notes...',
+      click: () => {
+        // Show input dialog for API token
+        const currentToken = store.get('notesApiToken')
+        const tokenPrefix = currentToken ? currentToken.substring(0, 12) + '...' : 'Non configuré'
+
+        dialog.showMessageBox(mainWindow, {
+          type: 'question',
+          title: 'Token API Notes',
+          message: 'Configurer le token API pour le widget Notes',
+          detail: `Token actuel: ${tokenPrefix}\n\nPour obtenir un token:\n1. CRM > Paramètres > Clés API\n2. Créez une clé avec permission "notes"\n3. Copiez le token ici`,
+          buttons: ['Coller le token', 'Supprimer le token', 'Annuler'],
+          defaultId: 0,
+          cancelId: 2,
+        }).then(async (result) => {
+          if (result.response === 0) {
+            // Read from clipboard
+            const { clipboard } = require('electron')
+            const token = clipboard.readText().trim()
+            if (token && token.startsWith('crm_')) {
+              store.set('notesApiToken', token)
+              sendNotification('Token configuré', 'Le widget Notes va se rafraîchir.', 'success')
+              refreshNotesWidget()
+            } else {
+              sendNotification('Token invalide', 'Le token doit commencer par "crm_"', 'error')
+            }
+          } else if (result.response === 1) {
+            store.set('notesApiToken', '')
+            sendNotification('Token supprimé', 'Le widget Notes est désactivé.', 'info')
+            refreshNotesWidget()
+          }
+        })
+      }
+    },
     {
       label: 'Vérifier les mises à jour',
       click: () => {
@@ -424,11 +590,48 @@ ipcMain.on('deployment-update', (event, deployments) => {
   handleDeploymentUpdate(deployments)
 })
 
+// Notes widget IPC handlers
+ipcMain.on('widget-open-crm', () => {
+  if (mainWindow) {
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.loadURL(CRM_URL + '/notes')
+  }
+})
+
+ipcMain.on('widget-open-note', (event, noteId) => {
+  if (mainWindow) {
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.loadURL(CRM_URL + '/notes')
+  }
+})
+
+ipcMain.on('widget-close', () => {
+  hideNotesWidget()
+  store.set('notesWidget', false)
+})
+
+ipcMain.on('widget-open-settings', () => {
+  if (mainWindow) {
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.loadURL(CRM_URL + '/settings')
+  }
+})
+
 // App lifecycle
 app.whenReady().then(() => {
   createMainWindow()
   createTray()
   setupAutoUpdater()
+
+  // Auto-start notes widget if enabled
+  if (store.get('notesWidget') && store.get('notesApiToken')) {
+    setTimeout(() => {
+      createNotesWidget()
+    }, 2000) // Delay to let main window load first
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

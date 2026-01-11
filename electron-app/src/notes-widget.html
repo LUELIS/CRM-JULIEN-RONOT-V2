@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes Widget</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: transparent;
+      overflow: hidden;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    .widget-container {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .widget-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #0064FA 0%, #0050CC 100%);
+      color: white;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-icon {
+      width: 28px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: white;
+    }
+
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .header-count {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+
+    .header-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .header-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .header-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: white;
+    }
+
+    /* Stats bar */
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      padding: 10px 16px;
+      background: #F8F9FA;
+      border-bottom: 1px solid #EEEEEE;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #666666;
+    }
+
+    .stat-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .stat-icon.quick { fill: #DCB40A; }
+    .stat-icon.note { fill: #0064FA; }
+    .stat-icon.todo { fill: #5F00BA; }
+
+    /* Notes list */
+    .notes-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      -webkit-app-region: no-drag;
+    }
+
+    .notes-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .notes-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .notes-list::-webkit-scrollbar-thumb {
+      background: #DDDDDD;
+      border-radius: 3px;
+    }
+
+    .note-item {
+      display: flex;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-bottom: 4px;
+    }
+
+    .note-item:hover {
+      background: #F5F5F5;
+    }
+
+    .note-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .note-icon.quick { background: rgba(220, 180, 10, 0.12); }
+    .note-icon.note { background: rgba(0, 100, 250, 0.12); }
+    .note-icon.todo { background: rgba(95, 0, 186, 0.12); }
+
+    .note-icon svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .note-icon.quick svg { fill: #DCB40A; }
+    .note-icon.note svg { fill: #0064FA; }
+    .note-icon.todo svg { fill: #5F00BA; }
+
+    .note-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .note-text {
+      font-size: 12px;
+      color: #333333;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .note-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .note-tag {
+      font-size: 10px;
+      font-weight: 500;
+      color: #0064FA;
+    }
+
+    .note-time {
+      font-size: 10px;
+      color: #BBBBBB;
+    }
+
+    .note-reminder {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #F04B69;
+      background: rgba(240, 75, 105, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .note-reminder svg {
+      width: 10px;
+      height: 10px;
+      fill: #F04B69;
+    }
+
+    .note-pinned {
+      color: #DCB40A;
+    }
+
+    .note-pinned svg {
+      width: 12px;
+      height: 12px;
+      fill: #DCB40A;
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      text-align: center;
+      color: #999999;
+    }
+
+    .empty-icon {
+      width: 48px;
+      height: 48px;
+      background: #E6F0FF;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .empty-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: #0064FA;
+    }
+
+    .empty-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #666666;
+      margin-bottom: 4px;
+    }
+
+    .empty-text {
+      font-size: 11px;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid #E6F0FF;
+      border-top-color: #0064FA;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Error state */
+    .error-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      text-align: center;
+    }
+
+    .error-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(240, 75, 105, 0.1);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .error-icon svg {
+      width: 20px;
+      height: 20px;
+      fill: #F04B69;
+    }
+
+    .error-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: #F04B69;
+      margin-bottom: 4px;
+    }
+
+    .error-text {
+      font-size: 11px;
+      color: #999999;
+      margin-bottom: 12px;
+    }
+
+    .error-btn {
+      padding: 6px 12px;
+      background: #0064FA;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .error-btn:hover {
+      background: #0050CC;
+    }
+
+    /* Setup state */
+    .setup-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      text-align: center;
+    }
+
+    .setup-icon {
+      width: 48px;
+      height: 48px;
+      background: #FFF3E0;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .setup-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: #F0783C;
+    }
+
+    .setup-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #333333;
+      margin-bottom: 8px;
+    }
+
+    .setup-text {
+      font-size: 11px;
+      color: #666666;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    .setup-steps {
+      text-align: left;
+      font-size: 11px;
+      color: #666666;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .setup-steps ol {
+      margin-left: 16px;
+    }
+
+    .setup-btn {
+      padding: 8px 16px;
+      background: #0064FA;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .setup-btn:hover {
+      background: #0050CC;
+    }
+  </style>
+</head>
+<body>
+  <div class="widget-container">
+    <!-- Header -->
+    <div class="widget-header">
+      <div class="header-left">
+        <div class="header-icon">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2z"/></svg>
+        </div>
+        <div>
+          <div class="header-title">Mes Notes</div>
+          <div class="header-count" id="notes-count">Chargement...</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" id="refresh-btn" title="Actualiser">
+          <svg viewBox="0 0 24 24"><path d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        </button>
+        <button class="header-btn" id="open-crm-btn" title="Ouvrir CRM">
+          <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+        </button>
+        <button class="header-btn" id="close-btn" title="Fermer">
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="stats-bar" id="stats-bar" style="display: none;">
+      <div class="stat-item">
+        <svg class="stat-icon quick" viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+        <span id="stat-quick">0</span> Flash
+      </div>
+      <div class="stat-item">
+        <svg class="stat-icon note" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2z"/></svg>
+        <span id="stat-note">0</span> Notes
+      </div>
+      <div class="stat-item">
+        <svg class="stat-icon todo" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        <span id="stat-todo">0</span> Tâches
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="notes-list" id="notes-list">
+      <div class="loading">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Icons SVG
+    const icons = {
+      quick: '<svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>',
+      note: '<svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2z"/></svg>',
+      todo: '<svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>',
+      pin: '<svg viewBox="0 0 24 24"><path d="M16 9V4l1 0c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1l1 0v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>',
+      bell: '<svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>',
+      error: '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+      key: '<svg viewBox="0 0 24 24"><path d="M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>',
+    };
+
+    let apiToken = null;
+    let notes = [];
+    let stats = null;
+
+    // Format date
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+
+      if (hours < 1) return "À l'instant";
+      if (hours < 24) return `Il y a ${hours}h`;
+      const days = Math.floor(hours / 24);
+      if (days === 1) return "Hier";
+      return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    }
+
+    // Format reminder
+    function formatReminder(dateStr) {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diff = date.getTime() - now.getTime();
+
+      if (diff < 0) return "Passé";
+      if (diff < 60 * 60 * 1000) return `Dans ${Math.floor(diff / 60000)}min`;
+      if (diff < 24 * 60 * 60 * 1000) return `Dans ${Math.floor(diff / 3600000)}h`;
+      return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    }
+
+    // Truncate text
+    function truncate(text, max = 100) {
+      const cleaned = text.replace(/^#+\s+/gm, "").replace(/\n+/g, " ").trim();
+      if (cleaned.length <= max) return cleaned;
+      return cleaned.substring(0, max).trim() + "...";
+    }
+
+    // Render notes
+    function renderNotes() {
+      const container = document.getElementById('notes-list');
+
+      if (!apiToken) {
+        container.innerHTML = `
+          <div class="setup-state">
+            <div class="setup-icon">${icons.key}</div>
+            <div class="setup-title">Configuration requise</div>
+            <div class="setup-text">Pour afficher vos notes, créez une clé API dans le CRM.</div>
+            <div class="setup-steps">
+              <ol>
+                <li>Ouvrez le CRM > Paramètres</li>
+                <li>Onglet "Clés API"</li>
+                <li>Créez une clé avec permission "notes"</li>
+                <li>Copiez le token dans les paramètres de l'app</li>
+              </ol>
+            </div>
+            <button class="setup-btn" id="open-settings-btn">Ouvrir les paramètres</button>
+          </div>
+        `;
+        document.getElementById('open-settings-btn')?.addEventListener('click', () => {
+          window.electronAPI?.openSettings?.();
+        });
+        return;
+      }
+
+      if (notes.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">${icons.note}</div>
+            <div class="empty-title">Aucune note</div>
+            <div class="empty-text">Vos notes apparaîtront ici</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = notes.map(note => `
+        <div class="note-item" data-id="${note.id}">
+          <div class="note-icon ${note.type}">${icons[note.type]}</div>
+          <div class="note-content">
+            <div class="note-text">${truncate(note.content)}</div>
+            <div class="note-meta">
+              ${note.isTop ? `<span class="note-pinned">${icons.pin}</span>` : ''}
+              ${note.tags.slice(0, 2).map(t => `<span class="note-tag" style="color: ${t.color || '#0064FA'}">#${t.name}</span>`).join('')}
+              ${note.reminderAt ? `<span class="note-reminder">${icons.bell} ${formatReminder(note.reminderAt)}</span>` : ''}
+              <span class="note-time">${formatDate(note.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      // Add click handlers
+      container.querySelectorAll('.note-item').forEach(item => {
+        item.addEventListener('click', () => {
+          window.electronAPI?.openNote?.(item.dataset.id);
+        });
+      });
+    }
+
+    // Render stats
+    function renderStats() {
+      if (!stats) return;
+
+      document.getElementById('stat-quick').textContent = stats.quick;
+      document.getElementById('stat-note').textContent = stats.note;
+      document.getElementById('stat-todo').textContent = stats.todo;
+      document.getElementById('notes-count').textContent = `${stats.total} note${stats.total > 1 ? 's' : ''}`;
+      document.getElementById('stats-bar').style.display = stats.total > 0 ? 'flex' : 'none';
+    }
+
+    // Show error
+    function showError(message) {
+      const container = document.getElementById('notes-list');
+      container.innerHTML = `
+        <div class="error-state">
+          <div class="error-icon">${icons.error}</div>
+          <div class="error-title">Erreur</div>
+          <div class="error-text">${message}</div>
+          <button class="error-btn" id="retry-btn">Réessayer</button>
+        </div>
+      `;
+      document.getElementById('retry-btn')?.addEventListener('click', fetchNotes);
+    }
+
+    // Show loading
+    function showLoading() {
+      document.getElementById('notes-list').innerHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+        </div>
+      `;
+    }
+
+    // Fetch notes from API
+    async function fetchNotes() {
+      if (!apiToken) {
+        renderNotes();
+        return;
+      }
+
+      showLoading();
+
+      try {
+        const response = await fetch(`${window.crmUrl}/api/external/notes?limit=15`, {
+          headers: {
+            'Authorization': `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || 'Erreur API');
+        }
+
+        const data = await response.json();
+        notes = data.data?.notes || [];
+        stats = data.data?.stats || null;
+
+        renderNotes();
+        renderStats();
+      } catch (error) {
+        console.error('Fetch error:', error);
+        showError(error.message || 'Impossible de charger les notes');
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      // Button handlers
+      document.getElementById('refresh-btn').addEventListener('click', fetchNotes);
+      document.getElementById('open-crm-btn').addEventListener('click', () => {
+        window.electronAPI?.openCRM?.();
+      });
+      document.getElementById('close-btn').addEventListener('click', () => {
+        window.electronAPI?.closeWidget?.();
+      });
+    });
+
+    // Receive config from main process
+    window.electronAPI?.onConfig?.((config) => {
+      window.crmUrl = config.crmUrl;
+      apiToken = config.apiToken;
+      fetchNotes();
+    });
+
+    // Receive refresh command
+    window.electronAPI?.onRefresh?.(() => {
+      fetchNotes();
+    });
+
+    // Auto-refresh every 2 minutes
+    setInterval(() => {
+      if (apiToken) fetchNotes();
+    }, 2 * 60 * 1000);
+  </script>
+</body>
+</html>
