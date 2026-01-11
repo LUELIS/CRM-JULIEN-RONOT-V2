@@ -97,6 +97,21 @@ const icons = {
       <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
     </svg>
   ),
+  edit: (
+    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
+      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+    </svg>
+  ),
+  save: (
+    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
+      <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+    </svg>
+  ),
+  cancel: (
+    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
+      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+    </svg>
+  ),
 }
 
 function formatDate(dateStr: string) {
@@ -167,11 +182,15 @@ export default function NotesWidgetPage() {
   const [error, setError] = useState<string | null>(null)
   const [quickNote, setQuickNote] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [noteType, setNoteType] = useState<"quick" | "note" | "todo">("quick")
 
   // Expanded note state
   const [expandedNote, setExpandedNote] = useState<Note | null>(null)
   const [newTaskText, setNewTaskText] = useState("")
   const [addingTask, setAddingTask] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState("")
+  const [saving, setSaving] = useState(false)
 
   const fetchNotes = async () => {
     setLoading(true)
@@ -211,13 +230,22 @@ export default function NotesWidgetPage() {
 
     setSubmitting(true)
     try {
+      // Format content based on type
+      let content = quickNote.trim()
+      if (noteType === "todo") {
+        // Convert to task format if not already
+        if (!content.startsWith("- [")) {
+          content = "- [ ] " + content
+        }
+      }
+
       const res = await fetch("/api/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          content: quickNote.trim(),
-          type: "quick",
+          content,
+          type: noteType,
           tagIds: [],
           entityLinks: [],
           reminderAt: null,
@@ -233,6 +261,48 @@ export default function NotesWidgetPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Save edited content
+  const saveContent = async () => {
+    if (!expandedNote || saving) return
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/notes/widget/${expandedNote.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "updateContent", content: editContent }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setNotes((prev) =>
+          prev.map((n) => (n.id === expandedNote.id ? { ...n, content: data.content } : n))
+        )
+        setExpandedNote((prev) => (prev ? { ...prev, content: data.content } : null))
+        setIsEditing(false)
+      }
+    } catch (err) {
+      console.error("Error saving content:", err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Start editing
+  const startEditing = () => {
+    if (expandedNote) {
+      setEditContent(expandedNote.content)
+      setIsEditing(true)
+    }
+  }
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setIsEditing(false)
+    setEditContent("")
   }
 
   // Toggle task checkbox
@@ -367,7 +437,11 @@ export default function NotesWidgetPage() {
               style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             >
               <button
-                onClick={() => setExpandedNote(null)}
+                onClick={() => {
+                  setExpandedNote(null)
+                  setIsEditing(false)
+                  setEditContent("")
+                }}
                 className="w-7 h-7 bg-white/15 hover:bg-white/25 rounded-lg flex items-center justify-center transition-colors"
               >
                 {icons.back}
@@ -389,20 +463,54 @@ export default function NotesWidgetPage() {
               >
                 {icons.pin}
               </button>
-              <button
-                onClick={() => archiveNote(expandedNote.id)}
-                className="w-7 h-7 bg-white/15 hover:bg-white/25 rounded-lg flex items-center justify-center transition-colors text-white"
-                title="Archiver"
-              >
-                {icons.archive}
-              </button>
-              <button
-                onClick={() => openNote(expandedNote.id)}
-                className="w-7 h-7 bg-white/15 hover:bg-white/25 rounded-lg flex items-center justify-center transition-colors"
-                title="Ouvrir dans CRM"
-              >
-                {icons.external}
-              </button>
+              {/* Edit button for non-todo notes */}
+              {expandedNote.type !== "todo" && !isEditing && (
+                <button
+                  onClick={startEditing}
+                  className="w-7 h-7 bg-white/15 hover:bg-white/25 rounded-lg flex items-center justify-center transition-colors text-white"
+                  title="Modifier"
+                >
+                  {icons.edit}
+                </button>
+              )}
+              {/* Save/Cancel buttons when editing */}
+              {isEditing && (
+                <>
+                  <button
+                    onClick={saveContent}
+                    disabled={saving}
+                    className="w-7 h-7 bg-green-500 hover:bg-green-600 rounded-lg flex items-center justify-center transition-colors text-white"
+                    title="Enregistrer"
+                  >
+                    {icons.save}
+                  </button>
+                  <button
+                    onClick={cancelEditing}
+                    className="w-7 h-7 bg-red-500 hover:bg-red-600 rounded-lg flex items-center justify-center transition-colors text-white"
+                    title="Annuler"
+                  >
+                    {icons.cancel}
+                  </button>
+                </>
+              )}
+              {!isEditing && (
+                <>
+                  <button
+                    onClick={() => archiveNote(expandedNote.id)}
+                    className="w-7 h-7 bg-white/15 hover:bg-white/25 rounded-lg flex items-center justify-center transition-colors text-white"
+                    title="Archiver"
+                  >
+                    {icons.archive}
+                  </button>
+                  <button
+                    onClick={() => openNote(expandedNote.id)}
+                    className="w-7 h-7 bg-white/15 hover:bg-white/25 rounded-lg flex items-center justify-center transition-colors"
+                    title="Ouvrir dans CRM"
+                  >
+                    {icons.external}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -478,9 +586,23 @@ export default function NotesWidgetPage() {
                   </button>
                 </div>
               </div>
+            ) : isEditing ? (
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                className="w-full h-full min-h-[150px] text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 outline-none focus:border-blue-400 focus:bg-white transition-colors resize-none"
+                placeholder="Contenu de la note..."
+                autoFocus
+              />
             ) : (
-              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {expandedNote.content.replace(/^#+\s+/gm, "")}
+              <div
+                onClick={startEditing}
+                className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed cursor-text hover:bg-gray-50 rounded-lg p-1 -m-1 transition-colors"
+                title="Cliquer pour modifier"
+              >
+                {expandedNote.content.replace(/^#+\s+/gm, "") || (
+                  <span className="text-gray-400 italic">Cliquer pour ajouter du contenu...</span>
+                )}
               </div>
             )}
           </div>
@@ -560,11 +682,48 @@ export default function NotesWidgetPage() {
           </div>
         </div>
 
-        {/* Quick note input */}
+        {/* Note input with type selector */}
         <div
           className="px-3 py-2 border-b border-gray-100"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
+          {/* Type selector */}
+          <div className="flex gap-1 mb-2">
+            <button
+              onClick={() => setNoteType("quick")}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-medium rounded-md transition-colors ${
+                noteType === "quick"
+                  ? "bg-yellow-100 text-yellow-700 border border-yellow-300"
+                  : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              {icons.quick}
+              <span>Rapide</span>
+            </button>
+            <button
+              onClick={() => setNoteType("note")}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-medium rounded-md transition-colors ${
+                noteType === "note"
+                  ? "bg-blue-100 text-blue-700 border border-blue-300"
+                  : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              {icons.note}
+              <span>Note</span>
+            </button>
+            <button
+              onClick={() => setNoteType("todo")}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-medium rounded-md transition-colors ${
+                noteType === "todo"
+                  ? "bg-purple-100 text-purple-700 border border-purple-300"
+                  : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              {icons.todo}
+              <span>Tâche</span>
+            </button>
+          </div>
+          {/* Input field */}
           <div className="flex gap-2">
             <input
               type="text"
@@ -576,13 +735,31 @@ export default function NotesWidgetPage() {
                   submitQuickNote()
                 }
               }}
-              placeholder="Note rapide..."
-              className="flex-1 px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-400 focus:bg-white transition-colors"
+              placeholder={
+                noteType === "quick"
+                  ? "Note rapide..."
+                  : noteType === "note"
+                  ? "Nouvelle note..."
+                  : "Nouvelle tâche..."
+              }
+              className={`flex-1 px-3 py-2 text-xs bg-gray-50 border rounded-lg outline-none focus:bg-white transition-colors ${
+                noteType === "quick"
+                  ? "border-yellow-200 focus:border-yellow-400"
+                  : noteType === "note"
+                  ? "border-blue-200 focus:border-blue-400"
+                  : "border-purple-200 focus:border-purple-400"
+              }`}
             />
             <button
               onClick={submitQuickNote}
               disabled={!quickNote.trim() || submitting}
-              className="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300 text-white rounded-lg transition-colors"
+              className={`px-3 py-2 text-white rounded-lg transition-colors disabled:bg-gray-300 ${
+                noteType === "quick"
+                  ? "bg-yellow-500 hover:bg-yellow-600"
+                  : noteType === "note"
+                  ? "bg-blue-500 hover:bg-blue-600"
+                  : "bg-purple-500 hover:bg-purple-600"
+              }`}
               title="Ajouter"
             >
               {icons.send}
