@@ -33,13 +33,34 @@ autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.allowPrerelease = false
 
+// Enable more verbose logging for debugging
+autoUpdater.logger = {
+  info: (msg) => console.log('[AutoUpdater INFO]', msg),
+  warn: (msg) => console.log('[AutoUpdater WARN]', msg),
+  error: (msg) => console.log('[AutoUpdater ERROR]', msg),
+  debug: (msg) => console.log('[AutoUpdater DEBUG]', msg),
+}
+
 function setupAutoUpdater() {
+  console.log('[AutoUpdater] ========================================')
   console.log('[AutoUpdater] Current version:', app.getVersion())
+  console.log('[AutoUpdater] Feed URL:', autoUpdater.getFeedURL())
+  console.log('[AutoUpdater] Auto download:', autoUpdater.autoDownload)
+  console.log('[AutoUpdater] ========================================')
   console.log('[AutoUpdater] Checking for updates...')
 
   // Check for updates on startup
-  autoUpdater.checkForUpdates().catch((err) => {
+  autoUpdater.checkForUpdates().then((result) => {
+    if (result) {
+      console.log('[AutoUpdater] Check result:', JSON.stringify({
+        version: result.updateInfo?.version,
+        releaseDate: result.updateInfo?.releaseDate,
+        stagingPercentage: result.updateInfo?.stagingPercentage,
+      }))
+    }
+  }).catch((err) => {
     console.log('[AutoUpdater] Initial check failed:', err.message)
+    console.log('[AutoUpdater] Error details:', err.stack)
   })
 
   // Update available - show prominent notification
@@ -140,6 +161,7 @@ function createMainWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       spellcheck: true,
+      // Use default session (no partition = shares cookies automatically)
     },
     show: !store.get('startMinimized'),
     backgroundColor: '#F5F5F7',
@@ -288,10 +310,17 @@ function createNotesWidget() {
     return
   }
 
+  // Ensure main window exists and is loaded before creating widget
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    console.log('[NotesWidget] Main window not ready, waiting...')
+    setTimeout(createNotesWidget, 1000)
+    return
+  }
+
   const savedPosition = store.get('notesWidgetPosition')
 
-  // Get session from main window to share cookies
-  const mainSession = mainWindow ? mainWindow.webContents.session : null
+  // Get the session from main window to share cookies
+  const mainSession = mainWindow.webContents.session
 
   notesWidgetWindow = new BrowserWindow({
     width: 320,
@@ -309,14 +338,16 @@ function createNotesWidget() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      // Share session with main window to use the same cookies
+      // Share the same session as main window to use same cookies
       session: mainSession,
     },
   })
 
-  // Load the widget page from CRM (shares session cookies)
+  // Load the widget page from CRM (shares session cookies with main window)
   notesWidgetWindow.loadURL(`${CRM_URL}/widget/notes`)
   notesWidgetWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  console.log('[NotesWidget] Created and loading:', `${CRM_URL}/widget/notes`)
 
   // Save position when moved
   notesWidgetWindow.on('move', () => {
