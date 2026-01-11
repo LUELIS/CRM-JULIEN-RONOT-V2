@@ -32,119 +32,74 @@ const CRM_URL = store.get('crmUrl')
 autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.allowPrerelease = false
-
-// Force set the GitHub provider explicitly
-autoUpdater.setFeedURL({
-  provider: 'github',
-  owner: 'LUELIS',
-  repo: 'CRM-JULIEN-RONOT-V2',
-})
-
-// Enable more verbose logging for debugging
-autoUpdater.logger = {
-  info: (msg) => console.log('[AutoUpdater INFO]', msg),
-  warn: (msg) => console.log('[AutoUpdater WARN]', msg),
-  error: (msg) => console.log('[AutoUpdater ERROR]', msg),
-  debug: (msg) => console.log('[AutoUpdater DEBUG]', msg),
-}
+autoUpdater.forceDevUpdateConfig = false
 
 function setupAutoUpdater() {
-  console.log('[AutoUpdater] ========================================')
-  console.log('[AutoUpdater] Current version:', app.getVersion())
-  console.log('[AutoUpdater] Feed URL:', JSON.stringify(autoUpdater.getFeedURL()))
-  console.log('[AutoUpdater] Auto download:', autoUpdater.autoDownload)
-  console.log('[AutoUpdater] ========================================')
+  const log = (msg) => console.log(`[AutoUpdater] ${msg}`)
 
-  // Check for updates on startup (with small delay to ensure app is ready)
-  setTimeout(() => {
-    console.log('[AutoUpdater] Checking for updates...')
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-      console.log('[AutoUpdater] Check failed:', err.message)
-    })
-  }, 3000)
+  log(`Version actuelle: ${app.getVersion()}`)
+  log(`Plateforme: ${process.platform}`)
 
-  // Update available - show prominent notification
+  // Update available
+  autoUpdater.on('checking-for-update', () => {
+    log('Vérification des mises à jour...')
+  })
+
   autoUpdater.on('update-available', (info) => {
-    console.log('[AutoUpdater] Update available:', info.version)
+    log(`Mise à jour disponible: ${info.version}`)
     sendNotification(
-      '🚀 Mise à jour disponible',
-      `Version ${info.version} en cours de téléchargement...`,
+      'Mise à jour disponible',
+      `Téléchargement de la version ${info.version}...`,
       'info'
     )
   })
 
-  // Download progress
+  autoUpdater.on('update-not-available', () => {
+    log('Aucune mise à jour disponible')
+  })
+
   autoUpdater.on('download-progress', (progress) => {
-    console.log(`[AutoUpdater] Download progress: ${Math.round(progress.percent)}%`)
+    log(`Téléchargement: ${Math.round(progress.percent)}%`)
   })
 
-  // Update downloaded - prompt to restart with more urgency
   autoUpdater.on('update-downloaded', (info) => {
-    console.log('[AutoUpdater] Update downloaded:', info.version)
+    log(`Téléchargement terminé: ${info.version}`)
 
-    // Show main window if hidden to ensure dialog is visible
-    if (mainWindow) {
-      if (!mainWindow.isVisible()) {
-        mainWindow.show()
-      }
-      mainWindow.focus()
-    }
+    // Installer automatiquement après 3 secondes
+    sendNotification(
+      'Mise à jour prête',
+      `Installation de la version ${info.version} dans 3 secondes...`,
+      'info'
+    )
 
-    // Show dialog immediately (no notification first - dialog is more reliable)
-    const dialogOptions = {
-      type: 'info',
-      title: 'Mise à jour prête',
-      message: `La version ${info.version} est prête à être installée.`,
-      detail: 'L\'application va redémarrer pour appliquer la mise à jour.',
-      buttons: ['Redémarrer maintenant', 'Plus tard'],
-      defaultId: 0,
-      cancelId: 1,
-    }
-
-    // Use mainWindow if available, otherwise show without parent
-    const parentWindow = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
-
-    dialog.showMessageBox(parentWindow, dialogOptions).then((result) => {
-      if (result.response === 0) {
-        console.log('[AutoUpdater] User chose to restart')
-        isQuitting = true
-        autoUpdater.quitAndInstall(false, true)
-      } else {
-        console.log('[AutoUpdater] User chose to restart later')
-        // Show notification as reminder
-        sendNotification(
-          '✅ Mise à jour prête',
-          'La mise à jour sera installée au prochain redémarrage.',
-          'info'
-        )
-      }
-    }).catch((err) => {
-      console.log('[AutoUpdater] Dialog error:', err)
-      // Fallback: just install on next quit
-      sendNotification(
-        '✅ Mise à jour prête',
-        'La mise à jour sera installée au prochain redémarrage.',
-        'info'
-      )
-    })
+    setTimeout(() => {
+      log('Installation automatique...')
+      isQuitting = true
+      autoUpdater.quitAndInstall(false, true)
+    }, 3000)
   })
 
-  // No update available
-  autoUpdater.on('update-not-available', (info) => {
-    console.log('[AutoUpdater] No update available. Current:', app.getVersion())
-  })
-
-  // Error handling with more details
   autoUpdater.on('error', (err) => {
-    console.log('[AutoUpdater] Error:', err.message)
-    console.log('[AutoUpdater] Error details:', err)
+    log(`Erreur: ${err.message}`)
+    sendNotification(
+      'Erreur de mise à jour',
+      err.message,
+      'error'
+    )
   })
 
-  // Check for updates every 15 minutes (more frequent)
+  // Vérifier au démarrage après 5 secondes
+  setTimeout(() => {
+    log('Vérification initiale...')
+    autoUpdater.checkForUpdates().catch(err => {
+      log(`Erreur vérification: ${err.message}`)
+    })
+  }, 5000)
+
+  // Vérifier toutes les 30 minutes
   setInterval(() => {
-    console.log('[AutoUpdater] Scheduled check...')
     autoUpdater.checkForUpdates().catch(() => {})
-  }, 15 * 60 * 1000)
+  }, 30 * 60 * 1000)
 }
 
 // Create main window
