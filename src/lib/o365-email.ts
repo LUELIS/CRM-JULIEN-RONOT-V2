@@ -335,45 +335,56 @@ export function generateTicketEmailTemplate(options: {
         <td align="center" style="padding: 40px 20px;">
           <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="max-width: 560px; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
 
-            <!-- Header with Logo -->
+            <!-- Header with colored background for Outlook compatibility -->
+            <!--[if mso]>
             <tr>
-              <td style="padding: 32px 40px 24px 40px; border-bottom: 1px solid #E5E7EB;">
+              <td bgcolor="#0064FA" style="padding: 0;">
+            <![endif]-->
+            <tr>
+              <td bgcolor="#0064FA" style="padding: 28px 40px; background-color: #0064FA;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
-                    <td align="center">
-                      ${logoSection}
+                    <td>
+                      ${logo
+                        ? `<img src="${logo}" alt="${companyName}" style="max-height: 40px; max-width: 160px;" />`
+                        : `<span style="font-size: 22px; font-weight: bold; color: #FFFFFF;">${companyName}</span>`
+                      }
+                    </td>
+                    <td align="right">
+                      <p style="margin: 0; font-size: 12px; color: #B3D4FF;">Ticket</p>
+                      <p style="margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #FFFFFF;">${ticketNumber}</p>
                     </td>
                   </tr>
                 </table>
               </td>
             </tr>
-
-            <!-- Title Section -->
-            <tr>
-              <td style="padding: 32px 40px 24px 40px;">
-                <h1 style="color: #111111; font-size: 24px; margin: 0 0 8px 0; font-weight: 600; text-align: center;">
-                  Réponse à votre demande
-                </h1>
-                <p style="color: #6B7280; font-size: 14px; margin: 0; text-align: center;">Ticket ${ticketNumber}</p>
+            <!--[if mso]>
               </td>
             </tr>
+            <![endif]-->
+
+            <!-- Subject Banner -->
+            <!--[if mso]>
+            <tr>
+              <td bgcolor="#003D99" style="padding: 0;">
+            <![endif]-->
+            <tr>
+              <td bgcolor="#003D99" style="padding: 16px 40px; background-color: #003D99;">
+                <p style="margin: 0 0 4px 0; font-size: 11px; color: #99B3E6; text-transform: uppercase; letter-spacing: 0.5px;">Objet</p>
+                <p style="margin: 0; font-size: 15px; color: #FFFFFF; font-weight: 500;">${subject}</p>
+              </td>
+            </tr>
+            <!--[if mso]>
+              </td>
+            </tr>
+            <![endif]-->
 
             <!-- Content -->
             <tr>
-              <td style="padding: 0 40px 32px 40px;">
-                <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+              <td style="padding: 32px 40px;">
+                <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
                   Bonjour <strong>${recipientName.split(" ")[0]}</strong>,
                 </p>
-
-                <!-- Subject Box -->
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
-                  <tr>
-                    <td style="padding: 16px; background-color: #F9FAFB; border-radius: 8px; border-left: 4px solid #0064FA;">
-                      <p style="margin: 0 0 4px 0; color: #6B7280; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Objet</p>
-                      <p style="margin: 0; color: #111111; font-size: 15px; font-weight: 600;">${subject}</p>
-                    </td>
-                  </tr>
-                </table>
 
                 <!-- New Message -->
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
