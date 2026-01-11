@@ -20,6 +20,7 @@ const store = new Store({
 let mainWindow = null
 let deploymentWindow = null
 let notesWidgetWindow = null
+let updateWindow = null
 let tray = null
 let isQuitting = false
 let activeDeployments = []
@@ -32,67 +33,101 @@ const CRM_URL = store.get('crmUrl')
 autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.allowPrerelease = false
-autoUpdater.forceDevUpdateConfig = false
+
+// Create update progress window
+function createUpdateWindow() {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.show()
+    return
+  }
+
+  updateWindow = new BrowserWindow({
+    width: 380,
+    height: 260,
+    frame: false,
+    resizable: false,
+    movable: true,
+    center: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  })
+
+  updateWindow.loadFile(path.join(__dirname, 'update-window.html'))
+
+  updateWindow.on('closed', () => {
+    updateWindow = null
+  })
+}
+
+function sendUpdateStatus(status, data = {}) {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.webContents.send('update-status', { status, ...data })
+  }
+}
+
+function closeUpdateWindow() {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.close()
+    updateWindow = null
+  }
+}
 
 function setupAutoUpdater() {
   const log = (msg) => console.log(`[AutoUpdater] ${msg}`)
 
   log(`Version actuelle: ${app.getVersion()}`)
-  log(`Plateforme: ${process.platform}`)
 
-  // Update available
   autoUpdater.on('checking-for-update', () => {
-    log('Vérification des mises à jour...')
+    log('Vérification...')
   })
 
   autoUpdater.on('update-available', (info) => {
     log(`Mise à jour disponible: ${info.version}`)
-    sendNotification(
-      'Mise à jour disponible',
-      `Téléchargement de la version ${info.version}...`,
-      'info'
-    )
+    createUpdateWindow()
+    setTimeout(() => {
+      sendUpdateStatus('available', { version: info.version })
+    }, 500)
   })
 
   autoUpdater.on('update-not-available', () => {
-    log('Aucune mise à jour disponible')
+    log('Pas de mise à jour')
+    closeUpdateWindow()
   })
 
   autoUpdater.on('download-progress', (progress) => {
-    log(`Téléchargement: ${Math.round(progress.percent)}%`)
+    const percent = Math.round(progress.percent)
+    log(`Téléchargement: ${percent}%`)
+    sendUpdateStatus('downloading', { percent })
   })
 
   autoUpdater.on('update-downloaded', (info) => {
-    log(`Téléchargement terminé: ${info.version}`)
+    log(`Téléchargé: ${info.version}`)
+    sendUpdateStatus('downloaded')
 
-    // Installer automatiquement après 3 secondes
-    sendNotification(
-      'Mise à jour prête',
-      `Installation de la version ${info.version} dans 3 secondes...`,
-      'info'
-    )
-
+    // Attendre 2 secondes puis installer
     setTimeout(() => {
-      log('Installation automatique...')
+      log('Installation...')
       isQuitting = true
       autoUpdater.quitAndInstall(false, true)
-    }, 3000)
+    }, 2000)
   })
 
   autoUpdater.on('error', (err) => {
     log(`Erreur: ${err.message}`)
-    sendNotification(
-      'Erreur de mise à jour',
-      err.message,
-      'error'
-    )
+    sendUpdateStatus('error', { message: err.message })
+    // Fermer la fenêtre après 5 secondes en cas d'erreur
+    setTimeout(closeUpdateWindow, 5000)
   })
 
   // Vérifier au démarrage après 5 secondes
   setTimeout(() => {
     log('Vérification initiale...')
     autoUpdater.checkForUpdates().catch(err => {
-      log(`Erreur vérification: ${err.message}`)
+      log(`Erreur: ${err.message}`)
     })
   }, 5000)
 
