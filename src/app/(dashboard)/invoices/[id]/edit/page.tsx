@@ -360,35 +360,34 @@ export default function EditInvoicePage({
                       )}
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Service</Label>
-                        <Select
-                          value={line.serviceId || ""}
-                          onValueChange={(v) => selectService(line.id, v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un service" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {services.map((service) => (
-                              <SelectItem key={service.id} value={service.id}>
-                                {service.name} - {formatCurrency(service.priceHt)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Description *</Label>
-                        <Input
-                          value={line.description}
-                          onChange={(e) =>
-                            updateLine(line.id, "description", e.target.value)
-                          }
-                          placeholder="Description de la prestation"
-                        />
-                      </div>
+                    <div className="space-y-2">
+                      <Label>Description *</Label>
+                      <Input
+                        value={line.description}
+                        onChange={(e) =>
+                          updateLine(line.id, "description", e.target.value)
+                        }
+                        placeholder="Description de la prestation"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground text-xs">Pré-remplir depuis un service (optionnel)</Label>
+                      <Select
+                        value={line.serviceId || ""}
+                        onValueChange={(v) => selectService(line.id, v)}
+                      >
+                        <SelectTrigger className="bg-muted/50">
+                          <SelectValue placeholder="Choisir un service pour pré-remplir..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {services.map((service) => (
+                            <SelectItem key={service.id} value={service.id}>
+                              {service.name} - {formatCurrency(service.priceHt)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-4">
