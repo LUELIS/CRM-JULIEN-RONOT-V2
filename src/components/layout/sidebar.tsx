@@ -27,6 +27,8 @@ import {
   Rocket,
   Download,
   BookOpen,
+  Key,
+  Wrench,
 } from "lucide-react"
 import { signOut, useSession } from "next-auth/react"
 import { useTenant } from "@/contexts/tenant-context"
@@ -72,6 +74,15 @@ const baseNavItems: Omit<NavItem, "badge">[] = [
   { id: "notes", label: "Notes", href: "/notes", icon: StickyNote },
   { id: "projects", label: "Projets", href: "/projects", icon: FolderKanban },
   { id: "deployments", label: "Déploiements", href: "/deployments", icon: Rocket },
+  {
+    id: "tools",
+    label: "Outils",
+    href: "/tools/password",
+    icon: Wrench,
+    children: [
+      { id: "password", label: "Générateur MDP", href: "/tools/password" },
+    ],
+  },
   { id: "users", label: "Utilisateurs", href: "/users", icon: UserCog },
 ]
 
