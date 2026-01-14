@@ -81,7 +81,7 @@ interface MySendmailDomainsResponse {
 
 export class MySendmailClient {
   private apiKey: string
-  private baseUrl = "https://mail01.my-sendmail.fr/api"
+  private baseUrl = "https://admin.my-sendmail.fr/api"
 
   constructor(config: MySendmailConfig) {
     this.apiKey = config.apiKey
