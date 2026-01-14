@@ -137,6 +137,10 @@ export async function GET() {
       s3SecretKey: rawSettings.s3SecretKey || "",
       s3Bucket: rawSettings.s3Bucket || "",
       s3ForcePathStyle: rawSettings.s3ForcePathStyle ?? true,
+
+      // My-Sendmail (SMTP Management)
+      mySendmailEnabled: rawSettings.mySendmailEnabled || false,
+      mySendmailApiKey: rawSettings.mySendmailApiKey || "",
     }
 
     return NextResponse.json({
@@ -441,6 +445,24 @@ export async function PUT(request: NextRequest) {
       if (body.s3SecretKey !== undefined) updatedSettings.s3SecretKey = body.s3SecretKey
       if (body.s3Bucket !== undefined) updatedSettings.s3Bucket = body.s3Bucket
       if (body.s3ForcePathStyle !== undefined) updatedSettings.s3ForcePathStyle = body.s3ForcePathStyle
+
+      await prisma.tenants.update({
+        where: { id: BigInt(1) },
+        data: {
+          settings: JSON.stringify(updatedSettings),
+          updated_at: new Date(),
+        },
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (body.section === "my-sendmail") {
+      const updatedSettings = {
+        ...currentSettings,
+        mySendmailEnabled: body.mySendmailEnabled ?? currentSettings.mySendmailEnabled ?? false,
+        mySendmailApiKey: body.mySendmailApiKey ?? currentSettings.mySendmailApiKey ?? "",
+      }
 
       await prisma.tenants.update({
         where: { id: BigInt(1) },

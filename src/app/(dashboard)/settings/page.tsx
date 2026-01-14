@@ -52,6 +52,7 @@ import { NotificationSettings } from "@/components/settings/NotificationSettings
 import { DokploySettings } from "@/components/settings/DokploySettings"
 import { ApiKeysSettings } from "@/components/settings/ApiKeysSettings"
 import { RemoteSupportSettings } from "@/components/settings/RemoteSupportSettings"
+import { MySendmailSettings } from "@/components/settings/MySendmailSettings"
 
 const monthlyGoalModeOptions: SelectOption[] = [
   { value: "auto", label: "Automatique (basé sur l'historique)", color: "#28B95F" },
@@ -970,6 +971,7 @@ function SettingsContent() {
       tabs: [
         { id: "integrations", label: "Intégrations", icon: Puzzle, color: "#28B95F" },
         { id: "dns", label: "DNS", icon: Globe, color: "#14B4E6" },
+        { id: "my-sendmail", label: "My-Sendmail", icon: Send, color: "#F0783C" },
         { id: "api", label: "API Externe", icon: Key, color: "#F04B69" },
         { id: "remote-support", label: "Support", icon: Headphones, color: "#7B1FA2" },
       ],
@@ -3589,6 +3591,9 @@ function SettingsContent() {
           <ApiKeysSettings />
         </div>
       )}
+
+      {/* My-Sendmail Tab */}
+      {activeTab === "my-sendmail" && <MySendmailSettings />}
 
       {/* Remote Support Tab */}
       {activeTab === "remote-support" && (
