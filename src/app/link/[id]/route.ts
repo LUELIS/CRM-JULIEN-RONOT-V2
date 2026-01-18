@@ -10,6 +10,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getQRCodeById, recordClick } from "@/lib/qrcode-db"
 
+// Mapping from old QR code IDs to new IDs (after migration)
+// Old IDs from tools.westarter.fr -> New IDs in CRM
+const OLD_TO_NEW_ID_MAP: Record<number, number> = {
+  2: 3,   // Charline
+  6: 6,   // Keymex Synergie Estimation
+  10: 9,  // Julie & Yann - CDVD
+  14: 12, // Ensemble pour emma
+  15: 15, // J'aime Keymex 2024
+  16: 18, // James DEPA - CV
+}
+
 // Get location from IP using ip-api.com
 async function getLocationFromIP(ip: string): Promise<string> {
   try {
@@ -48,13 +59,22 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const qrcodeId = BigInt(id)
+    let qrcodeId = BigInt(id)
+
+    // Check if this is an old ID that needs mapping
+    const oldId = parseInt(id, 10)
+    if (OLD_TO_NEW_ID_MAP[oldId]) {
+      qrcodeId = BigInt(OLD_TO_NEW_ID_MAP[oldId])
+    }
 
     // Get QR code from database
     const qrcode = await getQRCodeById(qrcodeId)
 
     if (!qrcode) {
-      return NextResponse.redirect(new URL("/", request.url))
+      // Fallback redirect - use host header to build proper URL
+      const host = request.headers.get("host") || "crm.sdweb.tech"
+      const protocol = request.headers.get("x-forwarded-proto") || "https"
+      return NextResponse.redirect(new URL("/", `${protocol}://${host}`))
     }
 
     // Track the click (non-blocking)
@@ -84,6 +104,9 @@ export async function GET(
     return NextResponse.redirect(qrcode.link)
   } catch (error) {
     console.error("QR Code redirect error:", error)
-    return NextResponse.redirect(new URL("/", request.url))
+    // Fallback redirect - use host header to build proper URL
+    const host = request.headers.get("host") || "crm.sdweb.tech"
+    const protocol = request.headers.get("x-forwarded-proto") || "https"
+    return NextResponse.redirect(new URL("/", `${protocol}://${host}`))
   }
 }
