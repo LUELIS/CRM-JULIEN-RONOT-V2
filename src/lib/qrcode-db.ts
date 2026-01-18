@@ -1,142 +1,103 @@
 /**
  * QR Code Database Client
- * Connects to external qrcode database on web.westarter.cloud
+ * Uses Prisma to connect to the CRM database
  */
 
-import mysql from "mysql2/promise"
+import { prisma } from "./prisma"
 
 export interface QRCode {
-  id: number
+  id: bigint
+  tenant_id: bigint
   name: string
   link: string
   tag: string | null
-  created_at: Date | null
-  updated_at: Date | null
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface QRCodeClick {
-  id: number
-  qrcode_id: number
+  id: bigint
+  qrcodeId: bigint
   browser: string
   ip: string
   location: string
   referer: string
-  created_at: Date | null
-  updated_at: Date | null
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface QRCodeWithStats extends QRCode {
   click_count: number
 }
 
-// Connection pool for QR code database
-let pool: mysql.Pool | null = null
+export async function getQRCodes(tenantId: bigint): Promise<QRCodeWithStats[]> {
+  const qrcodes = await prisma.qRCode.findMany({
+    where: { tenant_id: tenantId },
+    include: {
+      _count: {
+        select: { clicks: true }
+      }
+    },
+    orderBy: { createdAt: "desc" }
+  })
 
-function getPool(): mysql.Pool {
-  if (!pool) {
-    pool = mysql.createPool({
-      host: process.env.QRCODE_DB_HOST || "web.westarter.cloud",
-      port: parseInt(process.env.QRCODE_DB_PORT || "3306"),
-      user: process.env.QRCODE_DB_USER || "qrcode2",
-      password: process.env.QRCODE_DB_PASSWORD || "d%a4O522w",
-      database: process.env.QRCODE_DB_NAME || "qrcode",
-      waitForConnections: true,
-      connectionLimit: 5,
-      queueLimit: 0,
-    })
-  }
-  return pool
+  return qrcodes.map(qr => ({
+    id: qr.id,
+    tenant_id: qr.tenant_id,
+    name: qr.name,
+    link: qr.link,
+    tag: qr.tag,
+    createdAt: qr.createdAt,
+    updatedAt: qr.updatedAt,
+    click_count: qr._count.clicks
+  }))
 }
 
-export async function getQRCodes(): Promise<QRCodeWithStats[]> {
-  const pool = getPool()
-  const [rows] = await pool.query<mysql.RowDataPacket[]>(`
-    SELECT
-      q.*,
-      COUNT(c.id) as click_count
-    FROM qrcode q
-    LEFT JOIN qrcode_click c ON c.qrcode_id = q.id
-    GROUP BY q.id
-    ORDER BY q.created_at DESC
-  `)
-  return rows as QRCodeWithStats[]
-}
-
-export async function getQRCodeById(id: number): Promise<QRCode | null> {
-  const pool = getPool()
-  const [rows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT * FROM qrcode WHERE id = ?",
-    [id]
-  )
-  return (rows[0] as QRCode) || null
+export async function getQRCodeById(id: bigint): Promise<QRCode | null> {
+  return prisma.qRCode.findUnique({
+    where: { id }
+  })
 }
 
 export async function createQRCode(data: {
+  tenant_id: bigint
   name: string
   link: string
   tag?: string
 }): Promise<QRCode> {
-  const pool = getPool()
-  const now = new Date()
-  const [result] = await pool.query<mysql.ResultSetHeader>(
-    "INSERT INTO qrcode (name, link, tag, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-    [data.name, data.link, data.tag || null, now, now]
-  )
-  return {
-    id: result.insertId,
-    name: data.name,
-    link: data.link,
-    tag: data.tag || null,
-    created_at: now,
-    updated_at: now,
-  }
+  return prisma.qRCode.create({
+    data: {
+      tenant_id: data.tenant_id,
+      name: data.name,
+      link: data.link,
+      tag: data.tag || null,
+    }
+  })
 }
 
 export async function updateQRCode(
-  id: number,
+  id: bigint,
   data: { name?: string; link?: string; tag?: string }
 ): Promise<QRCode | null> {
-  const pool = getPool()
-  const updates: string[] = []
-  const values: (string | Date)[] = []
-
-  if (data.name !== undefined) {
-    updates.push("name = ?")
-    values.push(data.name)
-  }
-  if (data.link !== undefined) {
-    updates.push("link = ?")
-    values.push(data.link)
-  }
-  if (data.tag !== undefined) {
-    updates.push("tag = ?")
-    values.push(data.tag)
-  }
-
-  if (updates.length === 0) return getQRCodeById(id)
-
-  updates.push("updated_at = ?")
-  values.push(new Date())
-  values.push(id as unknown as string)
-
-  await pool.query(
-    `UPDATE qrcode SET ${updates.join(", ")} WHERE id = ?`,
-    values
-  )
-
-  return getQRCodeById(id)
+  return prisma.qRCode.update({
+    where: { id },
+    data: {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.link !== undefined && { link: data.link }),
+      ...(data.tag !== undefined && { tag: data.tag }),
+    }
+  })
 }
 
-export async function deleteQRCode(id: number): Promise<void> {
-  const pool = getPool()
-  // Delete clicks first
-  await pool.query("DELETE FROM qrcode_click WHERE qrcode_id = ?", [id])
-  // Delete qrcode
-  await pool.query("DELETE FROM qrcode WHERE id = ?", [id])
+export async function deleteQRCode(id: bigint): Promise<void> {
+  // Clicks are deleted automatically via cascade
+  await prisma.qRCode.delete({
+    where: { id }
+  })
 }
 
 export async function recordClick(
-  qrcodeId: number,
+  qrcodeId: bigint,
   data: {
     browser: string
     ip: string
@@ -144,26 +105,28 @@ export async function recordClick(
     referer: string
   }
 ): Promise<void> {
-  const pool = getPool()
-  const now = new Date()
-  await pool.query(
-    "INSERT INTO qrcode_click (qrcode_id, browser, ip, location, referer, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [qrcodeId, data.browser, data.ip, data.location, data.referer, now, now]
-  )
+  await prisma.qRCodeClick.create({
+    data: {
+      qrcodeId,
+      browser: data.browser,
+      ip: data.ip,
+      location: data.location,
+      referer: data.referer,
+    }
+  })
 }
 
 export async function getClicksByQRCodeId(
-  qrcodeId: number
+  qrcodeId: bigint
 ): Promise<QRCodeClick[]> {
-  const pool = getPool()
-  const [rows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT * FROM qrcode_click WHERE qrcode_id = ? ORDER BY created_at DESC LIMIT 100",
-    [qrcodeId]
-  )
-  return rows as QRCodeClick[]
+  return prisma.qRCodeClick.findMany({
+    where: { qrcodeId },
+    orderBy: { createdAt: "desc" },
+    take: 100
+  })
 }
 
-export async function getClickStats(qrcodeId: number): Promise<{
+export async function getClickStats(qrcodeId: bigint): Promise<{
   total: number
   today: number
   thisWeek: number
@@ -172,129 +135,145 @@ export async function getClickStats(qrcodeId: number): Promise<{
   byLocation: { location: string; count: number }[]
   byBrowser: { browser: string; count: number }[]
 }> {
-  const pool = getPool()
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
   // Total clicks
-  const [totalRows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) as count FROM qrcode_click WHERE qrcode_id = ?",
-    [qrcodeId]
-  )
-  const total = totalRows[0]?.count || 0
+  const total = await prisma.qRCodeClick.count({
+    where: { qrcodeId }
+  })
 
   // Today
-  const [todayRows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) as count FROM qrcode_click WHERE qrcode_id = ? AND DATE(created_at) = CURDATE()",
-    [qrcodeId]
-  )
-  const today = todayRows[0]?.count || 0
+  const today = await prisma.qRCodeClick.count({
+    where: {
+      qrcodeId,
+      createdAt: { gte: todayStart }
+    }
+  })
 
   // This week
-  const [weekRows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) as count FROM qrcode_click WHERE qrcode_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)",
-    [qrcodeId]
-  )
-  const thisWeek = weekRows[0]?.count || 0
+  const thisWeek = await prisma.qRCodeClick.count({
+    where: {
+      qrcodeId,
+      createdAt: { gte: weekAgo }
+    }
+  })
 
   // This month
-  const [monthRows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) as count FROM qrcode_click WHERE qrcode_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)",
-    [qrcodeId]
-  )
-  const thisMonth = monthRows[0]?.count || 0
+  const thisMonth = await prisma.qRCodeClick.count({
+    where: {
+      qrcodeId,
+      createdAt: { gte: monthAgo }
+    }
+  })
 
-  // By day (last 30 days)
-  const [byDayRows] = await pool.query<mysql.RowDataPacket[]>(
-    `SELECT DATE(created_at) as date, COUNT(*) as count
-     FROM qrcode_click
-     WHERE qrcode_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-     GROUP BY DATE(created_at)
-     ORDER BY date DESC`,
-    [qrcodeId]
-  )
+  // Get all clicks for grouping
+  const clicks = await prisma.qRCodeClick.findMany({
+    where: {
+      qrcodeId,
+      createdAt: { gte: monthAgo }
+    },
+    select: {
+      createdAt: true,
+      location: true,
+      browser: true
+    }
+  })
 
-  // By location
-  const [byLocationRows] = await pool.query<mysql.RowDataPacket[]>(
-    `SELECT location, COUNT(*) as count
-     FROM qrcode_click
-     WHERE qrcode_id = ?
-     GROUP BY location
-     ORDER BY count DESC
-     LIMIT 10`,
-    [qrcodeId]
-  )
+  // Group by day
+  const byDayMap = new Map<string, number>()
+  clicks.forEach(click => {
+    const date = click.createdAt.toISOString().split('T')[0]
+    byDayMap.set(date, (byDayMap.get(date) || 0) + 1)
+  })
+  const byDay = Array.from(byDayMap.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => b.date.localeCompare(a.date))
 
-  // By browser (simplified)
-  const [byBrowserRows] = await pool.query<mysql.RowDataPacket[]>(
-    `SELECT
-       CASE
-         WHEN browser LIKE '%Chrome%' AND browser NOT LIKE '%Edge%' THEN 'Chrome'
-         WHEN browser LIKE '%Firefox%' THEN 'Firefox'
-         WHEN browser LIKE '%Safari%' AND browser NOT LIKE '%Chrome%' THEN 'Safari'
-         WHEN browser LIKE '%Edge%' THEN 'Edge'
-         WHEN browser LIKE '%Opera%' THEN 'Opera'
-         ELSE 'Autre'
-       END as browser,
-       COUNT(*) as count
-     FROM qrcode_click
-     WHERE qrcode_id = ?
-     GROUP BY
-       CASE
-         WHEN browser LIKE '%Chrome%' AND browser NOT LIKE '%Edge%' THEN 'Chrome'
-         WHEN browser LIKE '%Firefox%' THEN 'Firefox'
-         WHEN browser LIKE '%Safari%' AND browser NOT LIKE '%Chrome%' THEN 'Safari'
-         WHEN browser LIKE '%Edge%' THEN 'Edge'
-         WHEN browser LIKE '%Opera%' THEN 'Opera'
-         ELSE 'Autre'
-       END
-     ORDER BY count DESC`,
-    [qrcodeId]
-  )
+  // Group by location
+  const byLocationMap = new Map<string, number>()
+  clicks.forEach(click => {
+    byLocationMap.set(click.location, (byLocationMap.get(click.location) || 0) + 1)
+  })
+  const byLocation = Array.from(byLocationMap.entries())
+    .map(([location, count]) => ({ location, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+
+  // Group by browser (simplified)
+  const byBrowserMap = new Map<string, number>()
+  clicks.forEach(click => {
+    let browserName = 'Autre'
+    if (click.browser.includes('Chrome') && !click.browser.includes('Edge')) {
+      browserName = 'Chrome'
+    } else if (click.browser.includes('Firefox')) {
+      browserName = 'Firefox'
+    } else if (click.browser.includes('Safari') && !click.browser.includes('Chrome')) {
+      browserName = 'Safari'
+    } else if (click.browser.includes('Edge')) {
+      browserName = 'Edge'
+    } else if (click.browser.includes('Opera')) {
+      browserName = 'Opera'
+    }
+    byBrowserMap.set(browserName, (byBrowserMap.get(browserName) || 0) + 1)
+  })
+  const byBrowser = Array.from(byBrowserMap.entries())
+    .map(([browser, count]) => ({ browser, count }))
+    .sort((a, b) => b.count - a.count)
 
   return {
     total,
     today,
     thisWeek,
     thisMonth,
-    byDay: byDayRows.map((r) => ({
-      date: r.date?.toISOString?.()?.split("T")[0] || String(r.date),
-      count: r.count,
-    })),
-    byLocation: byLocationRows.map((r) => ({
-      location: r.location,
-      count: r.count,
-    })),
-    byBrowser: byBrowserRows.map((r) => ({
-      browser: r.browser,
-      count: r.count,
-    })),
+    byDay,
+    byLocation,
+    byBrowser,
   }
 }
 
-export async function getGlobalStats(): Promise<{
+export async function getGlobalStats(tenantId: bigint): Promise<{
   totalQRCodes: number
   totalClicks: number
   clicksToday: number
   clicksThisMonth: number
 }> {
-  const pool = getPool()
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-  const [qrRows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) as count FROM qrcode"
-  )
-  const [clickRows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) as count FROM qrcode_click"
-  )
-  const [todayRows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) as count FROM qrcode_click WHERE DATE(created_at) = CURDATE()"
-  )
-  const [monthRows] = await pool.query<mysql.RowDataPacket[]>(
-    "SELECT COUNT(*) as count FROM qrcode_click WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)"
-  )
+  const qrcodeIds = await prisma.qRCode.findMany({
+    where: { tenant_id: tenantId },
+    select: { id: true }
+  })
+  const ids = qrcodeIds.map(q => q.id)
+
+  const totalQRCodes = qrcodeIds.length
+
+  const totalClicks = await prisma.qRCodeClick.count({
+    where: { qrcodeId: { in: ids } }
+  })
+
+  const clicksToday = await prisma.qRCodeClick.count({
+    where: {
+      qrcodeId: { in: ids },
+      createdAt: { gte: todayStart }
+    }
+  })
+
+  const clicksThisMonth = await prisma.qRCodeClick.count({
+    where: {
+      qrcodeId: { in: ids },
+      createdAt: { gte: monthAgo }
+    }
+  })
 
   return {
-    totalQRCodes: qrRows[0]?.count || 0,
-    totalClicks: clickRows[0]?.count || 0,
-    clicksToday: todayRows[0]?.count || 0,
-    clicksThisMonth: monthRows[0]?.count || 0,
+    totalQRCodes,
+    totalClicks,
+    clicksToday,
+    clicksThisMonth,
   }
 }

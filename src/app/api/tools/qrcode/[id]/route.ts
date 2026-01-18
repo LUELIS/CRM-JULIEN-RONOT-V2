@@ -24,11 +24,7 @@ export async function GET(
     }
 
     const { id } = await params
-    const qrcodeId = parseInt(id, 10)
-
-    if (isNaN(qrcodeId)) {
-      return NextResponse.json({ error: "ID invalide" }, { status: 400 })
-    }
+    const qrcodeId = BigInt(id)
 
     const qrcode = await getQRCodeById(qrcodeId)
 
@@ -36,7 +32,12 @@ export async function GET(
       return NextResponse.json({ error: "QR code non trouvé" }, { status: 404 })
     }
 
-    return NextResponse.json(qrcode)
+    // Convert BigInt to string for JSON serialization
+    return NextResponse.json({
+      ...qrcode,
+      id: qrcode.id.toString(),
+      tenant_id: qrcode.tenant_id.toString(),
+    })
   } catch (error) {
     console.error("Error fetching QR code:", error)
     return NextResponse.json(
@@ -57,11 +58,7 @@ export async function PUT(
     }
 
     const { id } = await params
-    const qrcodeId = parseInt(id, 10)
-
-    if (isNaN(qrcodeId)) {
-      return NextResponse.json({ error: "ID invalide" }, { status: 400 })
-    }
+    const qrcodeId = BigInt(id)
 
     const body = await request.json()
     const { name, link, tag } = body
@@ -81,7 +78,12 @@ export async function PUT(
       return NextResponse.json({ error: "QR code non trouvé" }, { status: 404 })
     }
 
-    return NextResponse.json(qrcode)
+    // Convert BigInt to string for JSON serialization
+    return NextResponse.json({
+      ...qrcode,
+      id: qrcode.id.toString(),
+      tenant_id: qrcode.tenant_id.toString(),
+    })
   } catch (error) {
     console.error("Error updating QR code:", error)
     return NextResponse.json(
@@ -102,11 +104,7 @@ export async function DELETE(
     }
 
     const { id } = await params
-    const qrcodeId = parseInt(id, 10)
-
-    if (isNaN(qrcodeId)) {
-      return NextResponse.json({ error: "ID invalide" }, { status: 400 })
-    }
+    const qrcodeId = BigInt(id)
 
     await deleteQRCode(qrcodeId)
 

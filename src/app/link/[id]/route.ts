@@ -48,11 +48,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const qrcodeId = parseInt(id, 10)
-
-    if (isNaN(qrcodeId)) {
-      return NextResponse.redirect(new URL("/", request.url))
-    }
+    const qrcodeId = BigInt(id)
 
     // Get QR code from database
     const qrcode = await getQRCodeById(qrcodeId)

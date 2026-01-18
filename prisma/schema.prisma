@@ -1153,6 +1153,7 @@ model tenants {
   dokployServers         DokployServer[]
   externalApiKeys        ExternalApiKey[]
   supportDownloads       SupportDownload[]
+  qrcodes                QRCode[]
 }
 
 model user_tenants {
@@ -2211,4 +2212,41 @@ model SupportDownload {
   @@index([tenant_id], map: "support_downloads_tenant_id_index")
   @@index([platform, isActive], map: "support_downloads_platform_index")
   @@map("support_downloads")
+}
+
+// ============================================
+// QR CODE MANAGEMENT (Dynamic QR Codes)
+// ============================================
+model QRCode {
+  id        BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id BigInt        @db.UnsignedBigInt
+  name      String        @db.VarChar(255)
+  link      String        @db.Text
+  tag       String?       @db.VarChar(100)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  tenant tenants       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  clicks QRCodeClick[]
+
+  @@index([tenant_id], map: "qrcode_tenant_id_index")
+  @@index([tag], map: "qrcode_tag_index")
+  @@map("qrcode")
+}
+
+model QRCodeClick {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  qrcodeId  BigInt   @map("qrcode_id") @db.UnsignedBigInt
+  browser   String   @db.VarChar(500)
+  ip        String   @db.VarChar(45)
+  location  String   @db.VarChar(255)
+  referer   String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  qrcode QRCode @relation(fields: [qrcodeId], references: [id], onDelete: Cascade)
+
+  @@index([qrcodeId], map: "qrcode_click_qrcode_id_index")
+  @@index([createdAt], map: "qrcode_click_created_at_index")
+  @@map("qrcode_click")
 }

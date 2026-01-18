@@ -12,6 +12,8 @@ import {
   getGlobalStats,
 } from "@/lib/qrcode-db"
 
+const TENANT_ID = BigInt(1)
+
 export async function GET() {
   try {
     const session = await auth()
@@ -20,11 +22,18 @@ export async function GET() {
     }
 
     const [qrcodes, stats] = await Promise.all([
-      getQRCodes(),
-      getGlobalStats(),
+      getQRCodes(TENANT_ID),
+      getGlobalStats(TENANT_ID),
     ])
 
-    return NextResponse.json({ qrcodes, stats })
+    // Convert BigInt to string for JSON serialization
+    const serializedQrcodes = qrcodes.map(qr => ({
+      ...qr,
+      id: qr.id.toString(),
+      tenant_id: qr.tenant_id.toString(),
+    }))
+
+    return NextResponse.json({ qrcodes: serializedQrcodes, stats })
   } catch (error) {
     console.error("Error fetching QR codes:", error)
     return NextResponse.json(
@@ -61,9 +70,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const qrcode = await createQRCode({ name, link, tag })
+    const qrcode = await createQRCode({ tenant_id: TENANT_ID, name, link, tag })
 
-    return NextResponse.json(qrcode, { status: 201 })
+    // Convert BigInt to string for JSON serialization
+    return NextResponse.json({
+      ...qrcode,
+      id: qrcode.id.toString(),
+      tenant_id: qrcode.tenant_id.toString(),
+    }, { status: 201 })
   } catch (error) {
     console.error("Error creating QR code:", error)
     return NextResponse.json(

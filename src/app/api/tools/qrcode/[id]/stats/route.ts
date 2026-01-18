@@ -18,18 +18,21 @@ export async function GET(
     }
 
     const { id } = await params
-    const qrcodeId = parseInt(id, 10)
-
-    if (isNaN(qrcodeId)) {
-      return NextResponse.json({ error: "ID invalide" }, { status: 400 })
-    }
+    const qrcodeId = BigInt(id)
 
     const [stats, recentClicks] = await Promise.all([
       getClickStats(qrcodeId),
       getClicksByQRCodeId(qrcodeId),
     ])
 
-    return NextResponse.json({ stats, recentClicks })
+    // Convert BigInt to string for JSON serialization
+    const serializedClicks = recentClicks.map(click => ({
+      ...click,
+      id: click.id.toString(),
+      qrcodeId: click.qrcodeId.toString(),
+    }))
+
+    return NextResponse.json({ stats, recentClicks: serializedClicks })
   } catch (error) {
     console.error("Error fetching QR code stats:", error)
     return NextResponse.json(
