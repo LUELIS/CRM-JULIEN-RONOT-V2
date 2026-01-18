@@ -77,9 +77,10 @@ const baseNavItems: Omit<NavItem, "badge">[] = [
   {
     id: "tools",
     label: "Outils",
-    href: "/tools/password",
+    href: "/tools/qrcode",
     icon: Wrench,
     children: [
+      { id: "qrcode", label: "QR Codes", href: "/tools/qrcode" },
       { id: "password", label: "Générateur MDP", href: "/tools/password" },
     ],
   },
