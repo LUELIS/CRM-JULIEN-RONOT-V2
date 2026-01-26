@@ -19,9 +19,11 @@ import {
 
 interface Service {
   id: string
+  clientServiceId: string
   code: string
   name: string
   priceHT: number
+  unitPriceHT: number
   vatRate: number
   priceTTC: number
   quantity: number
@@ -138,16 +140,71 @@ export default function RecurringPage() {
   const updateQuantity = async (clientId: string, serviceId: string, newQuantity: number) => {
     if (newQuantity < 0.01) return
 
-    // Optimistic update
+    // Optimistic update with recalculated totals
     setClients((prev) =>
       prev.map((client) => {
         if (client.id !== clientId) return client
-        return {
-          ...client,
-          services: client.services.map((s) =>
-            s.id === serviceId ? { ...s, quantity: newQuantity } : s
-          ),
-        }
+        const updatedServices = client.services.map((s) => {
+          if (s.id !== serviceId) return s
+          const newPriceHT = s.unitPriceHT * newQuantity
+          const newPriceTTC = newPriceHT * (1 + s.vatRate / 100)
+          return { ...s, quantity: newQuantity, priceHT: newPriceHT, priceTTC: newPriceTTC }
+        })
+        const newMrrHT = updatedServices.reduce((sum, s) => sum + s.priceHT, 0)
+        const newMrrTTC = updatedServices.reduce((sum, s) => sum + s.priceTTC, 0)
+        return { ...client, services: updatedServices, mrr_ht: newMrrHT, mrr_ttc: newMrrTTC }
+      })
+    )
+
+    // Recalculate totals
+    setTotals((prev) => {
+      const newClients = clients.map((client) => {
+        if (client.id !== clientId) return client
+        const updatedServices = client.services.map((s) => {
+          if (s.id !== serviceId) return s
+          return { ...s, quantity: newQuantity, priceHT: s.unitPriceHT * newQuantity }
+        })
+        return { ...client, mrr_ht: updatedServices.reduce((sum, s) => sum + s.priceHT, 0) }
+      })
+      return {
+        ...prev,
+        mrr_ht: newClients.reduce((sum, c) => sum + c.mrr_ht, 0),
+        mrr_ttc: newClients.reduce((sum, c) => sum + c.mrr_ttc, 0),
+      }
+    })
+
+    try {
+      const res = await fetch(`/api/clients/${clientId}/services/${serviceId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: newQuantity, isActive: true }),
+      })
+
+      if (!res.ok) {
+        fetchData() // Reload on error
+      }
+    } catch (error) {
+      console.error("Error updating quantity:", error)
+      fetchData() // Reload on error
+    }
+  }
+
+  const updatePrice = async (clientId: string, serviceId: string, newPrice: number) => {
+    if (newPrice < 0) return
+
+    // Optimistic update with recalculated totals
+    setClients((prev) =>
+      prev.map((client) => {
+        if (client.id !== clientId) return client
+        const updatedServices = client.services.map((s) => {
+          if (s.id !== serviceId) return s
+          const newPriceHT = newPrice * s.quantity
+          const newPriceTTC = newPriceHT * (1 + s.vatRate / 100)
+          return { ...s, unitPriceHT: newPrice, priceHT: newPriceHT, priceTTC: newPriceTTC }
+        })
+        const newMrrHT = updatedServices.reduce((sum, s) => sum + s.priceHT, 0)
+        const newMrrTTC = updatedServices.reduce((sum, s) => sum + s.priceTTC, 0)
+        return { ...client, services: updatedServices, mrr_ht: newMrrHT, mrr_ttc: newMrrTTC }
       })
     )
 
@@ -155,15 +212,14 @@ export default function RecurringPage() {
       const res = await fetch(`/api/clients/${clientId}/services/${serviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: newQuantity, is_active: true }),
+        body: JSON.stringify({ customPriceHt: newPrice, isActive: true }),
       })
 
-      if (res.ok) {
-        // Reload to get updated totals
-        setTimeout(() => fetchData(), 500)
+      if (!res.ok) {
+        fetchData() // Reload on error
       }
     } catch (error) {
-      console.error("Error updating quantity:", error)
+      console.error("Error updating price:", error)
       fetchData() // Reload on error
     }
   }
@@ -466,7 +522,6 @@ export default function RecurringPage() {
                   </thead>
                   <tbody>
                     {client.services.map((service, idx) => {
-                      const unitPrice = service.priceHT / service.quantity
                       return (
                         <tr
                           key={service.id}
@@ -536,11 +591,29 @@ export default function RecurringPage() {
                               </button>
                             </div>
                           </td>
-                          <td
-                            className="px-6 py-4 text-right text-sm font-medium"
-                            style={{ color: "#111111" }}
-                          >
-                            {formatCurrency(unitPrice)} €
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                value={service.unitPriceHT}
+                                onChange={(e) =>
+                                  updatePrice(
+                                    client.id,
+                                    service.id,
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                step="0.01"
+                                min="0"
+                                className="w-24 text-right px-2 py-1.5 rounded-lg text-sm font-medium focus:outline-none"
+                                style={{
+                                  background: "#FFFFFF",
+                                  border: "1px solid #EEEEEE",
+                                  color: "#111111",
+                                }}
+                              />
+                              <span className="text-sm" style={{ color: "#666666" }}>€</span>
+                            </div>
                           </td>
                           <td
                             className="px-6 py-4 text-right text-sm font-semibold"

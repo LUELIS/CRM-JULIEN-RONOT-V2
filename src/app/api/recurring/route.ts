@@ -64,10 +64,12 @@ export async function GET() {
         clientMRR_TTC += priceTTC
 
         return {
-          id: cs.id.toString(),
+          id: cs.service.id.toString(), // Service ID for API calls
+          clientServiceId: cs.id.toString(), // ClientService ID for reference
           code: cs.service.code,
           name: cs.service.name,
           priceHT: linePriceHT,
+          unitPriceHT: priceHT, // Unit price for editing
           vatRate,
           priceTTC,
           quantity,
