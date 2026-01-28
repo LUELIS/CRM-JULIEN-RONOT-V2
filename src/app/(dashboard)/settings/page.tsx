@@ -1913,10 +1913,19 @@ function SettingsContent() {
                           <p className="text-sm" style={{ color: "#666666" }}>Alertes Dokploy (Orion, Andromeda, Cassiopeia)</p>
                         </div>
                       </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" checked={deploymentNotificationsEnabled} onChange={(e) => setDeploymentNotificationsEnabled(e.target.checked)} className="sr-only peer" />
-                        <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: deploymentNotificationsEnabled ? "#22C55E" : "#CCCCCC" }} />
-                      </label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={deploymentNotificationsEnabled}
+                        onClick={() => setDeploymentNotificationsEnabled(!deploymentNotificationsEnabled)}
+                        className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                        style={{ background: deploymentNotificationsEnabled ? "#22C55E" : "#CCCCCC" }}
+                      >
+                        <span
+                          className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
+                          style={{ transform: deploymentNotificationsEnabled ? "translateX(22px)" : "translateX(2px)" }}
+                        />
+                      </button>
                     </div>
 
                     {deploymentNotificationsEnabled && (
@@ -1926,10 +1935,19 @@ function SettingsContent() {
                             <p className="font-medium" style={{ color: "#111111" }}>Déploiement réussi</p>
                             <p className="text-sm" style={{ color: "#666666" }}>Notifier quand un déploiement se termine avec succès</p>
                           </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" checked={deploymentNotifyOnSuccess} onChange={(e) => setDeploymentNotifyOnSuccess(e.target.checked)} className="sr-only peer" />
-                            <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: deploymentNotifyOnSuccess ? "#22C55E" : "#CCCCCC" }} />
-                          </label>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={deploymentNotifyOnSuccess}
+                            onClick={() => setDeploymentNotifyOnSuccess(!deploymentNotifyOnSuccess)}
+                            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                            style={{ background: deploymentNotifyOnSuccess ? "#22C55E" : "#CCCCCC" }}
+                          >
+                            <span
+                              className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
+                              style={{ transform: deploymentNotifyOnSuccess ? "translateX(22px)" : "translateX(2px)" }}
+                            />
+                          </button>
                         </div>
 
                         <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#FEF2F2" }}>
@@ -1937,10 +1955,19 @@ function SettingsContent() {
                             <p className="font-medium" style={{ color: "#111111" }}>Échec de déploiement</p>
                             <p className="text-sm" style={{ color: "#666666" }}>Alerte quand un déploiement échoue</p>
                           </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" checked={deploymentNotifyOnFailure} onChange={(e) => setDeploymentNotifyOnFailure(e.target.checked)} className="sr-only peer" />
-                            <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: deploymentNotifyOnFailure ? "#EF4444" : "#CCCCCC" }} />
-                          </label>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={deploymentNotifyOnFailure}
+                            onClick={() => setDeploymentNotifyOnFailure(!deploymentNotifyOnFailure)}
+                            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                            style={{ background: deploymentNotifyOnFailure ? "#EF4444" : "#CCCCCC" }}
+                          >
+                            <span
+                              className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
+                              style={{ transform: deploymentNotifyOnFailure ? "translateX(22px)" : "translateX(2px)" }}
+                            />
+                          </button>
                         </div>
 
                         <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#FEF3C7" }}>
@@ -1948,10 +1975,19 @@ function SettingsContent() {
                             <p className="font-medium" style={{ color: "#111111" }}>Application en erreur</p>
                             <p className="text-sm" style={{ color: "#666666" }}>Alerte quand une app est détectée en erreur sur Dokploy</p>
                           </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" checked={deploymentNotifyOnAppError} onChange={(e) => setDeploymentNotifyOnAppError(e.target.checked)} className="sr-only peer" />
-                            <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ background: deploymentNotifyOnAppError ? "#F59E0B" : "#CCCCCC" }} />
-                          </label>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={deploymentNotifyOnAppError}
+                            onClick={() => setDeploymentNotifyOnAppError(!deploymentNotifyOnAppError)}
+                            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                            style={{ background: deploymentNotifyOnAppError ? "#F59E0B" : "#CCCCCC" }}
+                          >
+                            <span
+                              className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
+                              style={{ transform: deploymentNotifyOnAppError ? "translateX(22px)" : "translateX(2px)" }}
+                            />
+                          </button>
                         </div>
                       </div>
                     )}

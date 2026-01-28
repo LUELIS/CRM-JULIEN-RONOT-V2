@@ -84,6 +84,12 @@ export async function GET() {
       slackNotifyOnReply: rawSettings.slackNotifyOnReply ?? rawSettings.slack_notify_on_reply ?? true,
       slackNotifyOnAssign: rawSettings.slackNotifyOnAssign || rawSettings.slack_notify_on_assign || false,
 
+      // Deployment Notifications (Dokploy)
+      deploymentNotificationsEnabled: rawSettings.deploymentNotificationsEnabled ?? true,
+      deploymentNotifyOnSuccess: rawSettings.deploymentNotifyOnSuccess ?? true,
+      deploymentNotifyOnFailure: rawSettings.deploymentNotifyOnFailure ?? true,
+      deploymentNotifyOnAppError: rawSettings.deploymentNotifyOnAppError ?? true,
+
       // OpenAI
       openaiEnabled: rawSettings.openaiEnabled || rawSettings.openai_enabled || false,
       openaiApiKey: rawSettings.openaiApiKey || rawSettings.openai_api_key || "",
@@ -391,6 +397,12 @@ export async function PUT(request: NextRequest) {
       if (body.slackChannelId !== undefined) updatedSettings.slackChannelId = body.slackChannelId
       if (body.slackNotifyOnNew !== undefined) updatedSettings.slackNotifyOnNew = body.slackNotifyOnNew
       if (body.slackNotifyOnReply !== undefined) updatedSettings.slackNotifyOnReply = body.slackNotifyOnReply
+
+      // Deployment Notifications (Dokploy)
+      if (body.deploymentNotificationsEnabled !== undefined) updatedSettings.deploymentNotificationsEnabled = body.deploymentNotificationsEnabled
+      if (body.deploymentNotifyOnSuccess !== undefined) updatedSettings.deploymentNotifyOnSuccess = body.deploymentNotifyOnSuccess
+      if (body.deploymentNotifyOnFailure !== undefined) updatedSettings.deploymentNotifyOnFailure = body.deploymentNotifyOnFailure
+      if (body.deploymentNotifyOnAppError !== undefined) updatedSettings.deploymentNotifyOnAppError = body.deploymentNotifyOnAppError
 
       // OpenAI settings
       if (body.openaiEnabled !== undefined) updatedSettings.openaiEnabled = body.openaiEnabled
