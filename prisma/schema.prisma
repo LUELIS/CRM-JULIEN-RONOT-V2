@@ -1897,24 +1897,46 @@ model PushSubscription {
 // ==========================================
 
 model Project {
-  id          BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
-  tenant_id   BigInt          @db.UnsignedBigInt
-  name        String          @db.VarChar(255)
-  description String?         @db.Text
-  color       String          @default("#0064FA") @db.VarChar(20)
-  clientId    BigInt?         @map("client_id") @db.UnsignedBigInt
-  isArchived  Boolean         @default(false) @map("is_archived")
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamp(0)
+  id           BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id    BigInt          @db.UnsignedBigInt
+  name         String          @db.VarChar(255)
+  description  String?         @db.Text
+  color        String          @default("#0064FA") @db.VarChar(20)
+  clientId     BigInt?         @map("client_id") @db.UnsignedBigInt
+  isArchived   Boolean         @default(false) @map("is_archived")
+  shareToken   String?         @unique @map("share_token") @db.VarChar(64)
+  shareEnabled Boolean         @default(false) @map("share_enabled")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamp(0)
 
   tenants  tenants         @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "projects_tenant_id_foreign")
   client   Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "projects_client_id_foreign")
   columns  ProjectColumn[]
   labels   ProjectLabel[]
+  guests   ProjectGuest[]
 
   @@index([tenant_id], map: "projects_tenant_id_index")
   @@index([clientId], map: "projects_client_id_index")
+  @@index([shareToken], map: "projects_share_token_index")
   @@map("projects")
+}
+
+// Project guests (external collaborators)
+model ProjectGuest {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  projectId BigInt   @map("project_id") @db.UnsignedBigInt
+  email     String   @db.VarChar(255)
+  name      String?  @db.VarChar(255)
+  token     String   @unique @db.VarChar(64)
+  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamp(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade, map: "project_guests_project_id_foreign")
+
+  @@unique([projectId, email], map: "project_guests_project_email_unique")
+  @@index([projectId], map: "project_guests_project_id_index")
+  @@index([token], map: "project_guests_token_index")
+  @@map("project_guests")
 }
 
 model ProjectColumn {

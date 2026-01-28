@@ -26,6 +26,13 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
+  Copy,
+  Link as LinkIcon,
+  RefreshCw,
+  Loader2,
+  ExternalLink,
+  Mail,
+  UserPlus,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -123,6 +130,16 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
   const [notesLoading, setNotesLoading] = useState(false)
   const [editingNote, setEditingNote] = useState<any | null>(null)
 
+  // Share modal
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareEnabled, setShareEnabled] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
+  const [shareGuests, setShareGuests] = useState<{id: string; email: string; name: string | null; lastSeenAt: string | null; isInvited: boolean}[]>([])
+  const [newInviteEmail, setNewInviteEmail] = useState("")
+  const [invitingEmail, setInvitingEmail] = useState(false)
+
   useEffect(() => {
     fetchProject()
     fetchProjectNotes()
@@ -216,6 +233,89 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
       fetchProjectNotes()
     } catch (error) {
       console.error("Error updating note:", error)
+    }
+  }
+
+  // Share functions
+  const fetchShareStatus = async () => {
+    try {
+      const res = await fetch(`/api/projects/${resolvedParams.id}/share`)
+      if (res.ok) {
+        const data = await res.json()
+        setShareEnabled(data.shareEnabled)
+        setShareUrl(data.shareUrl)
+        setShareGuests(data.guests || [])
+      }
+    } catch (error) {
+      console.error("Error fetching share status:", error)
+    }
+  }
+
+  const handleShareAction = async (action: "enable" | "disable" | "regenerate") => {
+    setShareLoading(true)
+    try {
+      const res = await fetch(`/api/projects/${resolvedParams.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setShareEnabled(data.shareEnabled)
+        setShareUrl(data.shareUrl)
+      }
+    } catch (error) {
+      console.error("Error updating share settings:", error)
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const copyShareUrl = () => {
+    if (shareUrl) {
+      navigator.clipboard.writeText(shareUrl)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    }
+  }
+
+  const openShareModal = () => {
+    fetchShareStatus()
+    setShowShareModal(true)
+  }
+
+  const inviteEmail = async () => {
+    if (!newInviteEmail.trim()) return
+    setInvitingEmail(true)
+    try {
+      const res = await fetch(`/api/projects/${resolvedParams.id}/share/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newInviteEmail.trim().toLowerCase() }),
+      })
+      if (res.ok) {
+        setNewInviteEmail("")
+        fetchShareStatus()
+      } else {
+        const err = await res.json()
+        alert(err.error || "Erreur lors de l'invitation")
+      }
+    } catch (error) {
+      console.error("Error inviting email:", error)
+    } finally {
+      setInvitingEmail(false)
+    }
+  }
+
+  const removeInvite = async (guestId: string) => {
+    if (!confirm("Retirer cet accès ?")) return
+    try {
+      await fetch(`/api/projects/${resolvedParams.id}/share/invite/${guestId}`, {
+        method: "DELETE",
+      })
+      fetchShareStatus()
+    } catch (error) {
+      console.error("Error removing invite:", error)
     }
   }
 
@@ -597,7 +697,11 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
             <button className="p-2 hover:bg-white/50 rounded-lg transition-colors" title="Favoris">
               <Star className="h-5 w-5 text-gray-400" />
             </button>
-            <button className="p-2 hover:bg-white/50 rounded-lg transition-colors" title="Partager">
+            <button
+              onClick={openShareModal}
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+              title="Partager"
+            >
               <Share2 className="h-5 w-5 text-gray-400" />
             </button>
             <DropdownMenu>
@@ -1346,6 +1450,202 @@ export default function ProjectBoardPage({ params }: { params: Promise<{ id: str
                 {savingProject ? "Enregistrement..." : "Enregistrer"}
               </button>
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-50"
+            onClick={() => setShowShareModal(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl z-50 w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#0064FA]/10 flex items-center justify-center">
+                  <Share2 className="h-5 w-5 text-[#0064FA]" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Partager le projet</h2>
+                  <p className="text-sm text-gray-500">Invitez des collaborateurs externes</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Toggle share */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl mb-4">
+              <div className="flex items-center gap-3">
+                <LinkIcon className="h-5 w-5 text-gray-500" />
+                <div>
+                  <p className="font-medium text-gray-900">Partage public</p>
+                  <p className="text-sm text-gray-500">
+                    {shareEnabled ? "Le projet est accessible via le lien" : "Activer pour generer un lien"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => handleShareAction(shareEnabled ? "disable" : "enable")}
+                disabled={shareLoading}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                style={{ background: shareEnabled ? "#0064FA" : "#CCCCCC" }}
+              >
+                {shareLoading ? (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  </span>
+                ) : (
+                  <span
+                    className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-sm"
+                    style={{ transform: shareEnabled ? "translateX(22px)" : "translateX(2px)" }}
+                  />
+                )}
+              </button>
+            </div>
+
+            {/* Share URL */}
+            {shareEnabled && shareUrl && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={shareUrl}
+                    readOnly
+                    className="flex-1 px-4 py-2.5 bg-gray-100 rounded-lg text-sm text-gray-600 font-mono"
+                  />
+                  <button
+                    onClick={copyShareUrl}
+                    className="px-4 py-2.5 bg-[#0064FA] text-white rounded-lg font-medium hover:bg-[#0052CC] flex items-center gap-2"
+                  >
+                    {shareCopied ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Copie
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        Copier
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={shareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Ouvrir le lien
+                  </a>
+                  <button
+                    onClick={() => handleShareAction("regenerate")}
+                    disabled={shareLoading}
+                    className="px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 flex items-center gap-2"
+                    title="Generer un nouveau lien"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${shareLoading ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-500 text-center">
+                  Les collaborateurs doivent entrer leur email pour acceder au projet
+                </p>
+
+                {/* Invite form */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Inviter un collaborateur
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="email"
+                        value={newInviteEmail}
+                        onChange={(e) => setNewInviteEmail(e.target.value)}
+                        placeholder="email@exemple.com"
+                        className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0064FA]/20 focus:border-[#0064FA]"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newInviteEmail.trim()) {
+                            inviteEmail()
+                          }
+                        }}
+                      />
+                    </div>
+                    <button
+                      onClick={inviteEmail}
+                      disabled={!newInviteEmail.trim() || invitingEmail}
+                      className="px-4 py-2 bg-[#0064FA] text-white rounded-lg font-medium hover:bg-[#0052CC] disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {invitingEmail ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Guests list */}
+                {shareGuests.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Collaborateurs autorises ({shareGuests.length})
+                    </h3>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {shareGuests.map((guest) => (
+                        <div key={guest.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg group">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${guest.lastSeenAt ? "bg-[#0064FA]" : "bg-gray-400"}`}>
+                              {(guest.name || guest.email).charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{guest.name || guest.email}</p>
+                              {guest.name && <p className="text-xs text-gray-500">{guest.email}</p>}
+                              {!guest.name && !guest.lastSeenAt && <p className="text-xs text-amber-600">En attente</p>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {guest.lastSeenAt && (
+                              <span className="text-xs text-gray-400">
+                                Vu le {new Date(guest.lastSeenAt).toLocaleDateString("fr-FR")}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => removeInvite(guest.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Retirer l'acces"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!shareEnabled && (
+              <div className="text-center py-6 text-gray-500">
+                <LinkIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>Activez le partage pour inviter des collaborateurs</p>
+              </div>
+            )}
           </div>
         </>
       )}
