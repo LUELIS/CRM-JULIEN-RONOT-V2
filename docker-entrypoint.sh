@@ -6,10 +6,10 @@ export TZ=Europe/Paris
 
 echo "🕐 Timezone: $TZ ($(date))"
 echo "🔄 Synchronizing database schema..."
-npx prisma db push --accept-data-loss --skip-generate || {
+npx prisma db push --accept-data-loss || {
   echo "⚠️ Schema sync failed, retrying..."
   sleep 2
-  npx prisma db push --accept-data-loss --skip-generate || echo "❌ Schema sync failed after retry"
+  npx prisma db push --accept-data-loss || echo "❌ Schema sync failed after retry"
 }
 echo "✅ Database schema synchronized"
 
