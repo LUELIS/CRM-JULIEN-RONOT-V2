@@ -2,8 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
 // Cron Job - runs every day at 8:00 AM Paris time
-// Dokploy cron (UTC): 0 7 * * * (winter) or 0 6 * * * (summer)
-// Container is now in Europe/Paris timezone
+// Schedule: 0 8 * * * (Europe/Paris timezone)
 
 const DEFAULT_TENANT_ID = BigInt(1)
 

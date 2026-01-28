@@ -38,7 +38,6 @@ import {
   Landmark,
   XCircle,
   Bell,
-  Server,
   Calendar,
   Link,
   Unlink,
@@ -49,7 +48,6 @@ import Image from "next/image"
 import { useTenant } from "@/contexts/tenant-context"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
 import { NotificationSettings } from "@/components/settings/NotificationSettings"
-import { DokploySettings } from "@/components/settings/DokploySettings"
 import { ApiKeysSettings } from "@/components/settings/ApiKeysSettings"
 import { RemoteSupportSettings } from "@/components/settings/RemoteSupportSettings"
 import { MySendmailSettings } from "@/components/settings/MySendmailSettings"
@@ -139,11 +137,6 @@ interface SettingsData {
     slackChannelId?: string
     slackNotifyOnNew?: boolean
     slackNotifyOnReply?: boolean
-    // Deployment notifications
-    deploymentNotificationsEnabled?: boolean
-    deploymentNotifyOnSuccess?: boolean
-    deploymentNotifyOnFailure?: boolean
-    deploymentNotifyOnAppError?: boolean
     // OpenAI
     openaiEnabled?: boolean
     openaiApiKey?: string
@@ -281,11 +274,6 @@ function SettingsContent() {
   const [slackChannelId, setSlackChannelId] = useState("")
   const [slackNotifyOnNew, setSlackNotifyOnNew] = useState(true)
   const [slackNotifyOnReply, setSlackNotifyOnReply] = useState(true)
-  // Deployment notifications
-  const [deploymentNotificationsEnabled, setDeploymentNotificationsEnabled] = useState(true)
-  const [deploymentNotifyOnSuccess, setDeploymentNotifyOnSuccess] = useState(false)
-  const [deploymentNotifyOnFailure, setDeploymentNotifyOnFailure] = useState(true)
-  const [deploymentNotifyOnAppError, setDeploymentNotifyOnAppError] = useState(true)
 
   // OpenAI
   const [openaiEnabled, setOpenaiEnabled] = useState(false)
@@ -421,10 +409,6 @@ function SettingsContent() {
         setSlackChannelId(data.settings?.slackChannelId || "")
         setSlackNotifyOnNew(data.settings?.slackNotifyOnNew ?? true)
         setSlackNotifyOnReply(data.settings?.slackNotifyOnReply ?? true)
-        setDeploymentNotificationsEnabled(data.settings?.deploymentNotificationsEnabled ?? true)
-        setDeploymentNotifyOnSuccess(data.settings?.deploymentNotifyOnSuccess ?? false)
-        setDeploymentNotifyOnFailure(data.settings?.deploymentNotifyOnFailure ?? true)
-        setDeploymentNotifyOnAppError(data.settings?.deploymentNotifyOnAppError ?? true)
         setOpenaiEnabled(data.settings?.openaiEnabled || false)
         setOpenaiApiKey(data.settings?.openaiApiKey || "")
         setOpenaiModel(data.settings?.openaiModel || "gpt-4o-mini")
@@ -828,17 +812,6 @@ function SettingsContent() {
       schedule: "Tous les jours à 8h",
       cronExpression: "0 8 * * *",
       requires: "Telegram Bot",
-    },
-    {
-      id: "deployment-monitor",
-      name: "Monitoring déploiements",
-      description: "Surveille les déploiements Dokploy et envoie des notifications",
-      endpoint: "/api/cron/deployment-monitor",
-      icon: Server,
-      color: "#28B95F",
-      schedule: "Toutes les 5 minutes",
-      cronExpression: "*/5 * * * *",
-      requires: "Dokploy API",
     },
     {
       id: "treasury-sync",
@@ -1820,10 +1793,6 @@ function SettingsContent() {
               <CreditCard className="h-4 w-4" />
               <span className="hidden sm:inline">Revolut</span>
             </button>
-            <button onClick={() => setActiveIntegrationTab("dokploy")} className="flex-1 min-w-[80px] px-3 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all" style={{ background: activeIntegrationTab === "dokploy" ? "#FFFFFF" : "transparent", color: activeIntegrationTab === "dokploy" ? "#0064FA" : "#666666", boxShadow: activeIntegrationTab === "dokploy" ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
-              <Server className="h-4 w-4" />
-              <span className="hidden sm:inline">Dokploy</span>
-            </button>
           </div>
 
           {/* Slack Settings */}
@@ -1901,97 +1870,6 @@ function SettingsContent() {
                     </div>
                   </div>
 
-                  {/* Deployment Notifications */}
-                  <div className="pt-6 mt-6" style={{ borderTop: "1px solid #EEEEEE" }}>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#F0FDF4" }}>
-                          <Server className="h-4 w-4" style={{ color: "#22C55E" }} />
-                        </div>
-                        <div>
-                          <h3 className="font-medium" style={{ color: "#111111" }}>Notifications Déploiements</h3>
-                          <p className="text-sm" style={{ color: "#666666" }}>Alertes Dokploy (Orion, Andromeda, Cassiopeia)</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={deploymentNotificationsEnabled}
-                        onClick={() => setDeploymentNotificationsEnabled(!deploymentNotificationsEnabled)}
-                        className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                        style={{ background: deploymentNotificationsEnabled ? "#22C55E" : "#CCCCCC" }}
-                      >
-                        <span
-                          className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
-                          style={{ transform: deploymentNotificationsEnabled ? "translateX(22px)" : "translateX(2px)" }}
-                        />
-                      </button>
-                    </div>
-
-                    {deploymentNotificationsEnabled && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#F5F5F7" }}>
-                          <div>
-                            <p className="font-medium" style={{ color: "#111111" }}>Déploiement réussi</p>
-                            <p className="text-sm" style={{ color: "#666666" }}>Notifier quand un déploiement se termine avec succès</p>
-                          </div>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={deploymentNotifyOnSuccess}
-                            onClick={() => setDeploymentNotifyOnSuccess(!deploymentNotifyOnSuccess)}
-                            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                            style={{ background: deploymentNotifyOnSuccess ? "#22C55E" : "#CCCCCC" }}
-                          >
-                            <span
-                              className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
-                              style={{ transform: deploymentNotifyOnSuccess ? "translateX(22px)" : "translateX(2px)" }}
-                            />
-                          </button>
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#FEF2F2" }}>
-                          <div>
-                            <p className="font-medium" style={{ color: "#111111" }}>Échec de déploiement</p>
-                            <p className="text-sm" style={{ color: "#666666" }}>Alerte quand un déploiement échoue</p>
-                          </div>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={deploymentNotifyOnFailure}
-                            onClick={() => setDeploymentNotifyOnFailure(!deploymentNotifyOnFailure)}
-                            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                            style={{ background: deploymentNotifyOnFailure ? "#EF4444" : "#CCCCCC" }}
-                          >
-                            <span
-                              className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
-                              style={{ transform: deploymentNotifyOnFailure ? "translateX(22px)" : "translateX(2px)" }}
-                            />
-                          </button>
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#FEF3C7" }}>
-                          <div>
-                            <p className="font-medium" style={{ color: "#111111" }}>Application en erreur</p>
-                            <p className="text-sm" style={{ color: "#666666" }}>Alerte quand une app est détectée en erreur sur Dokploy</p>
-                          </div>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={deploymentNotifyOnAppError}
-                            onClick={() => setDeploymentNotifyOnAppError(!deploymentNotifyOnAppError)}
-                            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                            style={{ background: deploymentNotifyOnAppError ? "#F59E0B" : "#CCCCCC" }}
-                          >
-                            <span
-                              className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
-                              style={{ transform: deploymentNotifyOnAppError ? "translateX(22px)" : "translateX(2px)" }}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
 
@@ -2002,7 +1880,7 @@ function SettingsContent() {
                     Tester
                   </button>
                 )}
-                <button onClick={() => handleSave("integrations", { slackEnabled, slackWebhookUrl, slackBotToken, slackChannelId, slackNotifyOnNew, slackNotifyOnReply, deploymentNotificationsEnabled, deploymentNotifyOnSuccess, deploymentNotifyOnFailure, deploymentNotifyOnAppError })} disabled={saving === "integrations"} className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background: "#5F00BA", color: "#FFFFFF" }}>
+                <button onClick={() => handleSave("integrations", { slackEnabled, slackWebhookUrl, slackBotToken, slackChannelId, slackNotifyOnNew, slackNotifyOnReply })} disabled={saving === "integrations"} className="px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50" style={{ background: "#5F00BA", color: "#FFFFFF" }}>
                   {saving === "integrations" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Enregistrer
                 </button>
@@ -3168,10 +3046,6 @@ function SettingsContent() {
             </div>
           )}
 
-          {/* Dokploy Settings */}
-          {activeIntegrationTab === "dokploy" && (
-            <DokploySettings />
-          )}
         </div>
       )}
 
@@ -3299,14 +3173,14 @@ function SettingsContent() {
             })}
           </div>
 
-          {/* Dokploy Configuration */}
+          {/* Cron Configuration */}
           <div className="rounded-xl p-4" style={{ background: "#F8F9FA", border: "1px solid #EEEEEE" }}>
             <div className="flex items-center gap-2 mb-3">
-              <Server className="h-5 w-5" style={{ color: "#28B95F" }} />
-              <h3 className="font-medium" style={{ color: "#111111" }}>Configuration Dokploy</h3>
+              <Key className="h-5 w-5" style={{ color: "#28B95F" }} />
+              <h3 className="font-medium" style={{ color: "#111111" }}>Configuration des Crons</h3>
             </div>
             <p className="text-sm mb-4" style={{ color: "#666666" }}>
-              Copiez ces lignes dans la section &quot;Cron Jobs&quot; de votre application Dokploy.
+              Configurez le secret et copiez les commandes pour vos tâches planifiées.
             </p>
 
             {/* Cron Secret Field */}

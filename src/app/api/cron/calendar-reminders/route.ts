@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
 // Cron Job - runs every 5 minutes to check for upcoming calendar events
-// Dokploy: */5 * * * * curl -s "https://crm.julienronot.fr/api/cron/calendar-reminders"
+// Schedule: */5 * * * *
 
 const DEFAULT_TENANT_ID = BigInt(1)
 const REMINDER_MINUTES = 10 // Send reminder 10 minutes before event

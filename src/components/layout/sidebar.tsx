@@ -24,7 +24,6 @@ import {
   Mail,
   StickyNote,
   FolderKanban,
-  Rocket,
   Download,
   BookOpen,
   Key,
@@ -73,7 +72,6 @@ const baseNavItems: Omit<NavItem, "badge">[] = [
   { id: "tickets", label: "Tickets", href: "/tickets", icon: Ticket },
   { id: "notes", label: "Notes", href: "/notes", icon: StickyNote },
   { id: "projects", label: "Projets", href: "/projects", icon: FolderKanban },
-  { id: "deployments", label: "Déploiements", href: "/deployments", icon: Rocket },
   {
     id: "tools",
     label: "Outils",
