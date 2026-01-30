@@ -1249,7 +1249,6 @@ export default function InvoiceDetailPage({
                     style={{
                       background: !creditNotePartialAmount ? "#FEF3C7" : "#F5F5F7",
                       color: !creditNotePartialAmount ? "#D97706" : "#666666",
-                      ringColor: "#D97706",
                     }}
                     onClick={() => setCreditNotePartialAmount("")}
                   >
@@ -1268,7 +1267,6 @@ export default function InvoiceDetailPage({
                       style={{
                         background: creditNotePartialAmount ? "#FEF3C7" : "#F5F5F7",
                         color: "#111111",
-                        ringColor: "#D97706",
                       }}
                     />
                     <span
