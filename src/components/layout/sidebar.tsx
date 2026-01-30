@@ -53,6 +53,7 @@ const baseNavItems: Omit<NavItem, "badge">[] = [
       { id: "invoices", label: "Factures", href: "/invoices" },
       { id: "quotes", label: "Devis", href: "/quotes" },
       { id: "prelevements", label: "Prélèvements", href: "/prelevements" },
+      { id: "virements", label: "Virements", href: "/virements" },
     ],
   },
   { id: "contracts", label: "Contrats", href: "/contracts", icon: FileSignature },

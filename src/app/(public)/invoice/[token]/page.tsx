@@ -10,6 +10,7 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  Landmark,
 } from "lucide-react"
 
 interface InvoiceData {
@@ -117,6 +118,18 @@ export default function PublicInvoicePage({
           label: "En retard",
           color: "text-red-600 bg-red-100",
           icon: AlertCircle,
+        }
+      case "exported_sepa":
+        return {
+          label: "Prélèvement en cours",
+          color: "text-purple-600 bg-purple-100",
+          icon: Landmark,
+        }
+      case "credit_note":
+        return {
+          label: "Avoir",
+          color: "text-amber-600 bg-amber-100",
+          icon: FileText,
         }
       default:
         return {

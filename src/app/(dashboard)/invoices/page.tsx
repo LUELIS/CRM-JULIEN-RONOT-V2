@@ -110,6 +110,10 @@ const statusConfig: Record<string, { label: string; color: string; bgColor: stri
   paid: { label: "Payée", color: "#28B95F", bgColor: "#D4EDDA" },
   overdue: { label: "En retard", color: "#F04B69", bgColor: "#FEE2E8" },
   cancelled: { label: "Annulée", color: "#666666", bgColor: "#F5F5F7" },
+  exported_sepa: { label: "Prélèvement exporté", color: "#5F00BA", bgColor: "#F3E8FF" },
+  exported_virement: { label: "Virement exporté", color: "#0891B2", bgColor: "#CFFAFE" },
+  refunded: { label: "Remboursée", color: "#059669", bgColor: "#D1FAE5" },
+  credit_note: { label: "Avoir", color: "#D97706", bgColor: "#FEF3C7" },
 }
 
 export default function InvoicesPage() {

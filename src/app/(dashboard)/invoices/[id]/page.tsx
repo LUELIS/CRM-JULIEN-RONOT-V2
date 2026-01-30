@@ -28,6 +28,7 @@ import {
   X,
   Loader2,
   RefreshCw,
+  ReceiptText,
 } from "lucide-react"
 import { StyledSelect, SelectOption } from "@/components/ui/styled-select"
 import { NotesSidebarCard } from "@/components/notes"
@@ -90,6 +91,10 @@ const statusConfig: Record<string, { label: string; color: string; bg: string }>
   paid: { label: "Payée", color: "#28B95F", bg: "#D4EDDA" },
   overdue: { label: "En retard", color: "#F0783C", bg: "#FFF3E0" },
   cancelled: { label: "Annulée", color: "#F04B69", bg: "#FEE2E8" },
+  exported_sepa: { label: "Prélèvement exporté", color: "#5F00BA", bg: "#F3E8FF" },
+  exported_virement: { label: "Virement exporté", color: "#0891B2", bg: "#CFFAFE" },
+  refunded: { label: "Remboursée", color: "#059669", bg: "#D1FAE5" },
+  credit_note: { label: "Avoir", color: "#D97706", bg: "#FEF3C7" },
 }
 
 export default function InvoiceDetailPage({
@@ -116,6 +121,12 @@ export default function InvoiceDetailPage({
     status: string
     message: string
   } | null>(null)
+
+  // Credit note (avoir) modal states
+  const [creditNoteDialogOpen, setCreditNoteDialogOpen] = useState(false)
+  const [creditNoteReason, setCreditNoteReason] = useState("")
+  const [creditNotePartialAmount, setCreditNotePartialAmount] = useState("")
+  const [creatingCreditNote, setCreatingCreditNote] = useState(false)
 
   // Mark as paid modal states
   const [markPaidDialogOpen, setMarkPaidDialogOpen] = useState(false)
@@ -215,6 +226,38 @@ export default function InvoiceDetailPage({
   const getClientInitials = () => {
     if (!invoice) return "??"
     return invoice.client.companyName.substring(0, 2).toUpperCase()
+  }
+
+  const handleCreateCreditNote = async () => {
+    if (!invoice) return
+
+    setCreatingCreditNote(true)
+    try {
+      const response = await fetch(`/api/invoices/${id}/credit-note`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: creditNoteReason || undefined,
+          partialAmount: creditNotePartialAmount ? parseFloat(creditNotePartialAmount) : undefined,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setCreditNoteDialogOpen(false)
+        setCreditNoteReason("")
+        setCreditNotePartialAmount("")
+        router.push(`/invoices/${data.creditNote.id}`)
+      } else {
+        alert(data.error || "Erreur lors de la création de l'avoir")
+      }
+    } catch (error) {
+      console.error("Error creating credit note:", error)
+      alert("Erreur lors de la création de l'avoir")
+    } finally {
+      setCreatingCreditNote(false)
+    }
   }
 
   const handleAction = async (action: string) => {
@@ -990,6 +1033,18 @@ export default function InvoiceDetailPage({
                 Dupliquer
               </button>
 
+              {invoice.status !== "draft" && invoice.status !== "cancelled" && (
+                <button
+                  className="w-full px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-opacity hover:opacity-80"
+                  style={{ background: "#FEF3C7", color: "#D97706" }}
+                  onClick={() => setCreditNoteDialogOpen(true)}
+                  disabled={actionLoading}
+                >
+                  <ReceiptText className="h-4 w-4" />
+                  Créer un avoir
+                </button>
+              )}
+
               <button
                 className="w-full px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-opacity hover:opacity-80"
                 style={{ background: "#F5F5F7", color: "#666666" }}
@@ -1139,6 +1194,134 @@ export default function InvoiceDetailPage({
           <NotesSidebarCard entityType="invoice" entityId={id} />
         </div>
       </div>
+
+      {/* Credit Note Modal */}
+      {creditNoteDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-6"
+            style={{ background: "#FFFFFF" }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: "#FEF3C7" }}
+              >
+                <ReceiptText className="h-5 w-5" style={{ color: "#D97706" }} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: "#111111" }}>
+                  Créer un avoir
+                </h3>
+                <p className="text-sm" style={{ color: "#666666" }}>
+                  Facture {invoice.invoiceNumber}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#666666" }}>
+                  Motif de l&apos;avoir (optionnel)
+                </label>
+                <textarea
+                  value={creditNoteReason}
+                  onChange={(e) => setCreditNoteReason(e.target.value)}
+                  placeholder="Ex: Remboursement suite à annulation..."
+                  className="w-full px-4 py-3 rounded-xl outline-none resize-none"
+                  style={{ background: "#F5F5F7", color: "#111111" }}
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#666666" }}>
+                  Montant de l&apos;avoir
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    className={`flex-1 px-4 py-2.5 rounded-xl font-medium transition-colors ${
+                      !creditNotePartialAmount ? "ring-2 ring-offset-2" : ""
+                    }`}
+                    style={{
+                      background: !creditNotePartialAmount ? "#FEF3C7" : "#F5F5F7",
+                      color: !creditNotePartialAmount ? "#D97706" : "#666666",
+                      ringColor: "#D97706",
+                    }}
+                    onClick={() => setCreditNotePartialAmount("")}
+                  >
+                    Total: {formatCurrency(invoice.totalTtc)}
+                  </button>
+                  <div className="flex-1 relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={creditNotePartialAmount}
+                      onChange={(e) => setCreditNotePartialAmount(e.target.value)}
+                      placeholder="Montant partiel"
+                      className={`w-full px-4 py-2.5 rounded-xl outline-none ${
+                        creditNotePartialAmount ? "ring-2 ring-offset-2" : ""
+                      }`}
+                      style={{
+                        background: creditNotePartialAmount ? "#FEF3C7" : "#F5F5F7",
+                        color: "#111111",
+                        ringColor: "#D97706",
+                      }}
+                    />
+                    <span
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-sm"
+                      style={{ color: "#666666" }}
+                    >
+                      €
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="p-4 rounded-xl"
+                style={{ background: "#F5F5F7" }}
+              >
+                <p className="text-sm" style={{ color: "#666666" }}>
+                  L&apos;avoir sera créé en brouillon avec un montant de{" "}
+                  <strong style={{ color: "#D97706" }}>
+                    -{formatCurrency(creditNotePartialAmount ? parseFloat(creditNotePartialAmount) : invoice.totalTtc)}
+                  </strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                className="flex-1 px-4 py-2.5 rounded-xl font-medium transition-opacity hover:opacity-80"
+                style={{ background: "#F5F5F7", color: "#666666" }}
+                onClick={() => {
+                  setCreditNoteDialogOpen(false)
+                  setCreditNoteReason("")
+                  setCreditNotePartialAmount("")
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                className="flex-1 px-4 py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+                style={{ background: "#D97706", color: "#FFFFFF" }}
+                onClick={handleCreateCreditNote}
+                disabled={creatingCreditNote}
+              >
+                {creatingCreditNote ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Créer l'avoir"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteDialogOpen && (

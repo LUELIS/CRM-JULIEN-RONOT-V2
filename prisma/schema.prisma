@@ -197,6 +197,7 @@ model Invoice {
   invoice_type                       invoices_invoice_type   @default(standard)
   deposit_percentage                 Decimal?                @db.Decimal(5, 2)
   deposit_invoice_id                 BigInt?                 @db.UnsignedBigInt
+  original_invoice_id                BigInt?                 @db.UnsignedBigInt
   clientId                           BigInt                  @map("client_id") @db.UnsignedBigInt
   type                               InvoiceType             @default(standard)
   status                             String?                 @default("draft") @db.VarChar(20)
@@ -233,6 +234,8 @@ model Invoice {
   client                             Client                  @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "invoices_client_id_foreign")
   invoices                           Invoice?                @relation("invoicesToinvoices", fields: [deposit_invoice_id], references: [id], onUpdate: NoAction, map: "invoices_deposit_invoice_id_foreign")
   other_invoices                     Invoice[]               @relation("invoicesToinvoices")
+  originalInvoice                    Invoice?                @relation("creditNoteToOriginal", fields: [original_invoice_id], references: [id], onUpdate: NoAction, map: "invoices_original_invoice_id_foreign")
+  creditNotes                        Invoice[]               @relation("creditNoteToOriginal")
   quote                              Quote?                  @relation(fields: [quoteId], references: [id], onUpdate: NoAction, map: "invoices_quote_id_foreign")
   tenants                            tenants                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "invoices_tenant_id_foreign")
   quotes_quotes_invoice_idToinvoices Quote[]                 @relation("quotes_invoice_idToinvoices")
@@ -241,6 +244,7 @@ model Invoice {
   @@unique([tenant_id, invoiceNumber], map: "invoices_tenant_invoice_number_unique")
   @@index([clientId], map: "invoices_client_id_foreign")
   @@index([deposit_invoice_id], map: "invoices_deposit_invoice_id_foreign")
+  @@index([original_invoice_id], map: "invoices_original_invoice_id_foreign")
   @@index([publicToken], map: "invoices_public_token_index")
   @@index([quoteId], map: "invoices_quote_id_foreign")
   @@index([tenant_id, externalId], map: "invoices_tenant_id_external_id_index")
@@ -1258,6 +1262,7 @@ enum InvoiceType {
   standard
   deposit
   recurring
+  credit_note
 }
 
 enum RecurringFrequency {
@@ -1359,6 +1364,7 @@ enum invoices_invoice_type {
   standard
   deposit
   balance
+  credit_note
 }
 
 enum quotes_status {
