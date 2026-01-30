@@ -85,6 +85,7 @@ export async function GET(
     return NextResponse.json({
       id: invoice.id.toString(),
       invoiceNumber: invoice.invoiceNumber,
+      invoiceType: invoice.invoice_type,
       status: invoice.status,
       clientId: invoice.clientId.toString(),
       issueDate: invoice.issueDate.toISOString(),

@@ -54,6 +54,7 @@ interface InvoiceItem {
 interface Invoice {
   id: string
   invoiceNumber: string
+  invoiceType: string
   status: string
   issueDate: string
   dueDate: string
@@ -207,7 +208,9 @@ export default function InvoiceDetailPage({
 
   const isOverdue = () => {
     if (!invoice) return false
-    if (invoice.status === "paid" || invoice.status === "cancelled") return false
+    // Credit notes (avoirs) cannot be overdue - they are refunds to make, not payments to receive
+    if (invoice.invoiceType === "credit_note") return false
+    if (invoice.status === "paid" || invoice.status === "cancelled" || invoice.status === "refunded") return false
     return new Date(invoice.dueDate) < new Date()
   }
 

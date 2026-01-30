@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
     invoices: invoices.map((inv) => ({
       id: inv.id.toString(),
       invoiceNumber: inv.invoiceNumber,
+      invoiceType: inv.invoice_type,
       status: inv.status,
       totalHt: Number(inv.subtotalHt),
       totalTtc: Number(inv.totalTtc),
