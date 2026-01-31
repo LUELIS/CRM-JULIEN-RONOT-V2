@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Paperclip, Upload, X, File, Image, FileText, Download, Trash2, Loader2 } from "lucide-react"
+import { Paperclip, Upload, X, File, Image, FileText, Download, Trash2, Loader2, Eye, Maximize2 } from "lucide-react"
 
 interface Attachment {
   id: string
@@ -24,6 +24,9 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
   const [dragOver, setDragOver] = useState(false)
   const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({})
   const [presignedUrls, setPresignedUrls] = useState<Record<string, string>>({})
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch presigned URLs for S3 attachments
@@ -78,6 +81,10 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
     return null
   }
 
+  const canPreview = (mimeType: string) => {
+    return mimeType.startsWith("image/") || mimeType === "application/pdf"
+  }
+
   const uploadFile = async (file: File) => {
     setUploading(true)
     try {
@@ -125,29 +132,42 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
     }
   }
 
-  const handleDownload = async (attachment: Attachment) => {
-    let url = getAttachmentUrl(attachment)
+  const handlePreview = async (attachment: Attachment) => {
+    setPreviewAttachment(attachment)
+    setPreviewLoading(true)
 
-    // If URL not ready, fetch it
-    if (!url && attachment.filePath.startsWith("s3://")) {
-      try {
-        const res = await fetch(`/api/projects/cards/${cardId}/attachments/${attachment.id}/url`)
-        if (res.ok) {
-          const data = await res.json()
-          url = data.url
-          setPresignedUrls((prev) => ({ ...prev, [attachment.id]: data.url }))
-        }
-      } catch (error) {
-        console.error("Error fetching download URL:", error)
-        alert("Erreur lors du telechargement")
-        return
+    try {
+      // Fetch URL for viewing (no download disposition)
+      const res = await fetch(`/api/projects/cards/${cardId}/attachments/${attachment.id}/url`)
+      if (res.ok) {
+        const data = await res.json()
+        setPreviewUrl(data.url)
       }
+    } catch (error) {
+      console.error("Error fetching preview URL:", error)
+    } finally {
+      setPreviewLoading(false)
     }
+  }
 
-    if (url) {
-      // Open in new tab for download
-      window.open(url, "_blank")
+  const handleDownload = async (attachment: Attachment) => {
+    try {
+      // Fetch URL with download=true for forced download
+      const res = await fetch(`/api/projects/cards/${cardId}/attachments/${attachment.id}/url?download=true`)
+      if (res.ok) {
+        const data = await res.json()
+        // Open in new tab to trigger download
+        window.open(data.url, "_blank")
+      }
+    } catch (error) {
+      console.error("Error fetching download URL:", error)
+      alert("Erreur lors du telechargement")
     }
+  }
+
+  const closePreview = () => {
+    setPreviewAttachment(null)
+    setPreviewUrl(null)
   }
 
   const handleDrop = (e: React.DragEvent) => {
@@ -172,6 +192,7 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
   }
 
   const isImage = (mimeType: string) => mimeType.startsWith("image/")
+  const isPdf = (mimeType: string) => mimeType === "application/pdf"
 
   return (
     <div>
@@ -225,26 +246,34 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
             const FileIcon = getFileIcon(attachment.mimeType)
             const url = getAttachmentUrl(attachment)
             const isLoading = loadingUrls[attachment.id]
+            const previewable = canPreview(attachment.mimeType)
 
             return (
               <div
                 key={attachment.id}
-                className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg group"
+                className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors"
               >
                 {/* Preview or icon */}
                 {isImage(attachment.mimeType) ? (
-                  <div className="w-10 h-10 rounded overflow-hidden bg-gray-200 shrink-0">
+                  <div
+                    className="w-10 h-10 rounded overflow-hidden bg-gray-200 shrink-0 cursor-pointer relative group/thumb"
+                    onClick={() => handlePreview(attachment)}
+                  >
                     {isLoading ? (
                       <div className="w-full h-full flex items-center justify-center">
                         <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                       </div>
                     ) : url ? (
-                      <img
-                        src={url}
-                        alt={attachment.fileName}
-                        className="w-full h-full object-cover cursor-pointer"
-                        onClick={() => url && window.open(url, "_blank")}
-                      />
+                      <>
+                        <img
+                          src={url}
+                          alt={attachment.fileName}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                          <Maximize2 className="h-4 w-4 text-white" />
+                        </div>
+                      </>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <FileIcon className="h-5 w-5 text-gray-400" />
@@ -252,13 +281,19 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
                     )}
                   </div>
                 ) : (
-                  <div className="w-10 h-10 rounded bg-gray-200 flex items-center justify-center shrink-0">
+                  <div
+                    className={`w-10 h-10 rounded bg-gray-200 flex items-center justify-center shrink-0 ${previewable ? "cursor-pointer hover:bg-gray-300" : ""}`}
+                    onClick={() => previewable && handlePreview(attachment)}
+                  >
                     <FileIcon className="h-5 w-5 text-gray-500" />
                   </div>
                 )}
 
                 {/* Info */}
-                <div className="flex-1 min-w-0">
+                <div
+                  className={`flex-1 min-w-0 ${previewable ? "cursor-pointer" : ""}`}
+                  onClick={() => previewable && handlePreview(attachment)}
+                >
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {attachment.fileName}
                   </p>
@@ -269,6 +304,15 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
 
                 {/* Actions */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {previewable && (
+                    <button
+                      onClick={() => handlePreview(attachment)}
+                      className="p-1.5 text-gray-400 hover:text-[#0064FA] hover:bg-[#0064FA]/10 rounded transition-colors"
+                      title="Visualiser"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDownload(attachment)}
                     className="p-1.5 text-gray-400 hover:text-[#0064FA] hover:bg-[#0064FA]/10 rounded transition-colors"
@@ -288,6 +332,90 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
             )
           })}
         </div>
+      )}
+
+      {/* Preview Modal */}
+      {previewAttachment && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/80 z-[60]"
+            onClick={closePreview}
+          />
+          <div className="fixed inset-4 z-[60] flex items-center justify-center pointer-events-none">
+            <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col pointer-events-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <div className="flex items-center gap-3 min-w-0">
+                  {isImage(previewAttachment.mimeType) ? (
+                    <Image className="h-5 w-5 text-gray-400 shrink-0" />
+                  ) : (
+                    <FileText className="h-5 w-5 text-gray-400 shrink-0" />
+                  )}
+                  <span className="font-medium text-gray-900 truncate">
+                    {previewAttachment.fileName}
+                  </span>
+                  <span className="text-sm text-gray-500 shrink-0">
+                    ({formatFileSize(previewAttachment.fileSize)})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownload(previewAttachment)}
+                    className="p-2 text-gray-400 hover:text-[#0064FA] hover:bg-[#0064FA]/10 rounded-lg transition-colors"
+                    title="Telecharger"
+                  >
+                    <Download className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={closePreview}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-gray-100">
+                {previewLoading ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-[#0064FA]" />
+                    <span className="text-sm text-gray-500">Chargement...</span>
+                  </div>
+                ) : previewUrl ? (
+                  isImage(previewAttachment.mimeType) ? (
+                    <img
+                      src={previewUrl}
+                      alt={previewAttachment.fileName}
+                      className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                    />
+                  ) : isPdf(previewAttachment.mimeType) ? (
+                    <iframe
+                      src={previewUrl}
+                      className="w-full h-[70vh] rounded-lg border border-gray-200"
+                      title={previewAttachment.fileName}
+                    />
+                  ) : (
+                    <div className="text-center text-gray-500">
+                      <File className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                      <p>Apercu non disponible</p>
+                      <button
+                        onClick={() => handleDownload(previewAttachment)}
+                        className="mt-4 px-4 py-2 bg-[#0064FA] text-white rounded-lg text-sm font-medium hover:bg-[#0052CC]"
+                      >
+                        Telecharger
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <div className="text-center text-gray-500">
+                    <p>Erreur de chargement</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
