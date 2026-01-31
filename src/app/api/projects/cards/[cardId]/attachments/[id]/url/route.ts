@@ -6,7 +6,7 @@ import { getS3Config, getPresignedDownloadUrl } from "@/lib/s3"
 // GET: Get presigned URL for an attachment
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ cardId: string; attachmentId: string }> }
+  { params }: { params: Promise<{ cardId: string; id: string }> }
 ) {
   try {
     const session = await auth()
@@ -14,12 +14,12 @@ export async function GET(
       return NextResponse.json({ error: "Non autorise" }, { status: 401 })
     }
 
-    const { cardId, attachmentId } = await params
+    const { cardId, id } = await params
 
     // Get attachment from database
     const attachment = await prisma.projectCardAttachment.findFirst({
       where: {
-        id: BigInt(attachmentId),
+        id: BigInt(id),
         cardId: BigInt(cardId),
       },
     })
