@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { Paperclip, Upload, X, File, Image, FileText, Download, Trash2 } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Paperclip, Upload, X, File, Image, FileText, Download, Trash2, Loader2 } from "lucide-react"
 
 interface Attachment {
   id: string
@@ -22,7 +22,37 @@ interface AttachmentListProps {
 export default function AttachmentList({ cardId, attachments, onUpdate }: AttachmentListProps) {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({})
+  const [presignedUrls, setPresignedUrls] = useState<Record<string, string>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch presigned URLs for S3 attachments
+  useEffect(() => {
+    const fetchUrls = async () => {
+      for (const attachment of attachments) {
+        // Skip if we already have the URL or if it's not an S3 path
+        if (presignedUrls[attachment.id] || !attachment.filePath.startsWith("s3://")) {
+          continue
+        }
+
+        setLoadingUrls((prev) => ({ ...prev, [attachment.id]: true }))
+
+        try {
+          const res = await fetch(`/api/projects/cards/${cardId}/attachments/${attachment.id}/url`)
+          if (res.ok) {
+            const data = await res.json()
+            setPresignedUrls((prev) => ({ ...prev, [attachment.id]: data.url }))
+          }
+        } catch (error) {
+          console.error("Error fetching presigned URL:", error)
+        } finally {
+          setLoadingUrls((prev) => ({ ...prev, [attachment.id]: false }))
+        }
+      }
+    }
+
+    fetchUrls()
+  }, [attachments, cardId])
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`
@@ -34,6 +64,18 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
     if (mimeType.startsWith("image/")) return Image
     if (mimeType === "application/pdf" || mimeType.includes("document")) return FileText
     return File
+  }
+
+  const getAttachmentUrl = (attachment: Attachment): string | null => {
+    // Use presigned URL if available
+    if (presignedUrls[attachment.id]) {
+      return presignedUrls[attachment.id]
+    }
+    // Use direct path for non-S3 files
+    if (!attachment.filePath.startsWith("s3://")) {
+      return attachment.filePath
+    }
+    return null
   }
 
   const uploadFile = async (file: File) => {
@@ -70,10 +112,41 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
       })
 
       if (res.ok) {
+        // Clear cached URL
+        setPresignedUrls((prev) => {
+          const next = { ...prev }
+          delete next[attachmentId]
+          return next
+        })
         onUpdate()
       }
     } catch (error) {
       console.error("Error deleting attachment:", error)
+    }
+  }
+
+  const handleDownload = async (attachment: Attachment) => {
+    let url = getAttachmentUrl(attachment)
+
+    // If URL not ready, fetch it
+    if (!url && attachment.filePath.startsWith("s3://")) {
+      try {
+        const res = await fetch(`/api/projects/cards/${cardId}/attachments/${attachment.id}/url`)
+        if (res.ok) {
+          const data = await res.json()
+          url = data.url
+          setPresignedUrls((prev) => ({ ...prev, [attachment.id]: data.url }))
+        }
+      } catch (error) {
+        console.error("Error fetching download URL:", error)
+        alert("Erreur lors du telechargement")
+        return
+      }
+    }
+
+    if (url) {
+      // Open in new tab for download
+      window.open(url, "_blank")
     }
   }
 
@@ -150,6 +223,8 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
         <div className="mt-3 space-y-2">
           {attachments.map((attachment) => {
             const FileIcon = getFileIcon(attachment.mimeType)
+            const url = getAttachmentUrl(attachment)
+            const isLoading = loadingUrls[attachment.id]
 
             return (
               <div
@@ -159,11 +234,22 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
                 {/* Preview or icon */}
                 {isImage(attachment.mimeType) ? (
                   <div className="w-10 h-10 rounded overflow-hidden bg-gray-200 shrink-0">
-                    <img
-                      src={attachment.filePath}
-                      alt={attachment.fileName}
-                      className="w-full h-full object-cover"
-                    />
+                    {isLoading ? (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                      </div>
+                    ) : url ? (
+                      <img
+                        src={url}
+                        alt={attachment.fileName}
+                        className="w-full h-full object-cover cursor-pointer"
+                        onClick={() => url && window.open(url, "_blank")}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <FileIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="w-10 h-10 rounded bg-gray-200 flex items-center justify-center shrink-0">
@@ -183,17 +269,17 @@ export default function AttachmentList({ cardId, attachments, onUpdate }: Attach
 
                 {/* Actions */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <a
-                    href={attachment.filePath}
-                    download={attachment.fileName}
+                  <button
+                    onClick={() => handleDownload(attachment)}
                     className="p-1.5 text-gray-400 hover:text-[#0064FA] hover:bg-[#0064FA]/10 rounded transition-colors"
-                    onClick={(e) => e.stopPropagation()}
+                    title="Telecharger"
                   >
                     <Download className="h-4 w-4" />
-                  </a>
+                  </button>
                   <button
                     onClick={() => deleteAttachment(attachment.id)}
                     className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                    title="Supprimer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
